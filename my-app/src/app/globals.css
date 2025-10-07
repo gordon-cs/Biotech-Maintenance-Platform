@@ -2,7 +2,8 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  /* Use pure black for maximum contrast on light background */
+  --foreground: #000000;
 }
 
 @theme inline {
@@ -23,4 +24,22 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Ensure all text content uses the foreground color (improves readability) */
+/* We use !important here to override Tailwind utility classes that may set muted colors. */
+body, body * {
+  color: var(--foreground) !important;
+}
+
+/* Make form placeholders readable as well */
+input::placeholder,
+textarea::placeholder {
+  color: var(--foreground) !important;
+  opacity: 0.9 !important;
+}
+
+/* Force black text for content inside light-background utilities (cards, forms) */
+.bg-white, .bg-white * , .bg-gray-50, .bg-gray-50 * {
+  color: #000000 !important;
 }
