@@ -1,4 +1,4 @@
-import CompleteProfileWrapper from "../components/CompleteProfileWrapper"
+import CompleteProfileWrapper from "../components/profile/CompleteProfileWrapper"
 
 export default function CompleteProfilePage() {
   return <CompleteProfileWrapper />
