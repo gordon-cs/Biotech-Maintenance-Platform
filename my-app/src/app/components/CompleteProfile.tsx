@@ -1,70 +1,70 @@
-"use client";
+"use client"
 
-import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import { useEffect, useState } from "react"
+import { supabase } from "@/lib/supabaseClient"
 
 type Profile = {
-  id: string;
-  role: "lab" | "technician" | null;
-  full_name: string | null;
-  phone: string | null;
-  email?: string | null;
-};
+  id: string
+  role: "lab" | "technician" | null
+  full_name: string | null
+  phone: string | null
+  email?: string | null
+}
 
 export default function CompleteProfile() {
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState<string | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [message, setMessage] = useState<string | null>(null)
 
-  const [fullName, setFullName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [fullName, setFullName] = useState("")
+  const [phone, setPhone] = useState("")
   // lab fields
-  const [labName, setLabName] = useState("");
-  const [labAddress, setLabAddress] = useState("");
+  const [labName, setLabName] = useState("")
+  const [labAddress, setLabAddress] = useState("")
 
   useEffect(() => {
     const load = async () => {
       const {
         data: { session },
-      } = await supabase.auth.getSession();
+      } = await supabase.auth.getSession()
       if (!session?.user) {
-        setMessage("You must sign in to complete your profile.");
-        setLoading(false);
-        return;
+        setMessage("You must sign in to complete your profile.")
+        setLoading(false)
+        return
       }
 
-      const userId = session.user.id;
+      const userId = session.user.id
       const { data, error } = await supabase
         .from("profiles")
         .select("*")
         .eq("id", userId)
-        .single<Profile>();
+        .single<Profile>()
 
       if (error) {
-        setMessage(`Failed to fetch profile: ${error.message}`);
+        setMessage(`Failed to fetch profile: ${error.message}`)
       } else if (data) {
-        setProfile(data);
-        setFullName(data.full_name ?? "");
-        setPhone(data.phone ?? "");
+        setProfile(data)
+        setFullName(data.full_name ?? "")
+        setPhone(data.phone ?? "")
       }
 
-      setLoading(false);
-    };
-
-    load();
-  }, []);
-
-  const handleSave = async () => {
-    setMessage(null);
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    if (!session?.user) {
-      setMessage("You must sign in to save your profile.");
-      return;
+      setLoading(false)
     }
 
-    const token = session.access_token;
+    load()
+  }, [])
+
+  const handleSave = async () => {
+    setMessage(null)
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+    if (!session?.user) {
+      setMessage("You must sign in to save your profile.")
+      return
+    }
+
+    const token = session.access_token
 
     const payload = {
       role: profile?.role ?? null,
@@ -74,7 +74,7 @@ export default function CompleteProfile() {
         name: labName,
         address: labAddress,
       },
-    };
+    }
 
     const res = await fetch("/api/create-profile", {
       method: "POST",
@@ -83,18 +83,18 @@ export default function CompleteProfile() {
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(payload),
-    });
+    })
 
-    const result = await res.json();
+    const result = await res.json()
     if (!res.ok) {
-      setMessage(`Save failed: ${result.error}`);
-      return;
+      setMessage(`Save failed: ${result.error}`)
+      return
     }
 
-    setMessage("Profile updated");
-  };
+    setMessage("Profile updated")
+  }
 
-  if (loading) return <div className="p-4">Loading...</div>;
+  if (loading) return <div className="p-4">Loading...</div>
 
   return (
     <div className="p-4 border rounded bg-white w-full max-w-md">
@@ -125,5 +125,5 @@ export default function CompleteProfile() {
         </button>
       </div>
     </div>
-  );
+  )
 }

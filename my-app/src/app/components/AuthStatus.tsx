@@ -1,10 +1,10 @@
-"use client";
+"use client"
 
-import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import type { Session } from "@supabase/supabase-js";
+import { useEffect, useState } from "react"
+import { supabase } from "@/lib/supabaseClient"
+import { useRouter } from "next/navigation"
+import Link from "next/link"
+import type { Session } from "@supabase/supabase-js"
 
 export default function AuthStatus() {
   const [session, setSession] = useState<Session | null>(null);
@@ -26,7 +26,7 @@ export default function AuthStatus() {
 
     return () => {
       mounted = false;
-      sub?.subscription.unsubscribe();
+      sub?.subscription.unsubscribe()
     };
   }, []);
 
