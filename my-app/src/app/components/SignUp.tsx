@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { supabase } from "@/lib/supabaseClient"
+import type { Session } from "@supabase/supabase-js"
 
 export default function SignUp() {
   const [email, setEmail] = useState("")
@@ -16,7 +17,10 @@ export default function SignUp() {
     setMessage(null)
 
     try {
-      const { error: signUpError } = await supabase.auth.signUp({ email, password })
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+      })
 
       if (signUpError) {
         setMessage(`Error: ${signUpError.message}`)
@@ -25,8 +29,8 @@ export default function SignUp() {
 
       setSignupSuccess(true)
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      setMessage(message ?? "An unexpected error occurred")
+      const msg = err instanceof Error ? err.message : String(err)
+      setMessage(msg || "An unexpected error occurred")
     } finally {
       setLoading(false)
     }

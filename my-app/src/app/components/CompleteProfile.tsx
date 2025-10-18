@@ -3,8 +3,16 @@
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabaseClient"
 
+type Profile = {
+  id: string
+  role: "lab" | "technician" | null
+  full_name: string | null
+  phone: string | null
+  email?: string | null
+}
+
 export default function CompleteProfile() {
-  const [profile, setProfile] = useState<any>(null)
+  const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState<string | null>(null)
 
@@ -16,7 +24,9 @@ export default function CompleteProfile() {
 
   useEffect(() => {
     const load = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
       if (!session?.user) {
         setMessage("You must sign in to complete your profile.")
         setLoading(false)
@@ -24,13 +34,18 @@ export default function CompleteProfile() {
       }
 
       const userId = session.user.id
-      const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single()
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .single<Profile>()
+
       if (error) {
         setMessage(`Failed to fetch profile: ${error.message}`)
-      } else {
+      } else if (data) {
         setProfile(data)
-        setFullName(data?.full_name ?? "")
-        setPhone(data?.phone ?? "")
+        setFullName(data.full_name ?? "")
+        setPhone(data.phone ?? "")
       }
 
       setLoading(false)
@@ -47,7 +62,9 @@ export default function CompleteProfile() {
 
   const handleSave = async () => {
     setMessage(null)
-    const { data: { session } } = await supabase.auth.getSession()
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
     if (!session?.user) {
       setMessage("You must sign in to save your profile.")
       return
@@ -62,14 +79,14 @@ export default function CompleteProfile() {
       lab: {
         name: labAddress,
         address: labAddress,
-      }
+      },
     }
 
-    const res = await fetch('/api/create-profile', {
-      method: 'POST',
+    const res = await fetch("/api/create-profile", {
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(payload),
     })
@@ -80,7 +97,7 @@ export default function CompleteProfile() {
       return
     }
 
-    setMessage('Profile updated')
+    setMessage("Profile updated")
   }
 
   if (loading) return <div className="p-4">Loading...</div>
