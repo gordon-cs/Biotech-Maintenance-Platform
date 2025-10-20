@@ -1,22 +1,26 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabaseClient"
 
 export default function CompleteProfile() {
+  const router = useRouter()
   const [profile, setProfile] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
 
   const [role, setRole] = useState<"manager" | "technician" | "">("")
   const [fullName, setFullName] = useState("")
   const [phone, setPhone] = useState("")
-  const [labAddress, setLabAddress] = useState("")
   const [certificate, setCertificate] = useState<File | null>(null)
 
   useEffect(() => {
     const load = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
       if (!session?.user) {
         setMessage("You must sign in to complete your profile.")
         setLoading(false)
@@ -24,13 +28,20 @@ export default function CompleteProfile() {
       }
 
       const userId = session.user.id
-      const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single()
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .single()
+
       if (error) {
-        setMessage(`Failed to fetch profile: ${error.message}`)
+        // no existing profile is fine
+        setProfile(null)
       } else {
         setProfile(data)
         setFullName(data?.full_name ?? "")
         setPhone(data?.phone ?? "")
+        setRole(data?.role ?? "")
       }
 
       setLoading(false)
@@ -45,42 +56,57 @@ export default function CompleteProfile() {
     }
   }
 
-  const handleSave = async () => {
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault()
     setMessage(null)
-    const { data: { session } } = await supabase.auth.getSession()
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
     if (!session?.user) {
       setMessage("You must sign in to save your profile.")
       return
     }
+    const userId = session.user.id
 
-    const token = session.access_token
-
-    const payload = {
-      role: profile?.role ?? null,
-      full_name: fullName,
-      phone,
-      lab: {
-        name: labAddress,
-        address: labAddress,
-      }
-    }
-
-    const res = await fetch('/api/create-profile', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify(payload),
-    })
-
-    const result = await res.json()
-    if (!res.ok) {
-      setMessage(`Save failed: ${result.error}`)
+    if (role === "manager") {
+      // go to lab info step, pass fullName & phone via query
+      const q = `?fullName=${encodeURIComponent(fullName)}&phone=${encodeURIComponent(phone)}`
+      router.push(`/complete-lab${q}`)
       return
     }
 
-    setMessage('Profile updated')
+    // technician: save profile client-side (simple upsert)
+    try {
+      setSaving(true)
+      const payload: any = {
+        id: userId,
+        role,
+        full_name: fullName,
+        phone,
+      }
+
+      // TODO: implement file upload for certificate and set certificate_url in payload
+      const { data: upserted, error } = await supabase
+        .from("profiles")
+        .upsert([payload], { onConflict: "id" })
+        .select()
+        .single()
+
+      if (error) {
+        setMessage(`Save failed: ${error.message}`)
+        setSaving(false)
+        return
+      }
+
+      setMessage("Profile saved")
+      router.replace("/")
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setMessage(msg)
+    } finally {
+      setSaving(false)
+    }
   }
 
   if (loading) return <div className="p-4">Loading...</div>
@@ -88,7 +114,8 @@ export default function CompleteProfile() {
   return (
     <div className="p-4 border rounded bg-white w-full max-w-md mx-auto mt-10">
       <h3 className="font-semibold mb-4 text-center">Complete Your Profile</h3>
-      {message && <p className="text-green-600 text-center mb-4">{message}</p>}
+      {message && <p className="text-sm text-center mb-4">{message}</p>}
+
       <form onSubmit={handleSave}>
         <div className="mb-4">
           <label className="block mb-2 font-medium">Select your role:</label>
@@ -125,35 +152,23 @@ export default function CompleteProfile() {
               <input
                 type="text"
                 value={fullName}
-                onChange={e => setFullName(e.target.value)}
+                onChange={(e) => setFullName(e.target.value)}
                 className="w-full border px-2 py-1 rounded"
                 required
               />
             </div>
+
             <div className="mb-4">
               <label className="block mb-1">Phone Number</label>
               <input
                 type="tel"
                 value={phone}
-                onChange={e => setPhone(e.target.value)}
+                onChange={(e) => setPhone(e.target.value)}
                 className="w-full border px-2 py-1 rounded"
                 required
               />
             </div>
           </>
-        )}
-
-        {role === "manager" && (
-          <div className="mb-4">
-            <label className="block mb-1">Lab Address</label>
-            <input
-              type="text"
-              value={labAddress}
-              onChange={e => setLabAddress(e.target.value)}
-              className="w-full border px-2 py-1 rounded"
-              required
-            />
-          </div>
         )}
 
         {role === "technician" && (
@@ -164,7 +179,6 @@ export default function CompleteProfile() {
               accept=".pdf,image/*"
               onChange={handleFileChange}
               className="w-full"
-              required
             />
             {certificate && <p className="text-sm mt-1">{certificate.name}</p>}
           </div>
@@ -172,10 +186,10 @@ export default function CompleteProfile() {
 
         <button
           type="submit"
-          className="w-full py-2 bg-blue-600 text-white rounded font-semibold mt-4"
-          disabled={!role}
+          className="w-full py-2 bg-blue-600 text-white rounded font-semibold mt-4 disabled:opacity-60"
+          disabled={!role || saving}
         >
-          Submit Profile
+          {role === "manager" ? "Next" : saving ? "Saving..." : "Submit Profile"}
         </button>
       </form>
     </div>
