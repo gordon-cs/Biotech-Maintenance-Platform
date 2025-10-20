@@ -29,9 +29,24 @@ export default function CompleteLabInfo({ initialFull = "", initialPhone = "" }:
   const [message, setMessage] = useState<string | null>(null)
 
   useEffect(() => {
-    setFullName(initialFull)
-    setPhone(initialPhone)
-  }, [initialFull, initialPhone])
+    // Log initial values to help diagnose the issue
+    console.log('Initial values:', { initialFull, initialPhone })
+    
+    // Set the form values if we have them
+    if (initialFull) setFullName(initialFull)
+    if (initialPhone) setPhone(initialPhone)
+    
+    // Only redirect if we're absolutely sure we don't have the data
+    // and we're not in the middle of loading it
+    const timer = setTimeout(() => {
+      if (!initialFull || !initialPhone) {
+        console.log('Missing required data:', { initialFull, initialPhone })
+        router.push('/complete-profile')
+      }
+    }, 500) // Increased timeout to ensure we have time to get the data
+
+    return () => clearTimeout(timer)
+  }, [initialFull, initialPhone, router])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -58,12 +73,13 @@ export default function CompleteLabInfo({ initialFull = "", initialPhone = "" }:
           "Authorization": `Bearer ${session.access_token}`
         },
         body: JSON.stringify({
-          role: "lab", // Now we can set it to lab since we're creating the lab entry
-          full_name: fullName,
-          phone: phone,
+          role: "lab",
+          full_name: fullName || initialFull, // Use the initial values if no changes
+          phone: phone || initialPhone,
           lab: {
             name: labName,
             address: address1,
+            address2: address2 || null, // Include address2 field
             city: city,
             state: stateVal,
             zipcode: zipcode

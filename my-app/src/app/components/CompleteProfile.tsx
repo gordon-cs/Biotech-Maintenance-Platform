@@ -106,9 +106,16 @@ export default function CompleteProfile() {
           throw new Error(error.error || "Failed to save profile")
         }
 
-        // Then go to lab info step
-        const q = `?fullName=${encodeURIComponent(fullName)}&phone=${encodeURIComponent(phone)}`
-        router.push(`/complete-lab${q}`)
+        // Then go to lab info step with query parameters
+        const searchParams = new URLSearchParams()
+        searchParams.set('fullName', fullName)
+        searchParams.set('phone', phone)
+        
+        // Log what we're passing
+        console.log('Navigating with params:', { fullName, phone })
+        
+        // Use router.push with the URLSearchParams
+        router.push(`/complete-lab?${searchParams.toString()}`)
         return
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)

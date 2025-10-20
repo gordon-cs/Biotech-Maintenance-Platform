@@ -13,6 +13,7 @@ type CreateProfileBody = {
   lab?: {
     name?: string | null
     address?: string | null
+    address2?: string | null
     city?: string | null
     state?: string | null
     zipcode?: string | null
@@ -46,28 +47,52 @@ export async function POST(req: NextRequest) {
 
   const userId = user.id
 
-    // upsert into profiles
+    // First get existing profile to preserve any fields not being updated
+    const { data: existingProfile } = await serviceClient
+      .from("profiles")
+      .select("*")
+      .eq("id", userId)
+      .single()
+
+    // upsert into profiles, preserving existing values if not provided in request
     const profileRow = {
       id: userId,
       role: body.role,
-      full_name: body.full_name ?? null,
-      phone: body.phone ?? null,
-      email: user.email ?? null,
+      full_name: body.full_name ?? existingProfile?.full_name ?? null,
+      phone: body.phone ?? existingProfile?.phone ?? null,
+      email: user.email ?? existingProfile?.email ?? null,
     }
 
     const { error: pErr } = await serviceClient.from("profiles").upsert(profileRow)
     if (pErr) return NextResponse.json({ error: pErr.message }, { status: 500 })
 
     if (body.role === "lab") {
+      // First get any existing lab for this manager
+      const { data: existingLab } = await serviceClient
+        .from("labs")
+        .select("id")
+        .eq("manager_id", userId)
+        .single()
+
       const lab = {
         manager_id: userId,
         name: body.lab?.name ?? null,
         address: body.lab?.address ?? null,
+        address2: body.lab?.address2 ?? null,
         city: body.lab?.city ?? null,
         state: body.lab?.state ?? null,
         zipcode: body.lab?.zipcode ?? null,
       }
-      const { error: lErr } = await serviceClient.from("labs").insert(lab)
+
+      // If lab exists, update it. If not, create it.
+      const { error: lErr } = await serviceClient
+        .from("labs")
+        .upsert(
+          existingLab 
+            ? { ...lab, id: existingLab.id }
+            : lab,
+          { onConflict: 'manager_id' }
+        )
       if (lErr) return NextResponse.json({ error: lErr.message }, { status: 500 })
     }
 
