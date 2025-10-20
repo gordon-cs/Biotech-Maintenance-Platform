@@ -16,11 +16,11 @@ export default function CompleteProfile() {
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState<string | null>(null)
 
+  const [role, setRole] = useState<"manager" | "technician" | "">("")
   const [fullName, setFullName] = useState("")
   const [phone, setPhone] = useState("")
-  // lab fields
-  const [labName, setLabName] = useState("")
   const [labAddress, setLabAddress] = useState("")
+  const [certificate, setCertificate] = useState<File | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -54,6 +54,12 @@ export default function CompleteProfile() {
     load()
   }, [])
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setCertificate(e.target.files[0])
+    }
+  }
+
   const handleSave = async () => {
     setMessage(null)
     const {
@@ -71,7 +77,7 @@ export default function CompleteProfile() {
       full_name: fullName,
       phone,
       lab: {
-        name: labName,
+        name: labAddress,
         address: labAddress,
       },
     }
@@ -97,33 +103,98 @@ export default function CompleteProfile() {
   if (loading) return <div className="p-4">Loading...</div>
 
   return (
-    <div className="p-4 border rounded bg-white w-full max-w-md">
-      <h3 className="font-semibold mb-2">Complete your profile</h3>
-      {message && <p className="text-sm text-black">{message}</p>}
+    <div className="p-4 border rounded bg-white w-full max-w-md mx-auto mt-10">
+      <h3 className="font-semibold mb-4 text-center">Complete Your Profile</h3>
+      {message && <p className="text-green-600 text-center mb-4">{message}</p>}
+      <form onSubmit={handleSave}>
+        <div className="mb-4">
+          <label className="block mb-2 font-medium">Select your role:</label>
+          <div className="flex gap-4">
+            <label>
+              <input
+                type="radio"
+                name="role"
+                value="manager"
+                checked={role === "manager"}
+                onChange={() => setRole("manager")}
+                required
+              />{" "}
+              Lab Manager
+            </label>
+            <label>
+              <input
+                type="radio"
+                name="role"
+                value="technician"
+                checked={role === "technician"}
+                onChange={() => setRole("technician")}
+                required
+              />{" "}
+              Technician
+            </label>
+          </div>
+        </div>
 
-      <label className="block mb-2">
-        <span className="text-sm">Full name</span>
-        <input
-          value={fullName}
-          onChange={(e) => setFullName(e.target.value)}
-          className="mt-1 block w-full border px-2 py-1 rounded"
-        />
-      </label>
+        {role && (
+          <>
+            <div className="mb-4">
+              <label className="block mb-1">Full Name</label>
+              <input
+                type="text"
+                value={fullName}
+                onChange={e => setFullName(e.target.value)}
+                className="w-full border px-2 py-1 rounded"
+                required
+              />
+            </div>
+            <div className="mb-4">
+              <label className="block mb-1">Phone Number</label>
+              <input
+                type="tel"
+                value={phone}
+                onChange={e => setPhone(e.target.value)}
+                className="w-full border px-2 py-1 rounded"
+                required
+              />
+            </div>
+          </>
+        )}
 
-      <label className="block mb-2">
-        <span className="text-sm">Phone</span>
-        <input
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          className="mt-1 block w-full border px-2 py-1 rounded"
-        />
-      </label>
+        {role === "manager" && (
+          <div className="mb-4">
+            <label className="block mb-1">Lab Address</label>
+            <input
+              type="text"
+              value={labAddress}
+              onChange={e => setLabAddress(e.target.value)}
+              className="w-full border px-2 py-1 rounded"
+              required
+            />
+          </div>
+        )}
 
-      <div className="flex items-center gap-2">
-        <button onClick={handleSave} className="px-3 py-1 bg-blue-600 text-white rounded">
-          Save
+        {role === "technician" && (
+          <div className="mb-4">
+            <label className="block mb-1">Certificate (PDF or Image)</label>
+            <input
+              type="file"
+              accept=".pdf,image/*"
+              onChange={handleFileChange}
+              className="w-full"
+              required
+            />
+            {certificate && <p className="text-sm mt-1">{certificate.name}</p>}
+          </div>
+        )}
+
+        <button
+          type="submit"
+          className="w-full py-2 bg-blue-600 text-white rounded font-semibold mt-4"
+          disabled={!role}
+        >
+          Submit Profile
         </button>
-      </div>
+      </form>
     </div>
   )
 }
