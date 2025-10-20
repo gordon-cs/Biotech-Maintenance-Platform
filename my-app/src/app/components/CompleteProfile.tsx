@@ -4,9 +4,17 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabaseClient"
 
+type Profile = {
+  id: string
+  role: "lab" | "technician" | null
+  full_name: string | null
+  phone: string | null
+  email?: string | null
+}
+
 export default function CompleteProfile() {
+  const [profile, setProfile] = useState<Profile | null>(null)
   const router = useRouter()
-  const [profile, setProfile] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
@@ -59,7 +67,6 @@ export default function CompleteProfile() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
     setMessage(null)
-
     const {
       data: { session },
     } = await supabase.auth.getSession()

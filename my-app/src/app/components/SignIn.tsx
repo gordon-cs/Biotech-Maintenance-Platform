@@ -31,8 +31,8 @@ export default function SignIn() {
   }
 
   return (
-    <form onSubmit={handleSignIn} className="p-4 border rounded bg-white w-full max-w-md">
-      <h3 className="font-semibold mb-2">Sign in</h3>
+    <form onSubmit={handleSignIn} className="p-4 border rounded bg-white w-full max-w-md mx-auto mt-10">
+      <h3 className="font-semibold mb-4 text-center">Sign in</h3>
       <label className="block mb-2">
         <span className="text-sm">Email</span>
         <input className="mt-1 block w-full border px-2 py-1 rounded" value={email} onChange={(e) => setEmail(e.target.value)} />
