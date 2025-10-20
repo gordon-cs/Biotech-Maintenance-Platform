@@ -4,6 +4,17 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabaseClient"
 
+type Lab = {
+  id: string
+  name: string
+  address: string
+  address2?: string
+  city: string
+  state: string
+  zipcode: string
+  manager_id: string
+}
+
 export default function CompleteLabInfo({ initialFull = "", initialPhone = "" }: { initialFull?: string; initialPhone?: string }) {
   const router = useRouter()
   const [labName, setLabName] = useState("")
@@ -54,7 +65,7 @@ export default function CompleteLabInfo({ initialFull = "", initialPhone = "" }:
 
       const { error: profErr } = await supabase
         .from("profiles")
-        .update({ lab_id: (lab as any).id, full_name: fullName, phone })
+        .update({ lab_id: (lab as Lab).id, full_name: fullName, phone })
         .eq("id", userId)
 
       if (profErr) throw profErr

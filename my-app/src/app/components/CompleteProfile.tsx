@@ -19,7 +19,8 @@ export default function CompleteProfile() {
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
 
-  const [role, setRole] = useState<"manager" | "technician" | "">("")
+  const [role, setRole] = useState<"manager" | "technician" | null>(null)
+  const [selectedRole, setSelectedRole] = useState<"manager" | "technician" | null>(null)
   const [fullName, setFullName] = useState("")
   const [phone, setPhone] = useState("")
   const [certificate, setCertificate] = useState<File | null>(null)
@@ -86,11 +87,12 @@ export default function CompleteProfile() {
     // technician: save profile client-side (simple upsert)
     try {
       setSaving(true)
-      const payload: any = {
+      const payload: Profile = {
         id: userId,
-        role,
+        role: "technician",
         full_name: fullName,
         phone,
+        email: null
       }
 
       // TODO: implement file upload for certificate and set certificate_url in payload
