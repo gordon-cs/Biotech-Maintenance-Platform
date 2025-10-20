@@ -39,7 +39,7 @@ export default function SignUp() {
   if (signupSuccess) {
     return (
       <div className="p-4 border rounded bg-white w-full max-w-md mx-auto mt-10 text-center">
-        <h3 className="font-semibold mb-2">Signup Successful!</h3>
+        <h3 className="font-semibold mb-4 text-center">Signup Successful!</h3>
         <p className="text-sm">
           Please check your email and click the confirmation link to activate your account.
         </p>
@@ -48,8 +48,8 @@ export default function SignUp() {
   }
 
   return (
-    <form onSubmit={handleSignUp} className="p-4 border rounded bg-white w-full max-w-md">
-      <h3 className="font-semibold mb-2">Create an account</h3>
+    <form onSubmit={handleSignUp} className="p-4 border rounded bg-white w-full max-w-md mx-auto mt-10">
+      <h3 className="font-semibold mb-4 text-center">Create an account</h3>
 
       <label className="block mb-2">
         <span className="text-sm">Email</span>

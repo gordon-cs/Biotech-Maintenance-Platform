@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
 
     if (body.role === "technician") {
       const tech = {
-        profile_id: userId,
+        id: userId,
         experience: body.tech?.experience ?? null,
         bio: body.tech?.bio ?? null,
       }
