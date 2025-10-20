@@ -45,30 +45,36 @@ export default function CompleteLabInfo({ initialFull = "", initialPhone = "" }:
         setLoading(false)
         return
       }
-      const userId = session.user.id
 
-      const { data: lab, error: labError } = await supabase
-        .from("labs")
-        .insert([{
-          name: labName,
-          address: address1,
-          address2,
-          city,
-          state: stateVal,
-          zipcode,
-          manager_id: userId
-        }])
-        .select()
-        .single()
+      if (!session.access_token) {
+        throw new Error("No access token found")
+      }
 
-      if (labError) throw labError
+      // Create/update profile and lab via API route
+      const response = await fetch("/api/create-profile", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          role: "lab", // Now we can set it to lab since we're creating the lab entry
+          full_name: fullName,
+          phone: phone,
+          lab: {
+            name: labName,
+            address: address1,
+            city: city,
+            state: stateVal,
+            zipcode: zipcode
+          }
+        })
+      })
 
-      const { error: profErr } = await supabase
-        .from("profiles")
-        .update({ lab_id: (lab as Lab).id, full_name: fullName, phone })
-        .eq("id", userId)
-
-      if (profErr) throw profErr
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || "Failed to save lab info")
+      }
 
       console.log("Lab created, redirecting to /")
       setLoading(false)

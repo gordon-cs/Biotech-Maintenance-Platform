@@ -78,10 +78,44 @@ export default function CompleteProfile() {
     const userId = session.user.id
 
     if (role === "manager") {
-      // go to lab info step, pass fullName & phone via query
-      const q = `?fullName=${encodeURIComponent(fullName)}&phone=${encodeURIComponent(phone)}`
-      router.push(`/complete-lab${q}`)
-      return
+      try {
+        setSaving(true)
+        
+        // Get the auth token
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session?.access_token) {
+          throw new Error("No access token found")
+        }
+
+        // Save profile via API route which uses service role
+        const response = await fetch("/api/create-profile", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({
+            role: "manager", // Set as manager initially
+            full_name: fullName,
+            phone: phone
+          })
+        })
+
+        if (!response.ok) {
+          const error = await response.json()
+          throw new Error(error.error || "Failed to save profile")
+        }
+
+        // Then go to lab info step
+        const q = `?fullName=${encodeURIComponent(fullName)}&phone=${encodeURIComponent(phone)}`
+        router.push(`/complete-lab${q}`)
+        return
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        setMessage(msg)
+        setSaving(false)
+        return
+      }
     }
 
     // technician: save profile client-side (simple upsert)
