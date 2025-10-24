@@ -21,6 +21,7 @@ type CreateProfileBody = {
   tech?: {
     experience?: string | null
     bio?: string | null
+    company?: string | null
   } | null
 }
 
@@ -101,8 +102,25 @@ export async function POST(req: NextRequest) {
         id: userId,
         experience: body.tech?.experience ?? null,
         bio: body.tech?.bio ?? null,
+        company: body.tech?.company ?? null
       }
-      const { error: tErr } = await serviceClient.from("technicians").insert(tech)
+
+      // First check if technician already exists
+      const { data: existingTech } = await serviceClient
+        .from("technicians")
+        .select("id")
+        .eq("id", userId)
+        .single()
+
+      // Use upsert to handle both insert and update cases
+      const { error: tErr } = await serviceClient
+        .from("technicians")
+        .upsert(
+          existingTech
+            ? { ...tech, id: existingTech.id }
+            : tech,
+          { onConflict: 'id' }
+        )
       if (tErr) return NextResponse.json({ error: tErr.message }, { status: 500 })
     }
 
