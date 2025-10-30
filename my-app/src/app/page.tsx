@@ -28,7 +28,7 @@ export default function Home() {
     const userId = session.user.id
 
     // fetch profile and confirm role is "lab"
-    let profRes = await supabase
+    const profRes = await supabase
       .from("profiles")
       .select("role")
       .eq("id", userId)
@@ -88,7 +88,7 @@ export default function Home() {
         }
       }
 
-      const { data, error } = await supabase.from("work_orders").insert([{
+      const { error } = await supabase.from("work_orders").insert([{
         title: serviceArea || "Service request",
         description: `Category: ${category}\nDate: ${date}`,
         created_by: userId,
@@ -118,7 +118,7 @@ export default function Home() {
   useEffect(() => {
     const load = async () => {
       const { data, error } = await supabase.from("categories").select("id,slug,name")
-      if (!error && data) setCategoriesList(data as any)
+      if (!error && data) setCategoriesList(data as Array<{id:number, slug:string, name:string}>)
     }
     load()
   }, [])
