@@ -51,7 +51,7 @@ export default function WorkOrderSubmission() {
     setForm((s) => ({ ...s, [name]: value }))
   }
 
-  // ✅ Ensure current user is a manager of a lab and return the lab id
+  // Ensure current user is a manager of a lab and return the lab id
   const resolveLabIdForManager = async (userId: string): Promise<number> => {
     const { data: labRow, error } = await supabase
       .from("labs")
@@ -112,8 +112,10 @@ export default function WorkOrderSubmission() {
         setResult({ id: inserted?.id, message: "Work order submitted successfully." })
         setForm({ title: "", description: "", equipment: "", urgency: "", category_id: "", date: "" })
       }
-    } catch (err: any) {
-      setResult({ message: err?.message ?? String(err) })
+    } catch (err: unknown) {
+      // avoid `any` — extract message safely
+      const message = err instanceof Error ? err.message : String(err)
+      setResult({ message })
     } finally {
       setLoading(false)
     }
