@@ -9,6 +9,7 @@ import { supabase } from "./lib/supabaseClient"
 type UserMetadata = { role?: string }
 type ProfileRow = { role?: string | null }
 
+//test//
 export default function Home() {
   const [role, setRole] = useState<string | null>(null)
   const [loadingRole, setLoadingRole] = useState(true)
