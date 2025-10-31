@@ -7,3 +7,6 @@ Senior Project: Problem Statement
 
 
 [View the Initial Design Document Google Doc](https://docs.google.com/document/d/1VKDtVU5bJd-vo0UoOiiXJWm3jlVbeRv9kVqSKAV5WQI/edit?usp=sharing)
+
+
+[View the Initial Setup Guide Google Doc](https://docs.google.com/document/d/1UmBzsSn8KSae8E6zIPa5BilChfpzylDUkqIbXDprjMg/edit?usp=sharing)
