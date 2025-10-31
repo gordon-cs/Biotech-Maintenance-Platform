@@ -23,7 +23,6 @@ export default function CompleteProfile() {
   const [selectedRole, setSelectedRole] = useState<"manager" | "technician" | null>(null)
   const [fullName, setFullName] = useState("")
   const [phone, setPhone] = useState("")
-  const [certificate, setCertificate] = useState<File | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -58,12 +57,6 @@ export default function CompleteProfile() {
 
     load()
   }, [])
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setCertificate(e.target.files[0])
-    }
-  }
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -125,32 +118,45 @@ export default function CompleteProfile() {
       }
     }
 
-    // technician: save profile client-side (simple upsert)
+    // For technicians, save basic profile then redirect to tech info
     try {
       setSaving(true)
-      const payload: Profile = {
-        id: userId,
-        role: "technician",
-        full_name: fullName,
-        phone,
-        email: null
+      
+      // Get the auth token
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        throw new Error("No access token found")
       }
 
-      // TODO: implement file upload for certificate and set certificate_url in payload
-      const { data: upserted, error } = await supabase
-        .from("profiles")
-        .upsert([payload], { onConflict: "id" })
-        .select()
-        .single()
+      // Save profile via API route which uses service role
+      const response = await fetch("/api/create-profile", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          role: "technician",
+          full_name: fullName,
+          phone: phone
+        })
+      })
 
-      if (error) {
-        setMessage(`Save failed: ${error.message}`)
-        setSaving(false)
-        return
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || "Failed to save profile")
       }
 
-      setMessage("Profile saved")
-      router.replace("/")
+      // Then go to tech info step with query parameters
+      const searchParams = new URLSearchParams()
+      searchParams.set('fullName', fullName)
+      searchParams.set('phone', phone)
+      
+      // Log what we're passing
+      console.log('Navigating to tech info with params:', { fullName, phone })
+      
+      // Use router.push with the URLSearchParams
+      router.push(`/complete-tech?${searchParams.toString()}`)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       setMessage(msg)
@@ -219,19 +225,6 @@ export default function CompleteProfile() {
               />
             </div>
           </>
-        )}
-
-        {role === "technician" && (
-          <div className="mb-4">
-            <label className="block mb-1">Certificate (PDF or Image)</label>
-            <input
-              type="file"
-              accept=".pdf,image/*"
-              onChange={handleFileChange}
-              className="w-full"
-            />
-            {certificate && <p className="text-sm mt-1">{certificate.name}</p>}
-          </div>
         )}
 
         <button
