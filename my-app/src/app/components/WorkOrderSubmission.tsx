@@ -1,10 +1,11 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import { supabase } from "@/lib/supabaseClient"
 import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 
-// add a specific payload type instead of `any`
+// payload type (no `any`)
 type WorkOrderPayload = {
   title: string | null
   description: string | null
@@ -16,33 +17,42 @@ type WorkOrderPayload = {
   created_by?: string | null
 }
 
-// change returned row id to string (UUID) or use string | number if uncertain
-type WorkOrderRow = {
-  id: string
-  title?: string | null
-  description?: string | null
-  equipment?: string | null
-  urgency?: string | null
-  lab?: number | null
-  category_id?: number | null
-  date?: string | null
-  created_by?: string | null
-  status?: string | null
-  created_at?: string | null
-}
+// small row shapes used for casting query results
+type LabRow = { id: number; manager_id: string }
+// full category shape used in the dropdown
+type CategoryRow = { id: number; slug: string; name: string }
+type InsertIdRow = { id: string } // bigint/int8 is returned as string by the client
 
-// update result state type to accept string id
 export default function WorkOrderSubmission() {
+  const searchParams = useSearchParams()
+  const initialCategory = searchParams?.get("category") ?? ""
+  const initialDate = searchParams?.get("date") ?? ""
+
   const [form, setForm] = useState({
     title: "",
     description: "",
     equipment: "",
-    urgency: "",
-    category_id: "",
-    date: "",
+    urgency: "", // display "Select..." by default
+    category_id: initialCategory, // can be slug or id
+    date: initialDate,
   })
+  const [categories, setCategories] = useState<CategoryRow[]>([])
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<{ id?: string; message: string } | null>(null)
+
+  useEffect(() => {
+    let mounted = true
+    const load = async () => {
+      const { data, error } = await supabase.from("categories").select("id,slug,name")
+      if (!error && data && mounted) {
+        setCategories(data as CategoryRow[])
+      }
+    }
+    load()
+    return () => {
+      mounted = false
+    }
+  }, [])
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -53,17 +63,18 @@ export default function WorkOrderSubmission() {
 
   // Ensure current user is a manager of a lab and return the lab id
   const resolveLabIdForManager = async (userId: string): Promise<number> => {
-    const { data: labRow, error } = await supabase
+    // removed generic on .from to avoid mismatched generic typing; cast result instead
+    const res = await supabase
       .from("labs")
       .select("id, manager_id")
       .eq("manager_id", userId)
       .maybeSingle()
 
-    if (error) throw error
+    if (res.error) throw res.error
+    const labRow = res.data as LabRow | null
     if (!labRow?.id) {
       throw new Error("You are not registered as a manager of any lab.")
     }
-    // (If the user manages multiple labs, provide a selection UI or use the first one.)
     return Number(labRow.id)
   }
 
@@ -79,26 +90,48 @@ export default function WorkOrderSubmission() {
     }
 
     try {
-      const { data: { user }, error: userErr } = await supabase.auth.getUser()
+      const { data: authData, error: userErr } = await supabase.auth.getUser()
       if (userErr) throw userErr
+      const user = authData?.user
       if (!user?.id) throw new Error("Not authenticated.")
 
-      // 🔹 Only allow labs where the current user is the manager
+      // Only allow labs where the current user is the manager
       const labId = await resolveLabIdForManager(user.id)
+
+      // resolve category id if the provided value is a slug
+      let resolvedCategoryId: number | null = null
+      const catVal = (form.category_id ?? "").toString().trim()
+      if (catVal) {
+        if (/^\d+$/.test(catVal)) {
+          resolvedCategoryId = Number(catVal)
+        } else {
+          const catRes = await supabase
+            .from("categories")
+            .select("id")
+            .eq("slug", catVal)
+            .maybeSingle()
+          if (catRes.error) {
+            setResult({ message: "Unable to resolve category." })
+            setLoading(false)
+            return
+          }
+          const catRow = catRes.data as { id: number } | null
+          resolvedCategoryId = catRow?.id ?? null
+        }
+      }
 
       const payload: WorkOrderPayload = {
         title: form.title || null,
         description: form.description || null,
         equipment: form.equipment || null,
-        urgency: form.urgency || "normal",
+        // if user didn't pick an urgency (empty string), default to "normal"
+        urgency: (form.urgency && form.urgency.trim() ? String(form.urgency) : "normal").toLowerCase(),
         lab: labId,
-        category_id: form.category_id ? Number(form.category_id) : null,
+        category_id: resolvedCategoryId,
         date: form.date || null,
         created_by: user.id,
       }
 
-
-      // typed insert expecting id as string (bigint returned as string)
       const { data, error } = await supabase
         .from("work_orders")
         .insert(payload)
@@ -108,12 +141,11 @@ export default function WorkOrderSubmission() {
       if (error) {
         setResult({ message: `Insert error: ${error.message}` })
       } else {
-        const inserted = data as { id: string } | null
+        const inserted = data as InsertIdRow | null
         setResult({ id: inserted?.id, message: "Work order submitted successfully." })
         setForm({ title: "", description: "", equipment: "", urgency: "", category_id: "", date: "" })
       }
     } catch (err: unknown) {
-      // avoid `any` — extract message safely
       const message = err instanceof Error ? err.message : String(err)
       setResult({ message })
     } finally {
@@ -126,15 +158,9 @@ export default function WorkOrderSubmission() {
       {result && (
         <div className="mb-4 p-3 border rounded bg-gray-50 text-center">
           <div className="font-semibold">{result.message}</div>
-          {result.id && (
-            <div className="text-xs text-gray-600 mt-1">
-              ID: <code>{String(result.id)}</code>
-            </div>
-          )}
+          {result.id && <div className="text-xs text-gray-600 mt-1">ID: <code>{String(result.id)}</code></div>}
           <div className="mt-2">
-            <button onClick={() => setResult(null)} className="px-3 py-1 bg-blue-600 text-white rounded">
-              Close
-            </button>
+            <button onClick={() => setResult(null)} className="px-3 py-1 bg-blue-600 text-white rounded">Close</button>
           </div>
         </div>
       )}
@@ -163,10 +189,10 @@ export default function WorkOrderSubmission() {
             name="urgency"
             value={form.urgency}
             onChange={handleChange}
-            required
             className="w-full border px-2 py-1 rounded"
           >
             <option value="">Select…</option>
+            <option value="normal">Normal</option>
             <option value="low">Low</option>
             <option value="medium">Medium</option>
             <option value="high">High</option>
@@ -174,11 +200,21 @@ export default function WorkOrderSubmission() {
           </select>
         </label>
 
-        {/* No Lab input field (lab is resolved automatically) */}
-
         <label className="block mb-3">
-          <div className="text-sm mb-1">Category (id)</div>
-          <input name="category_id" value={form.category_id} onChange={handleChange} className="w-full border px-2 py-1 rounded" />
+          <div className="text-sm mb-1">Category</div>
+          <select
+            name="category_id"
+            value={form.category_id}
+            onChange={handleChange}
+            className="w-full border px-2 py-1 rounded"
+          >
+            <option value="">{categories.length ? "Select category…" : "Loading categories…"}</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.slug}>
+                {c.name}
+              </option>
+            ))}
+          </select>
         </label>
 
         <label className="block mb-4">
