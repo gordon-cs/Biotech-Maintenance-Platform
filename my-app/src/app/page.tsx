@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabaseClient"
 import AuthStatus from "./components/AuthStatus"
@@ -13,7 +13,39 @@ export default function Home() {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
-  const [categoriesList, setCategoriesList] = useState<Array<{id:number, slug:string, name:string}>>([])
+  const [categoriesList, setCategoriesList] = useState<Array<{ id: number; slug: string; name: string }>>([])
+
+  // redirect to manager dashboard if user role is "lab"
+  useEffect(() => {
+    let mounted = true
+    const redirectIfLab = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        const user = session?.user
+        if (!user) return
+
+        // check user_metadata first (avoid extra query)
+        const metaRole = (user.user_metadata as Record<string, unknown> | undefined)?.role as string | undefined
+        if (metaRole?.toLowerCase() === "lab") {
+          router.push("/manager")
+          return
+        }
+
+        // fallback: check profiles table
+        const profRes = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle()
+        if (!profRes.error && profRes.data?.role?.toLowerCase() === "lab") {
+          if (mounted) router.push("/manager")
+        }
+      } catch {
+        // ignore failures here
+      }
+    }
+
+    redirectIfLab()
+    return () => {
+      mounted = false
+    }
+  }, [router])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -118,7 +150,7 @@ export default function Home() {
   useEffect(() => {
     const load = async () => {
       const { data, error } = await supabase.from("categories").select("id,slug,name")
-      if (!error && data) setCategoriesList(data as Array<{id:number, slug:string, name:string}>)
+      if (!error && data) setCategoriesList(data as Array<{ id: number; slug: string; name: string }>)
     }
     load()
   }, [])
@@ -135,64 +167,62 @@ export default function Home() {
           <h2 className="text-lg font-semibold mb-4">Work Order</h2>
 
           <div className="bg-white rounded-2xl p-6 shadow-sm">
-            {/* navigate to submission page instead of submitting here */}
             <form className="space-y-6" onSubmit={(e) => e.preventDefault()}>
-               {/* Large service area input */}
-               <label className="block">
-                 <div className="flex items-center gap-3 border rounded-xl px-4 py-6">
-                   <svg className="w-6 h-6 text-gray-600" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                     <path d="M12 2L15 8H9L12 2Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                     <path d="M4 14H20" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                     <path d="M6 18H18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                   </svg>
+              <label className="block">
+                <div className="flex items-center gap-3 border rounded-xl px-4 py-6">
+                  <svg className="w-6 h-6 text-gray-600" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 2L15 8H9L12 2Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M4 14H20" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M6 18H18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
 
-                   <input
-                     value={serviceArea}
-                     onChange={(e) => setServiceArea(e.target.value)}
-                     placeholder="Service Area"
-                     className="flex-1 bg-transparent outline-none text-lg placeholder-gray-500"
-                     required
-                   />
-                 </div>
-               </label>
+                  <input
+                    value={serviceArea}
+                    onChange={(e) => setServiceArea(e.target.value)}
+                    placeholder="Service Area"
+                    className="flex-1 bg-transparent outline-none text-lg placeholder-gray-500"
+                    required
+                  />
+                </div>
+              </label>
 
-               {/* Row: Date and Category */}
-               <div className="grid grid-cols-2 gap-4">
-                 <label className="block">
-                   <div className="flex items-center gap-3 border rounded-xl px-4 py-4">
-                     <svg className="w-5 h-5 text-gray-600" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                       <path d="M7 11H17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                       <rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="1.5"/>
-                     </svg>
-                     <input
-                       type="date"
-                       value={date}
-                       onChange={(e) => setDate(e.target.value)}
-                       className="bg-transparent outline-none text-sm"
-                       required
-                     />
-                   </div>
-                 </label>
+              {/* Row: Date and Category */}
+              <div className="grid grid-cols-2 gap-4">
+                <label className="block">
+                  <div className="flex items-center gap-3 border rounded-xl px-4 py-4">
+                    <svg className="w-5 h-5 text-gray-600" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M7 11H17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      <rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="1.5"/>
+                    </svg>
+                    <input
+                      type="date"
+                      value={date}
+                      onChange={(e) => setDate(e.target.value)}
+                      className="bg-transparent outline-none text-sm"
+                      required
+                    />
+                  </div>
+                </label>
 
-                 <label className="block">
-                   <div className="flex items-center gap-3 border rounded-xl px-4 py-4">
-                     <select
-                       value={category}
-                       onChange={(e) => setCategory(e.target.value)}
-                       className="bg-transparent outline-none text-sm w-full"
-                       required
-                     >
-                       <option value="" disabled>Category</option>
-                       {categoriesList.map((cat) => (
-                         <option key={cat.id} value={cat.slug}>{cat.name}</option>
-                       ))}
-                     </select>
-                   </div>
-                 </label>
-               </div>
+                <label className="block">
+                  <div className="flex items-center gap-3 border rounded-xl px-4 py-4">
+                    <select
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value)}
+                      className="bg-transparent outline-none text-sm w-full"
+                      required
+                    >
+                      <option value="" disabled>Category</option>
+                      {categoriesList.map((cat) => (
+                        <option key={cat.id} value={cat.slug}>{cat.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </label>
+              </div>
 
-               {/* Navigate to the full submission page */}
-               <div>
+              {/* Navigate to the full submission page */}
+              <div>
                 <button
                   type="button"
                   onClick={() =>
@@ -207,10 +237,10 @@ export default function Home() {
                   Submit Work Order
                 </button>
               </div>
-             </form>
-           </div>
-         </section>
-       </main>
-     </div>
-   )
+            </form>
+          </div>
+        </section>
+      </main>
+    </div>
+  )
 }
