@@ -135,77 +135,82 @@ export default function Home() {
           <h2 className="text-lg font-semibold mb-4">Work Order</h2>
 
           <div className="bg-white rounded-2xl p-6 shadow-sm">
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Large service area input */}
-              <label className="block">
-                <div className="flex items-center gap-3 border rounded-xl px-4 py-6">
-                  <svg className="w-6 h-6 text-gray-600" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 2L15 8H9L12 2Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M4 14H20" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M6 18H18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
+            {/* navigate to submission page instead of submitting here */}
+            <form className="space-y-6" onSubmit={(e) => e.preventDefault()}>
+               {/* Large service area input */}
+               <label className="block">
+                 <div className="flex items-center gap-3 border rounded-xl px-4 py-6">
+                   <svg className="w-6 h-6 text-gray-600" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                     <path d="M12 2L15 8H9L12 2Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                     <path d="M4 14H20" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                     <path d="M6 18H18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                   </svg>
 
-                  <input
-                    value={serviceArea}
-                    onChange={(e) => setServiceArea(e.target.value)}
-                    placeholder="Service Area"
-                    className="flex-1 bg-transparent outline-none text-lg placeholder-gray-500"
-                    required
-                  />
-                </div>
-              </label>
+                   <input
+                     value={serviceArea}
+                     onChange={(e) => setServiceArea(e.target.value)}
+                     placeholder="Service Area"
+                     className="flex-1 bg-transparent outline-none text-lg placeholder-gray-500"
+                     required
+                   />
+                 </div>
+               </label>
 
-              {/* Row: Date and Category */}
-              <div className="grid grid-cols-2 gap-4">
-                <label className="block">
-                  <div className="flex items-center gap-3 border rounded-xl px-4 py-4">
-                    <svg className="w-5 h-5 text-gray-600" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M7 11H17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                      <rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="1.5"/>
-                    </svg>
-                    <input
-                      type="date"
-                      value={date}
-                      onChange={(e) => setDate(e.target.value)}
-                      className="bg-transparent outline-none text-sm"
-                      required
-                    />
-                  </div>
-                </label>
+               {/* Row: Date and Category */}
+               <div className="grid grid-cols-2 gap-4">
+                 <label className="block">
+                   <div className="flex items-center gap-3 border rounded-xl px-4 py-4">
+                     <svg className="w-5 h-5 text-gray-600" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                       <path d="M7 11H17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                       <rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="1.5"/>
+                     </svg>
+                     <input
+                       type="date"
+                       value={date}
+                       onChange={(e) => setDate(e.target.value)}
+                       className="bg-transparent outline-none text-sm"
+                       required
+                     />
+                   </div>
+                 </label>
 
-                <label className="block">
-                  <div className="flex items-center gap-3 border rounded-xl px-4 py-4">
-                    <select
-                      value={category}
-                      onChange={(e) => setCategory(e.target.value)}
-                      className="bg-transparent outline-none text-sm w-full"
-                      required
-                    >
-                      <option value="" disabled>Category</option>
-                      {categoriesList.map((cat) => (
-                        <option key={cat.id} value={cat.slug}>{cat.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                </label>
-              </div>
+                 <label className="block">
+                   <div className="flex items-center gap-3 border rounded-xl px-4 py-4">
+                     <select
+                       value={category}
+                       onChange={(e) => setCategory(e.target.value)}
+                       className="bg-transparent outline-none text-sm w-full"
+                       required
+                     >
+                       <option value="" disabled>Category</option>
+                       {categoriesList.map((cat) => (
+                         <option key={cat.id} value={cat.slug}>{cat.name}</option>
+                       ))}
+                     </select>
+                   </div>
+                 </label>
+               </div>
 
-              {/* Submit button */}
-              <div>
+               {/* Navigate to the full submission page */}
+               <div>
                 <button
-                  type="submit"
-                  disabled={loading}
+                  type="button"
+                  onClick={() =>
+                    router.push(
+                      `/work-orders/submission?category=${encodeURIComponent(
+                        category
+                      )}&date=${encodeURIComponent(date)}`
+                    )
+                  }
                   className="w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-full font-semibold"
                 >
-                  {loading ? "Submitting..." : "Submit Order"}
+                  Submit Work Order
                 </button>
-                {message && <p className="text-red-600 text-sm mt-2">{message}</p>}
-                {success && <p className="text-green-600 text-sm mt-2">{success}</p>}
               </div>
-            </form>
-          </div>
-        </section>
-      </main>
-    </div>
-  )
+             </form>
+           </div>
+         </section>
+       </main>
+     </div>
+   )
 }
