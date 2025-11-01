@@ -4,28 +4,65 @@ import React, { useEffect, useState } from "react"
 import Link from "next/link"
 import { supabase } from "@/lib/supabaseClient"
 
-type WorkOrderRow = {
-  id: string
+type LabRow = {
+  id: number
+  name?: string | null
+  address?: string | null
+  address2?: string | null
+  city?: string | null
+  state?: string | null
+  zipcode?: string | null
+  manager_id?: string | null
+}
+
+type OrderRow = {
+  id: number
   title?: string | null
-  category?: string | null
+  category_id?: number | null
   lab?: number | null
   address_id?: number | null
   created_at?: string | null
 }
 
+type CategoryRow = {
+  id: number
+  name?: string | null
+}
+
+type AddressRow = {
+  id: number
+  line1?: string | null
+  line2?: string | null
+  city?: string | null
+  state?: string | null
+  zipcode?: string | null
+}
+
+type DisplayRow = {
+  id: string
+  title: string
+  address: string
+  category: string
+}
+
+/* Small runtime helpers to turn unknown responses into typed rows without `any` */
+const toNumber = (v: unknown) => (typeof v === "number" ? v : typeof v === "string" && /^\d+$/.test(v) ? Number(v) : NaN)
+const toStringOrNull = (v: unknown) => (v == null ? null : String(v))
+
 export default function PastOrdersPage() {
-  const [orders, setOrders] = useState<Array<{ id: string; title: string; address: string; category: string }>>([])
+  const [orders, setOrders] = useState<DisplayRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     let mounted = true
+
     const load = async () => {
       setLoading(true)
       setError(null)
 
       try {
-        // current user
+        // get current user
         const { data: authData, error: authErr } = await supabase.auth.getUser()
         if (authErr) throw authErr
         const userId = authData?.user?.id
@@ -35,58 +72,102 @@ export default function PastOrdersPage() {
           return
         }
 
-        // get labs (with address fields) managed by user
-        const labsRes = await supabase
-          .from("labs")
-          .select("id, name, address, address2, city, state, zipcode")
-          .eq("manager_id", userId)
+        // get labs managed by user (no generic here -> runtime-checked)
+        const labsRes = await supabase.from("labs").select("id, name, address, address2, city, state, zipcode, manager_id").eq("manager_id", userId)
         if (labsRes.error) throw labsRes.error
-        const labRows = labsRes.data ?? []
-        const labIds = labRows.map((r: any) => Number(r.id))
+        const rawLabs = Array.isArray(labsRes.data) ? labsRes.data : []
+        const labRows: LabRow[] = rawLabs.map((r) => ({
+          id: toNumber((r as Record<string, unknown>).id),
+          name: toStringOrNull((r as Record<string, unknown>).name),
+          address: toStringOrNull((r as Record<string, unknown>).address),
+          address2: toStringOrNull((r as Record<string, unknown>).address2),
+          city: toStringOrNull((r as Record<string, unknown>).city),
+          state: toStringOrNull((r as Record<string, unknown>).state),
+          zipcode: toStringOrNull((r as Record<string, unknown>).zipcode),
+          manager_id: toStringOrNull((r as Record<string, unknown>).manager_id),
+        }))
 
+        const labIds = labRows.map((l) => l.id).filter((id) => !Number.isNaN(id))
         if (labIds.length === 0) {
           setOrders([])
           return
         }
 
-        // fetch work_orders for those labs — select category_id instead of non-existent `category`
-        const ordersRes = await supabase
-          .from("work_orders")
-          .select("id, title, category_id, lab, address_id, created_at")
-          .in("lab", labIds)
-          .order("created_at", { ascending: false })
-
+        // fetch work_orders for those labs (select known columns)
+        const ordersRes = await supabase.from("work_orders").select("id, title, category_id, lab, address_id, created_at").in("lab", labIds).order("created_at", { ascending: false })
         if (ordersRes.error) throw ordersRes.error
-
-        // normalize rows
-        const woRows = (ordersRes.data ?? []).map((r: any) => ({
-          id: String(r.id),
-          title: r.title ?? "Untitled",
-          category_id: r.category_id ?? null,
-          lab: r.lab ?? null,
-          address_id: r.address_id ?? null,
-          created_at: r.created_at ?? null,
+        const rawOrders = Array.isArray(ordersRes.data) ? ordersRes.data : []
+        const woRows: OrderRow[] = rawOrders.map((r) => ({
+          id: toNumber((r as Record<string, unknown>).id),
+          title: toStringOrNull((r as Record<string, unknown>).title),
+          category_id: (() => {
+            const v = (r as Record<string, unknown>).category_id
+            const n = toNumber(v)
+            return Number.isNaN(n) ? null : n
+          })(),
+          lab: (() => {
+            const v = (r as Record<string, unknown>).lab
+            const n = toNumber(v)
+            return Number.isNaN(n) ? null : n
+          })(),
+          address_id: (() => {
+            const v = (r as Record<string, unknown>).address_id
+            const n = toNumber(v)
+            return Number.isNaN(n) ? null : n
+          })(),
+          created_at: toStringOrNull((r as Record<string, unknown>).created_at),
         }))
 
         // resolve category names
-        const catIds = Array.from(new Set(woRows.map((w) => w.category_id).filter(Boolean) as number[]))
+        const catIds = Array.from(new Set(woRows.map((w) => w.category_id).filter((v): v is number => typeof v === "number")))
         const categoryMap: Record<number, string> = {}
         if (catIds.length) {
-          const catRes = await supabase.from("categories").select("id,name").in("id", catIds)
-          if (!catRes.error) {
-            for (const c of catRes.data ?? []) categoryMap[Number(c.id)] = c.name
+          const catRes = await supabase.from("categories").select("id, name").in("id", catIds)
+          if (catRes.error) throw catRes.error
+          const rawCats = Array.isArray(catRes.data) ? catRes.data : []
+          for (const c of rawCats) {
+            const id = toNumber((c as Record<string, unknown>).id)
+            if (!Number.isNaN(id)) categoryMap[id] = toStringOrNull((c as Record<string, unknown>).name) ?? "N/A"
           }
         }
 
-        // build final display rows (title, address, category)
-        const display = woRows.map((r) => {
-          const addr = "N/A" // 기존 주소 매핑 로직을 그대로 사용하세요 (address_id / lab fallback)
-          return {
-            id: r.id,
-            title: r.title,
-            address: addr,
-            category: r.category_id ? categoryMap[r.category_id] ?? "N/A" : "N/A",
+        // collect address_ids referenced by work orders
+        const addressIds = Array.from(new Set(woRows.map((r) => r.address_id).filter((v): v is number => typeof v === "number")))
+        const addressMap: Record<number, string> = {}
+        if (addressIds.length) {
+          const addrRes = await supabase.from("addresses").select("id, line1, line2, city, state, zipcode").in("id", addressIds)
+          if (addrRes.error) throw addrRes.error
+          const rawAddrs = Array.isArray(addrRes.data) ? addrRes.data : []
+          for (const a of rawAddrs) {
+            const id = toNumber((a as Record<string, unknown>).id)
+            if (Number.isNaN(id)) continue
+            const line1 = toStringOrNull((a as Record<string, unknown>).line1)
+            const line2 = toStringOrNull((a as Record<string, unknown>).line2)
+            const city = toStringOrNull((a as Record<string, unknown>).city)
+            const state = toStringOrNull((a as Record<string, unknown>).state)
+            const zipcode = toStringOrNull((a as Record<string, unknown>).zipcode)
+            const parts = [line1, line2, city, state, zipcode].filter(Boolean)
+            addressMap[id] = parts.length ? parts.join(", ") : "N/A"
           }
+        }
+
+        // lab map for fallback address
+        const labMap: Record<number, string> = {}
+        for (const l of labRows) {
+          if (Number.isNaN(l.id)) continue
+          const parts = [l.address, l.address2, l.city, l.state, l.zipcode].filter(Boolean)
+          labMap[l.id] = parts.length ? parts.join(", ") : "N/A"
+        }
+
+        // build final display rows (title, address, category)
+        const display: DisplayRow[] = woRows.map((r) => {
+          const id = String(r.id)
+          const title = r.title ?? "Untitled"
+          let addr = "N/A"
+          if (r.address_id != null && addressMap[r.address_id]) addr = addressMap[r.address_id]
+          else if (r.lab != null && labMap[r.lab]) addr = labMap[r.lab]
+          const category = r.category_id != null ? categoryMap[r.category_id] ?? "N/A" : "N/A"
+          return { id, title, address: addr, category }
         })
 
         if (mounted) setOrders(display)
@@ -131,9 +212,7 @@ export default function PastOrdersPage() {
         {loading && <div className="text-sm text-gray-600">Loading...</div>}
         {error && <div className="text-sm text-red-600 mb-4">Error: {error}</div>}
 
-        {!loading && !error && orders.length === 0 && (
-          <div className="text-sm text-gray-600">No work orders found for your lab(s).</div>
-        )}
+        {!loading && !error && orders.length === 0 && <div className="text-sm text-gray-600">No work orders found for your lab(s).</div>}
 
         <div className="space-y-3 mt-4">
           {orders.map((o) => (
