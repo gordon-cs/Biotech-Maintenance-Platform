@@ -1,148 +1,152 @@
 "use client"
 
-import React from "react"
+import React, { useEffect, useState } from "react"
 import Link from "next/link"
+import { supabase } from "@/lib/supabaseClient"
 
 type WorkOrderRow = {
   id: string
-  title: string | null
-  description?: string | null
-  status?: string | null
-  lab_name?: string | null
-  location?: string | null
+  title?: string | null
   category?: string | null
+  lab?: number | null
+  address_id?: number | null
   created_at?: string | null
 }
 
-// static sample data — display-only
-const SAMPLE_ORDERS: WorkOrderRow[] = [
-  {
-    id: "1",
-    title: "Annual Equipment Check – Biosafety Cabinet",
-    description: "Inspect filters and sensors. Ensure certification sticker is current.",
-    status: "Done",
-    lab_name: "Lab Name A",
-    location: "1234 Elm Street, Springfield, IL 62704",
-    category: "Maintenance",
-    created_at: "2025-10-08 14:32:17",
-  },
-  {
-    id: "2",
-    title: "Temperature Alarm Investigation",
-    description: "Freezer reported temp spike early this morning, investigate logs.",
-    status: "Follow-Up",
-    lab_name: "Lab Name B",
-    location: "5678 Oak Ave, Springfield, IL 62704",
-    category: "Urgent",
-    created_at: "2025-10-07 09:15:02",
-  },
-  {
-    id: "3",
-    title: "Replace HEPA filter",
-    description: "Replace HEPA filter on biological safety cabinet model X100.",
-    status: "Done",
-    lab_name: "Lab Name C",
-    location: "9012 Pine Rd, Springfield, IL 62704",
-    category: "Replacement",
-    created_at: "2025-09-20 11:05:44",
-  },
-]
-
 export default function PastOrdersPage() {
-  const selected = SAMPLE_ORDERS[0]
+  const [orders, setOrders] = useState<Array<{ id: string; title: string; address: string; category: string }>>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let mounted = true
+    const load = async () => {
+      setLoading(true)
+      setError(null)
+
+      try {
+        // current user
+        const { data: authData, error: authErr } = await supabase.auth.getUser()
+        if (authErr) throw authErr
+        const userId = authData?.user?.id
+        if (!userId) {
+          setError("Not authenticated")
+          setOrders([])
+          return
+        }
+
+        // get labs (with address fields) managed by user
+        const labsRes = await supabase
+          .from("labs")
+          .select("id, name, address, address2, city, state, zipcode")
+          .eq("manager_id", userId)
+        if (labsRes.error) throw labsRes.error
+        const labRows = labsRes.data ?? []
+        const labIds = labRows.map((r: any) => Number(r.id))
+
+        if (labIds.length === 0) {
+          setOrders([])
+          return
+        }
+
+        // fetch work_orders for those labs — select category_id instead of non-existent `category`
+        const ordersRes = await supabase
+          .from("work_orders")
+          .select("id, title, category_id, lab, address_id, created_at")
+          .in("lab", labIds)
+          .order("created_at", { ascending: false })
+
+        if (ordersRes.error) throw ordersRes.error
+
+        // normalize rows
+        const woRows = (ordersRes.data ?? []).map((r: any) => ({
+          id: String(r.id),
+          title: r.title ?? "Untitled",
+          category_id: r.category_id ?? null,
+          lab: r.lab ?? null,
+          address_id: r.address_id ?? null,
+          created_at: r.created_at ?? null,
+        }))
+
+        // resolve category names
+        const catIds = Array.from(new Set(woRows.map((w) => w.category_id).filter(Boolean) as number[]))
+        const categoryMap: Record<number, string> = {}
+        if (catIds.length) {
+          const catRes = await supabase.from("categories").select("id,name").in("id", catIds)
+          if (!catRes.error) {
+            for (const c of catRes.data ?? []) categoryMap[Number(c.id)] = c.name
+          }
+        }
+
+        // build final display rows (title, address, category)
+        const display = woRows.map((r) => {
+          const addr = "N/A" // 기존 주소 매핑 로직을 그대로 사용하세요 (address_id / lab fallback)
+          return {
+            id: r.id,
+            title: r.title,
+            address: addr,
+            category: r.category_id ? categoryMap[r.category_id] ?? "N/A" : "N/A",
+          }
+        })
+
+        if (mounted) setOrders(display)
+      } catch (err: unknown) {
+        let msg = "Unknown error"
+        if (err instanceof Error) msg = err.message
+        else if (err && typeof err === "object") {
+          try {
+            const e = err as Record<string, unknown>
+            if (typeof e.message === "string") msg = e.message
+            else msg = JSON.stringify(e, Object.getOwnPropertyNames(e), 2)
+          } catch {
+            msg = String(err)
+          }
+        } else {
+          msg = String(err)
+        }
+        if (mounted) setError(msg)
+      } finally {
+        if (mounted) setLoading(false)
+      }
+    }
+
+    load()
+    return () => {
+      mounted = false
+    }
+  }, [])
 
   return (
     <div className="min-h-screen p-6 bg-gray-50">
-      <div className="max-w-6xl mx-auto">
-        <header className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold">Past Orders (Display Only)</h1>
-          <div className="flex gap-2 items-center">
-            <Link href="/" className="px-3 py-1 bg-gray-200 rounded">Home</Link>
-            <Link href="/work-orders/submission" className="px-3 py-1 bg-gray-300 text-gray-700 rounded">Submit Order</Link>
+      <div className="max-w-4xl mx-auto">
+        <header className="flex items-center justify-between mb-4">
+          <h1 className="text-2xl font-semibold">Past Orders</h1>
+          <div>
+            <Link href="/manager" className="inline-block px-3 py-2 bg-gray-200 rounded hover:bg-gray-300 text-sm">
+              Back to Dashboard
+            </Link>
           </div>
         </header>
 
-        <div className="grid grid-cols-12 gap-6">
-          {/* Left: Filters + List (disabled) */}
-          <aside className="col-span-4 bg-white p-4 rounded shadow">
-            <div className="mb-4 space-y-2">
-              <input
-                aria-label="Search"
-                value=""
-                onChange={() => {}}
-                placeholder="Search Request"
-                className="w-full border px-3 py-2 rounded bg-gray-100"
-                disabled
-              />
-              <select value="" className="w-full border px-3 py-2 rounded bg-gray-100" disabled>
-                <option value="">All status</option>
-                <option value="open">Open</option>
-                <option value="follow-up">Follow-Up</option>
-                <option value="done">Done</option>
-              </select>
+        {loading && <div className="text-sm text-gray-600">Loading...</div>}
+        {error && <div className="text-sm text-red-600 mb-4">Error: {error}</div>}
+
+        {!loading && !error && orders.length === 0 && (
+          <div className="text-sm text-gray-600">No work orders found for your lab(s).</div>
+        )}
+
+        <div className="space-y-3 mt-4">
+          {orders.map((o) => (
+            <div key={o.id} className="border rounded p-4 bg-white">
+              <div className="flex justify-between items-start">
+                <div>
+                  <div className="text-lg font-semibold">{o.title}</div>
+                  <div className="text-sm text-gray-500 mt-1">{o.address}</div>
+                </div>
+                <div className="text-sm text-gray-500">{o.category}</div>
+              </div>
             </div>
-
-            <div className="text-sm text-gray-600 mb-2">Results</div>
-            <div className="space-y-3 max-h-[60vh] overflow-auto pr-2">
-              {SAMPLE_ORDERS.map((o) => (
-                <div
-                  key={o.id}
-                  className={`w-full text-left border rounded p-3 flex justify-between items-start bg-white`}
-                >
-                  <div>
-                    <div className="text-xs text-gray-500">Lab: {o.lab_name ?? "—"}</div>
-                    <div className="font-semibold">{o.title ?? "Untitled"}</div>
-                    <div className="text-xs text-gray-500">{o.location}</div>
-                    <div className="text-xs text-gray-400 mt-1">{o.category}</div>
-                  </div>
-                  <div className="ml-4">
-                    <span className="px-3 py-1 text-xs rounded-full bg-gray-100">{o.status ?? "—"}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </aside>
-
-          {/* Right: Detail (display-only) */}
-          <section className="col-span-8 bg-white p-6 rounded shadow min-h-[60vh]">
-            {!selected && <div className="text-gray-600">No sample selected.</div>}
-            {selected && (
-              <>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="text-sm text-gray-500">Lab</div>
-                    <h2 className="text-xl font-semibold">{selected.lab_name}</h2>
-                    <div className="text-sm text-gray-500">{selected.location}</div>
-                    <div className="mt-2 text-xs text-gray-400">Submitted: {selected.created_at}</div>
-                  </div>
-                  <div>
-                    <span className="px-3 py-1 rounded-full bg-gray-100 text-sm">{selected.status}</span>
-                  </div>
-                </div>
-
-                <hr className="my-4" />
-
-                <div className="prose max-w-none">
-                  <h3 className="text-lg font-medium">{selected.title}</h3>
-                  <p className="text-sm text-gray-700">{selected.description}</p>
-                </div>
-
-                <div className="mt-6 grid grid-cols-3 gap-4">
-                  <div className="h-28 bg-gray-100 rounded flex items-center justify-center text-gray-400">Image</div>
-                  <div className="h-28 bg-gray-100 rounded flex items-center justify-center text-gray-400">Image</div>
-                  <div className="h-28 bg-gray-100 rounded flex items-center justify-center text-gray-400">Image</div>
-                </div>
-
-                <div className="mt-6 flex justify-between items-center">
-                  <div className="text-sm text-gray-500">Category: {selected.category ?? "—"}</div>
-                  <div className="flex gap-2">
-                    <button className="px-3 py-1 bg-gray-200 rounded" disabled>Download Report</button>
-                    <button className="px-3 py-1 bg-gray-200 rounded" disabled>Mark Follow-Up</button>
-                  </div>
-                </div>
-              </>
-            )}
-          </section>
+          ))}
         </div>
       </div>
     </div>
