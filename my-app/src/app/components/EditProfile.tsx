@@ -269,10 +269,8 @@ export default function EditProfile() {
       setMessage("Profile updated successfully!")
       setSaving(false)
 
-      // Redirect to home after a short delay
-      setTimeout(() => {
-        router.push("/")
-      }, 1500)
+      // Redirect to home immediately
+      router.push("/")
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       console.error("Error updating profile:", err)
