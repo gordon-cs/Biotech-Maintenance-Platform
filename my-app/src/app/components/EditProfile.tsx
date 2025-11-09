@@ -238,35 +238,48 @@ export default function EditProfile() {
       }
 
       // Update technician categories if applicable
+      let categoryUpdateFailed = false;
       if (profile?.role === "technician") {
-        // Delete existing categories
-        const { error: deleteError } = await supabase
-          .from("technician_categories")
-          .delete()
-          .eq("tech_id", session.user.id)
-
-        if (deleteError) {
-          throw new Error("Failed to update categories")
-        }
-
-        // Insert new categories
-        if (selectedCategories.length > 0) {
-          const { error: insertError } = await supabase
+        try {
+          // Delete existing categories
+          const { error: deleteError } = await supabase
             .from("technician_categories")
-            .insert(
-              selectedCategories.map(categoryId => ({
-                tech_id: session.user.id,
-                category_id: categoryId,
-              }))
-            )
+            .delete()
+            .eq("tech_id", session.user.id)
 
-          if (insertError) {
-            throw new Error("Failed to save categories")
+          if (deleteError) {
+            categoryUpdateFailed = true;
+            throw new Error("Failed to update categories");
           }
+
+          // Insert new categories
+          if (selectedCategories.length > 0) {
+            const { error: insertError } = await supabase
+              .from("technician_categories")
+              .insert(
+                selectedCategories.map(categoryId => ({
+                  tech_id: session.user.id,
+                  category_id: categoryId,
+                }))
+              )
+
+            if (insertError) {
+              categoryUpdateFailed = true;
+              throw new Error("Failed to save categories");
+            }
+          }
+        } catch (catErr) {
+          // Log the error, but continue to show partial success
+          console.error("Category update error:", catErr);
+          categoryUpdateFailed = true;
         }
       }
 
-      setMessage("Profile updated successfully!")
+      if (categoryUpdateFailed) {
+        setMessage("Profile updated, but failed to update categories.");
+      } else {
+        setMessage("Profile updated successfully!");
+      }
       setSaving(false)
 
       // Redirect to home immediately
