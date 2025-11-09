@@ -26,6 +26,30 @@ export default function ManagerDashboard() {
   const [message, setMessage] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
+  // Function to get status badge styling
+  const getStatusBadgeStyle = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case 'completed':
+        return 'bg-green-100 text-green-800 border-green-200'
+      case 'in_progress':
+      case 'in progress':
+        return 'bg-blue-100 text-blue-800 border-blue-200'
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200'
+      case 'cancelled':
+        return 'bg-red-100 text-red-800 border-red-200'
+      case 'open':
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-200'
+    }
+  }
+
+  // Function to format status text
+  const formatStatus = (status: string) => {
+    if (!status) return 'Open'
+    return status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+  }
+
   useEffect(() => {
     let mounted = true
     const loadData = async () => {
@@ -87,30 +111,6 @@ export default function ManagerDashboard() {
     loadData()
     return () => { mounted = false }
   }, [])
-
-  // Function to get status badge styling
-  const getStatusBadgeStyle = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case 'completed':
-        return 'bg-green-100 text-green-800 border-green-200'
-      case 'in_progress':
-      case 'in progress':
-        return 'bg-blue-100 text-blue-800 border-blue-200'
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200'
-      case 'cancelled':
-        return 'bg-red-100 text-red-800 border-red-200'
-      case 'open':
-      default:
-        return 'bg-gray-100 text-gray-800 border-gray-200'
-    }
-  }
-
-  // Function to format status text
-  const formatStatus = (status: string) => {
-    if (!status) return 'Open'
-    return status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
-  }
 
   // navigate to the dedicated submission page with pre-filled query params
   const handleNavigateToSubmission = (e?: React.FormEvent) => {

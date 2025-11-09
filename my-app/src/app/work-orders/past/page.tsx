@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useState, Suspense } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { supabase } from "@/lib/supabaseClient"
@@ -16,7 +16,7 @@ type DisplayRow = {
   status?: string
 }
 
-export default function PastOrdersPage() {
+function PastOrdersContent() {
   const [orders, setOrders] = useState<DisplayRow[]>([])
   const [filteredOrders, setFilteredOrders] = useState<DisplayRow[]>([])
   const [selectedOrder, setSelectedOrder] = useState<DisplayRow | null>(null)
@@ -393,8 +393,6 @@ export default function PastOrdersPage() {
                     {selectedOrder.description}
                   </p>
                 </div>
-
-                {/* Remove image placeholders section - only show if there are actual images */}
               </div>
             ) : (
               <div className="border rounded-lg p-6 bg-white text-center text-gray-500">
@@ -418,5 +416,20 @@ export default function PastOrdersPage() {
         </Link>
       </div>
     </div>
+  )
+}
+
+export default function PastOrdersPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading past orders...</p>
+        </div>
+      </div>
+    }>
+      <PastOrdersContent />
+    </Suspense>
   )
 }

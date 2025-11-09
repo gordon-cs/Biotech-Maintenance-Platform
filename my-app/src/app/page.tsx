@@ -1,9 +1,10 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabaseClient"
 import AuthStatus from "./components/AuthStatus"
+import Link from "next/link"
 
 export default function Home() {
   const router = useRouter()
@@ -13,39 +14,66 @@ export default function Home() {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
-  const [categoriesList, setCategoriesList] = useState<Array<{ id: number; slug: string; name: string }>>([])
+  const [categoriesList, setCategoriesList] = useState<Array<{id:number, slug:string, name:string}>>([])
 
-  // redirect to manager dashboard if user role is "lab"
+  // Track the user's role and loading state
+  const [role, setRole] = useState<"lab" | "technician" | null>(null)
+  const [roleLoaded, setRoleLoaded] = useState(false)
+  const [isRedirecting, setIsRedirecting] = useState(false)
+  
   useEffect(() => {
     let mounted = true
-    const redirectIfLab = async () => {
+    const loadRole = async () => {
       try {
+        console.log("Checking user role...")
+        
         const { data: { session } } = await supabase.auth.getSession()
-        const user = session?.user
-        if (!user) return
-
-        // check user_metadata first (avoid extra query)
-        const metaRole = (user.user_metadata as Record<string, unknown> | undefined)?.role as string | undefined
-        if (metaRole?.toLowerCase() === "lab") {
-          router.push("/manager")
+        if (!session?.user) {
+          console.log("No user session found")
+          if (mounted) setRoleLoaded(true)
           return
         }
-
-        // fallback: check profiles table
-        const profRes = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle()
-        if (!profRes.error && profRes.data?.role?.toLowerCase() === "lab") {
-          if (mounted) router.push("/manager")
+        
+        const userId = session.user.id
+        console.log("User ID:", userId)
+        
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", userId)
+          .maybeSingle()
+          
+        console.log("Profile query result:", data, error)
+        
+        if (!mounted) return
+        
+        if (!error && data) {
+          const r = (data.role || "").toString().toLowerCase()
+          const userRole = r === "technician" ? "technician" : r === "lab" ? "lab" : null
+          
+          console.log("Detected role:", userRole)
+          setRole(userRole)
+          
+          // Auto-redirect lab users to manager dashboard
+          if (userRole === "lab") {
+            console.log("Lab user detected - redirecting to /manager")
+            setIsRedirecting(true)
+            // Use window.location.href for a more forceful redirect
+            window.location.href = "/manager"
+            return
+          }
         }
-      } catch {
-        // ignore failures here
+        
+        if (mounted) setRoleLoaded(true)
+      } catch (err) {
+        console.error("Error loading role:", err)
+        if (mounted) setRoleLoaded(true)
       }
     }
-
-    redirectIfLab()
-    return () => {
-      mounted = false
-    }
-  }, [router])
+    
+    loadRole()
+    return () => { mounted = false }
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -150,11 +178,110 @@ export default function Home() {
   useEffect(() => {
     const load = async () => {
       const { data, error } = await supabase.from("categories").select("id,slug,name")
-      if (!error && data) setCategoriesList(data as Array<{ id: number; slug: string; name: string }>)
+      if (!error && data) setCategoriesList(data as Array<{id:number, slug:string, name:string}>)
     }
     load()
   }, [])
 
+  // Show loading while checking role or redirecting
+  if (!roleLoaded || isRedirecting) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-green-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">
+            {isRedirecting ? "Redirecting to manager dashboard..." : "Loading..."}
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // This should never show for lab users due to redirect above
+  if (role === "lab") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-green-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Redirecting to manager dashboard...</p>
+          <button 
+            onClick={() => window.location.href = "/manager"}
+            className="mt-4 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+          >
+            Click here if not redirected automatically
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // Technician view
+  if (role === "technician") {
+    return (
+      <div className="font-sans min-h-screen p-8 bg-white text-black">
+        <main className="max-w-5xl mx-auto">
+          <header className="flex items-center justify-between mb-8">
+            <h1 className="text-2xl font-bold">Biotech Maintenance Platform</h1>
+            <AuthStatus />
+          </header>
+
+          <section className="space-y-8">
+            <div className="flex justify-center">
+              <Link
+                href="/work-orders"
+                className="w-full max-w-4xl text-center inline-block px-6 py-3 bg-gradient-to-r from-green-700 to-green-500 text-white font-semibold rounded-full shadow-lg"
+                aria-label="Browse Open Request"
+              >
+                Browse Open Request
+              </Link>
+            </div>
+
+            <div className="bg-gray-50 rounded-2xl p-8 shadow-sm">
+              <h2 className="text-center text-xl font-semibold mb-6">Work Orders</h2>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+                {[1, 2, 3, 4].map((i) => (
+                  <article
+                    key={i}
+                    className="w-64 border-2 border-gray-300 rounded-xl p-5 bg-white flex flex-col justify-between"
+                    role="article"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-base font-medium">Title</p>
+                        <p className="text-sm text-gray-600">Date</p>
+                        <p className="text-sm text-gray-600">Category</p>
+                      </div>
+                      <span className="ml-2 px-3 py-1 rounded-full bg-gray-200 text-xs">Status</span>
+                    </div>
+
+                    <p className="text-sm text-gray-500 my-6 text-center flex-1">Detailed Description</p>
+
+                    <div className="mt-4 flex justify-center">
+                      <Link
+                        href={`/work-orders/${i}`}
+                        className="px-4 py-2 bg-gray-200 text-sm rounded-full hover:bg-gray-300"
+                      >
+                        View Order Details
+                      </Link>
+                    </div>
+                  </article>
+                ))}
+              </div>
+
+              <div className="flex justify-center mt-8">
+                <button className="px-10 py-3 bg-green-600 text-white rounded-full font-semibold shadow">
+                  View All Orders
+                </button>
+              </div>
+            </div>
+          </section>
+        </main>
+      </div>
+    )
+  }
+
+  // Default view (no specific role or non-lab/technician users)
   return (
     <div className="font-sans min-h-screen p-8 bg-white text-black">
       <main className="max-w-3xl mx-auto">
