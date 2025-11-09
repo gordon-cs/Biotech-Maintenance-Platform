@@ -345,49 +345,73 @@ export default function EditProfile() {
         {profile.role === "lab" && (
           <>
             <h4 className="font-semibold mt-6 mb-3">Lab Information</h4>
-            <input
-              value={labName}
-              onChange={(e) => setLabName(e.target.value)}
-              placeholder="Lab name"
-              required
-              className="w-full mb-3 border px-2 py-1 rounded"
-            />
-            <input
-              value={address1}
-              onChange={(e) => setAddress1(e.target.value)}
-              placeholder="Address 1"
-              required
-              className="w-full mb-3 border px-2 py-1 rounded"
-            />
-            <input
-              value={address2}
-              onChange={(e) => setAddress2(e.target.value)}
-              placeholder="Address 2"
-              className="w-full mb-3 border px-2 py-1 rounded"
-            />
-            <div className="grid grid-cols-2 gap-2">
+            <div className="mb-3">
+              <label htmlFor="lab-name" className="block font-medium mb-1">Lab Name</label>
               <input
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-                placeholder="City"
+                id="lab-name"
+                value={labName}
+                onChange={(e) => setLabName(e.target.value)}
+                placeholder="Lab name"
                 required
-                className="w-full mb-3 border px-2 py-1 rounded"
-              />
-              <input
-                value={stateVal}
-                onChange={(e) => setStateVal(e.target.value)}
-                placeholder="State"
-                required
-                className="w-full mb-3 border px-2 py-1 rounded"
+                className="w-full border px-2 py-1 rounded"
               />
             </div>
-            <input
-              value={zipcode}
-              onChange={(e) => setZipcode(e.target.value)}
-              placeholder="Zipcode"
-              required
-              className="w-full mb-3 border px-2 py-1 rounded"
-            />
+            <div className="mb-3">
+              <label htmlFor="lab-address1" className="block font-medium mb-1">Address 1</label>
+              <input
+                id="lab-address1"
+                value={address1}
+                onChange={(e) => setAddress1(e.target.value)}
+                placeholder="Address 1"
+                required
+                className="w-full border px-2 py-1 rounded"
+              />
+            </div>
+            <div className="mb-3">
+              <label htmlFor="lab-address2" className="block font-medium mb-1">Address 2</label>
+              <input
+                id="lab-address2"
+                value={address2}
+                onChange={(e) => setAddress2(e.target.value)}
+                placeholder="Address 2"
+                className="w-full border px-2 py-1 rounded"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label htmlFor="lab-city" className="block font-medium mb-1">City</label>
+                <input
+                  id="lab-city"
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  placeholder="City"
+                  required
+                  className="w-full border px-2 py-1 rounded"
+                />
+              </div>
+              <div>
+                <label htmlFor="lab-state" className="block font-medium mb-1">State</label>
+                <input
+                  id="lab-state"
+                  value={stateVal}
+                  onChange={(e) => setStateVal(e.target.value)}
+                  placeholder="State"
+                  required
+                  className="w-full border px-2 py-1 rounded"
+                />
+              </div>
+            </div>
+            <div className="mb-3">
+              <label htmlFor="lab-zipcode" className="block font-medium mb-1">Zipcode</label>
+              <input
+                id="lab-zipcode"
+                value={zipcode}
+                onChange={(e) => setZipcode(e.target.value)}
+                placeholder="Zipcode"
+                required
+                className="w-full border px-2 py-1 rounded"
+              />
+            </div>
           </>
         )}
 
