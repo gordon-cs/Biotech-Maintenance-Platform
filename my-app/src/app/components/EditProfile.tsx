@@ -180,8 +180,27 @@ export default function EditProfile() {
       }
 
       // Prepare the request body based on role
-      const requestBody: any = {
-        role: profile?.role, // Keep existing role
+      type RequestBody = {
+        role: "lab" | "technician" | null
+        full_name: string
+        phone: string
+        lab?: {
+          name: string
+          address: string
+          address2: string | null
+          city: string
+          state: string
+          zipcode: string
+        }
+        tech?: {
+          experience: string
+          bio: string
+          company: string | null
+        }
+      }
+
+      const requestBody: RequestBody = {
+        role: profile?.role ?? null,
         full_name: fullName,
         phone: phone
       }
