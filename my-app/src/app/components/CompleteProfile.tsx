@@ -47,6 +47,14 @@ export default function CompleteProfile() {
         setProfile(null)
       } else {
         setProfile(data)
+        
+        // If user already has a role set, redirect them to home
+        if (data?.role) {
+          console.log("User already has a role set, redirecting to home")
+          router.push("/")
+          return
+        }
+        
         setFullName(data?.full_name ?? "")
         setPhone(data?.phone ?? "")
         setRole(data?.role ?? "")
@@ -56,7 +64,7 @@ export default function CompleteProfile() {
     }
 
     load()
-  }, [])
+  }, [router])
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -71,51 +79,18 @@ export default function CompleteProfile() {
     const userId = session.user.id
 
     if (role === "manager") {
-      try {
-        setSaving(true)
-        
-        // Get the auth token
-        const { data: { session } } = await supabase.auth.getSession()
-        if (!session?.access_token) {
-          throw new Error("No access token found")
-        }
-
-        // Save profile via API route which uses service role
-        const response = await fetch("/api/create-profile", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${session.access_token}`
-          },
-          body: JSON.stringify({
-            role: "manager", // Set as manager initially
-            full_name: fullName,
-            phone: phone
-          })
-        })
-
-        if (!response.ok) {
-          const error = await response.json()
-          throw new Error(error.error || "Failed to save profile")
-        }
-
-        // Then go to lab info step with query parameters
-        const searchParams = new URLSearchParams()
-        searchParams.set('fullName', fullName)
-        searchParams.set('phone', phone)
-        
-        // Log what we're passing
-        console.log('Navigating with params:', { fullName, phone })
-        
-        // Use router.push with the URLSearchParams
-        router.push(`/complete-lab?${searchParams.toString()}`)
-        return
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        setMessage(msg)
-        setSaving(false)
-        return
-      }
+      // Don't save yet - just pass the data to the lab info page
+      // The lab info page will save everything in one call
+      const searchParams = new URLSearchParams()
+      searchParams.set('fullName', fullName)
+      searchParams.set('phone', phone)
+      
+      // Log what we're passing
+      console.log('Navigating with params:', { fullName, phone })
+      
+      // Use router.push with the URLSearchParams
+      router.push(`/complete-lab?${searchParams.toString()}`)
+      return
     }
 
     // For technicians, save basic profile then redirect to tech info
