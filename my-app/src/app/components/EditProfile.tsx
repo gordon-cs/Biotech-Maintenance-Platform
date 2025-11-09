@@ -419,26 +419,38 @@ export default function EditProfile() {
         {profile.role === "technician" && (
           <>
             <h4 className="font-semibold mt-6 mb-3">Technician Information</h4>
-            <input
-              value={company}
-              onChange={(e) => setCompany(e.target.value)}
-              placeholder="Company (optional)"
-              className="w-full mb-3 border px-2 py-1 rounded"
-            />
-            <textarea
-              value={experience}
-              onChange={(e) => setExperience(e.target.value)}
-              placeholder="Experience"
-              required
-              className="w-full mb-3 border px-2 py-1 rounded min-h-[100px]"
-            />
-            <textarea
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-              placeholder="Bio"
-              required
-              className="w-full mb-3 border px-2 py-1 rounded min-h-[100px]"
-            />
+            <div className="mb-3">
+              <label htmlFor="company" className="block mb-1 font-medium">Company (optional)</label>
+              <input
+                id="company"
+                value={company}
+                onChange={(e) => setCompany(e.target.value)}
+                placeholder="Company (optional)"
+                className="w-full border px-2 py-1 rounded"
+              />
+            </div>
+            <div className="mb-3">
+              <label htmlFor="experience" className="block mb-1 font-medium">Experience</label>
+              <textarea
+                id="experience"
+                value={experience}
+                onChange={(e) => setExperience(e.target.value)}
+                placeholder="Experience"
+                required
+                className="w-full border px-2 py-1 rounded min-h-[100px]"
+              />
+            </div>
+            <div className="mb-3">
+              <label htmlFor="bio" className="block mb-1 font-medium">Bio</label>
+              <textarea
+                id="bio"
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+                placeholder="Bio"
+                required
+                className="w-full border px-2 py-1 rounded min-h-[100px]"
+              />
+            </div>
 
             <div className="mb-4">
               <label className="block mb-2 font-medium">Categories (select at least one)</label>
