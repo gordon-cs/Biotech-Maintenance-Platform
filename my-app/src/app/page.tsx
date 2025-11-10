@@ -52,6 +52,7 @@ export default function Home() {
   const [serviceArea, setServiceArea] = useState("")
   const [category, setCategory] = useState("")
   const [categoriesList, setCategoriesList] = useState<Array<{id:number, slug:string, name:string}>>([])
+  const [date, setDate] = useState<string>("")
 
   // load role once and on auth changes
   useEffect(() => {
