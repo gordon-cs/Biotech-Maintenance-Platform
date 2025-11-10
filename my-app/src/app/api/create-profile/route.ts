@@ -12,6 +12,8 @@ type CreateProfileBody = {
   phone?: string | null
   lab?: {
     name?: string | null
+  } | null
+  address?: {
     address?: string | null
     address2?: string | null
     city?: string | null
@@ -78,23 +80,61 @@ export async function POST(req: NextRequest) {
       const lab = {
         manager_id: userId,
         name: body.lab?.name ?? null,
-        address: body.lab?.address ?? null,
-        address2: body.lab?.address2 ?? null,
-        city: body.lab?.city ?? null,
-        state: body.lab?.state ?? null,
-        zipcode: body.lab?.zipcode ?? null,
       }
 
+      let labId: number
+
       // If lab exists, update it. If not, create it.
-      const { error: lErr } = await serviceClient
-        .from("labs")
-        .upsert(
-          existingLab 
-            ? { ...lab, id: existingLab.id }
-            : lab,
-          { onConflict: 'manager_id' }
-        )
-      if (lErr) return NextResponse.json({ error: lErr.message }, { status: 500 })
+      if (existingLab) {
+        const { error: lErr } = await serviceClient
+          .from("labs")
+          .update(lab)
+          .eq("id", existingLab.id)
+        if (lErr) return NextResponse.json({ error: lErr.message }, { status: 500 })
+        labId = existingLab.id
+      } else {
+        const { data: newLab, error: lErr } = await serviceClient
+          .from("labs")
+          .insert(lab)
+          .select("id")
+          .single()
+        if (lErr) return NextResponse.json({ error: lErr.message }, { status: 500 })
+        labId = newLab.id
+      }
+
+      // Handle address separately if provided
+      if (body.address) {
+        // Check if address already exists for this lab
+        const { data: existingAddress } = await serviceClient
+          .from("addresses")
+          .select("id")
+          .eq("lab_id", labId)
+          .maybeSingle()
+
+        const addressData = {
+          lab_id: labId,
+          address: body.address?.address ?? null,
+          address2: body.address?.address2 ?? null,
+          city: body.address?.city ?? null,
+          state: body.address?.state ?? null,
+          zipcode: body.address?.zipcode ?? null,
+        }
+
+        if (existingAddress) {
+          // Update existing address
+          const { error: addrErr } = await serviceClient
+            .from("addresses")
+            .update(addressData)
+            .eq("id", existingAddress.id)
+          if (addrErr) return NextResponse.json({ error: addrErr.message }, { status: 500 })
+        } else {
+          // Create new address
+          const { error: addrErr } = await serviceClient
+            .from("addresses")
+            .insert(addressData)
+          if (addrErr) return NextResponse.json({ error: addrErr.message }, { status: 500 })
+        }
+      }
     }
 
     if (body.role === "technician") {

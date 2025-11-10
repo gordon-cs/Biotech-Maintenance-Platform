@@ -78,8 +78,10 @@ export default function CompleteLabInfo({ initialFull = "", initialPhone = "" }:
           phone: phone || initialPhone,
           lab: {
             name: labName,
+          },
+          address: {
             address: address1,
-            address2: address2 || null, // Include address2 field
+            address2: address2 || null,
             city: city,
             state: stateVal,
             zipcode: zipcode
