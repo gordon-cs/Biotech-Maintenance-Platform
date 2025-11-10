@@ -430,6 +430,13 @@ export default function Home() {
                 ) : (
                   <div className="text-center text-gray-500">Select a request to see details</div>
                 )}
+              </div>
+            </div>
+          </section>
+        </main>
+      </div>
+    )
+  }              
   // Show loading while checking role or redirecting
   if (!roleLoaded || isRedirecting) {
     return (
@@ -461,73 +468,6 @@ export default function Home() {
       </div>
     )
   }
-
-  // Technician view
-  if (role === "technician") {
-    return (
-      <div className="font-sans min-h-screen p-8 bg-white text-black">
-        <main className="max-w-5xl mx-auto">
-          <header className="flex items-center justify-between mb-8">
-            <h1 className="text-2xl font-bold">Biotech Maintenance Platform</h1>
-            <AuthStatus />
-          </header>
-
-          <section className="space-y-8">
-            <div className="flex justify-center">
-              <Link
-                href="/work-orders"
-                className="w-full max-w-4xl text-center inline-block px-6 py-3 bg-gradient-to-r from-green-700 to-green-500 text-white font-semibold rounded-full shadow-lg"
-                aria-label="Browse Open Request"
-              >
-                Browse Open Request
-              </Link>
-            </div>
-
-            <div className="bg-gray-50 rounded-2xl p-8 shadow-sm">
-              <h2 className="text-center text-xl font-semibold mb-6">Work Orders</h2>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
-                {[1, 2, 3, 4].map((i) => (
-                  <article
-                    key={i}
-                    className="w-64 border-2 border-gray-300 rounded-xl p-5 bg-white flex flex-col justify-between"
-                    role="article"
-                  >
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="text-base font-medium">Title</p>
-                        <p className="text-sm text-gray-600">Date</p>
-                        <p className="text-sm text-gray-600">Category</p>
-                      </div>
-                      <span className="ml-2 px-3 py-1 rounded-full bg-gray-200 text-xs">Status</span>
-                    </div>
-
-                    <p className="text-sm text-gray-500 my-6 text-center flex-1">Detailed Description</p>
-
-                    <div className="mt-4 flex justify-center">
-                      <Link
-                        href={`/work-orders/${i}`}
-                        className="px-4 py-2 bg-gray-200 text-sm rounded-full hover:bg-gray-300"
-                      >
-                        View Order Details
-                      </Link>
-                    </div>
-                  </article>
-                ))}
-              </div>
-
-              <div className="flex justify-center mt-8">
-                <button className="px-10 py-3 bg-green-600 text-white rounded-full font-semibold shadow">
-                  View All Orders
-                </button>
-              </div>
-            </div>
-          </section>
-        </main>
-      </div>
-    )
-  }
-
   // Default view (no specific role or non-lab/technician users)
   return (
     <div className="font-sans min-h-screen p-8 bg-white text-black">
