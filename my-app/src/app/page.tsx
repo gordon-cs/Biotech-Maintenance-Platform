@@ -48,6 +48,10 @@ export default function Home() {
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+  const [serviceArea, setServiceArea] = useState("")
+  const [category, setCategory] = useState("")
+  const [categoriesList, setCategoriesList] = useState<Array<{id:number, slug:string, name:string}>>([])
 
   // load role once and on auth changes
   useEffect(() => {
