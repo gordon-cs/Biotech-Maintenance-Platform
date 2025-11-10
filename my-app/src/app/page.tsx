@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabaseClient"
 import AuthStatus from "./components/AuthStatus"
+import type { PostgrestResponse } from "@supabase/supabase-js"
 
 type WO = {
   id: number
@@ -84,13 +85,19 @@ export default function Home() {
       // load labs and categories first (typed)
       type LabRow = { id: number; name: string; address?: string }
       type CategoryRow = { id: number; name: string }
-      const [labsRes, catsRes] = await Promise.all([
-        supabase.from("labs").select("id,name,address") as any,
-        supabase.from("categories").select("id,name") as any
-      ])
+      const labsRes = (await supabase.from("labs").select("id,name,address")) as PostgrestResponse<LabRow>
+      const catsRes = (await supabase.from("categories").select("id,name")) as PostgrestResponse<CategoryRow>
+
       if (!mounted) return
-      if (!labsRes.error && labsRes.data) setLabs(labsRes.data)
-      if (!catsRes.error && catsRes.data) setCategories(catsRes.data)
+
+      if (!labsRes.error && labsRes.data) {
+        // convert nullable address -> undefined to match state type
+        setLabs(labsRes.data.map(l => ({ id: l.id, name: l.name, address: l.address ?? undefined })))
+      }
+
+      if (!catsRes.error && catsRes.data) {
+        setCategories(catsRes.data) // CategoryRow matches state shape
+      }
 
       // then load work orders
       await loadWorkOrders()
@@ -393,6 +400,6 @@ export default function Home() {
           </div>
         </section>
       </main>
-    </div>
+    </div>   
   )
 }
