@@ -136,7 +136,6 @@ export default function Home() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setMessage(null)
-    setSuccess(null)
   }
   // load labs, categories and work orders
   useEffect(() => {
