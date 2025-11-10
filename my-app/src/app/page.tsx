@@ -137,7 +137,7 @@ export default function Home() {
     e.preventDefault()
     setMessage(null)
     setSuccess(null)
-
+  }
   // load labs, categories and work orders
   useEffect(() => {
     let mounted = true
