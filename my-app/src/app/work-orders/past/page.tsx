@@ -57,7 +57,7 @@ const formatStatus = (status?: string) => {
   return status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
 }
 
-const urgencyOrder = { high: 3, medium: 2, low: 1, "": 0, "n/a": 0 } as const
+const urgencyOrder = { high: 3, medium: 2, low: 1, "": 0 } as const
 
 const getUrgencyScore = (urgency?: string) => 
   urgencyOrder[urgency?.toLowerCase() as keyof typeof urgencyOrder] ?? 0
