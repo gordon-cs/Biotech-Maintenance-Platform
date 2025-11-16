@@ -170,7 +170,7 @@ export default function AddressManagement() {
       handleCancel()
     } catch (err) {
       console.error("Error saving address:", err)
-      const msg = err instanceof Error ? err.message : (typeof err === 'object' && err !== null && 'message' in err ? String((err as any).message) : String(err))
+      const msg = err instanceof Error ? err.message : String(err)
       setMessage(msg)
     } finally {
       setSaving(false)
@@ -194,7 +194,7 @@ export default function AddressManagement() {
       await loadAddresses()
     } catch (err) {
       console.error("Error deleting address:", err)
-      const msg = err instanceof Error ? err.message : (typeof err === 'object' && err !== null && 'message' in err ? String((err as any).message) : String(err))
+      const msg = err instanceof Error ? err.message : String(err)
       setMessage(msg)
     } finally {
       setSaving(false)
@@ -228,7 +228,7 @@ export default function AddressManagement() {
       await loadAddresses()
     } catch (err) {
       console.error("Error setting default address:", err)
-      const msg = err instanceof Error ? err.message : (typeof err === 'object' && err !== null && 'message' in err ? String((err as any).message) : String(err))
+      const msg = err instanceof Error ? err.message : String(err)
       setMessage(msg)
     } finally {
       setSaving(false)
