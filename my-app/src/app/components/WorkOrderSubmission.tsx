@@ -117,9 +117,11 @@ export default function WorkOrderSubmission() {
         }
       }
 
-      const urgencyValue: WorkOrderUrgency = form.urgency.trim() 
-        ? form.urgency as WorkOrderUrgency 
-        : "normal"
+      const validUrgencies: WorkOrderUrgency[] = ["normal", "low", "medium", "high", "critical", null];
+      const urgencyValue: WorkOrderUrgency =
+        form.urgency.trim() && validUrgencies.includes(form.urgency as WorkOrderUrgency)
+          ? form.urgency as WorkOrderUrgency
+          : "normal";
 
       const payload: WorkOrderPayload = {
         title: form.title || null,
