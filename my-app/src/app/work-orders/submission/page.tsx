@@ -1,6 +1,6 @@
 "use client"
 
-import React, { Suspense } from "react"
+import { Suspense } from "react"
 import WorkOrderSubmission from "../../components/WorkOrderSubmission"
 
 export default function Page() {
