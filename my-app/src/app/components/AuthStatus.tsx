@@ -80,7 +80,11 @@ export default function AuthStatus() {
       <span className="text-sm">
         Signed in as <strong>{session.user?.email}</strong>
       </span>
-      <Link href="/complete-profile" className="text-blue-600 underline">Complete profile</Link>
+      {!userRole ? (
+        <Link href="/complete-profile" className="text-blue-600 underline">Complete profile</Link>
+      ) : (
+        <Link href="/edit-profile" className="text-blue-600 underline">Edit profile</Link>
+      )}
       {userRole === "lab" && (
         <Link href="/manage-addresses" className="text-blue-600 underline">Manage Addresses</Link>
       )}
