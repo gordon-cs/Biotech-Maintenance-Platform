@@ -9,6 +9,7 @@ import type { Session } from "@supabase/supabase-js"
 export default function AuthStatus() {
   const [session, setSession] = useState<Session | null>(null);
   const [userRole, setUserRole] = useState<"lab" | "technician" | null>(null);
+  const [hasRole, setHasRole] = useState<boolean | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -27,8 +28,9 @@ export default function AuthStatus() {
           .eq("id", data.session.user.id)
           .single();
         
-        if (mounted && profile) {
-          setUserRole(profile.role);
+        if (mounted) {
+          setUserRole(profile?.role ?? null);
+          setHasRole(profile?.role !== null && profile?.role !== undefined);
         }
       }
     };
@@ -48,9 +50,11 @@ export default function AuthStatus() {
             if (profile) {
               setUserRole(profile.role);
             }
+            setHasRole(profile?.role !== null && profile?.role !== undefined);
           });
       } else {
         setUserRole(null);
+        setHasRole(null);
       }
     });
 
