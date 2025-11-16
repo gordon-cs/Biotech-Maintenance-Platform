@@ -22,7 +22,7 @@ type WorkOrderPayload = {
 type LabRow = { id: number; manager_id: string }
 // full category shape used in the dropdown
 type CategoryRow = { id: number; slug: string; name: string }
-type AddressRow = { id: number; address: string | null; address2: string | null; city: string | null; state: string | null; zipcode: string | null }
+type AddressRow = { id: number; line1: string | null; line2: string | null; city: string | null; state: string | null; zipcode: string | null }
 type InsertIdRow = { id: string } // bigint/int8 is returned as string by the client
 
 export default function WorkOrderSubmission() {
@@ -68,7 +68,7 @@ export default function WorkOrderSubmission() {
             // Load addresses for this lab
             const { data: addrData, error: addrError } = await supabase
               .from("addresses")
-              .select("id, address, address2, city, state, zipcode")
+              .select("id, line1, line2, city, state, zipcode")
               .eq("lab_id", labData.id)
             
             if (!addrError && addrData && mounted) {
@@ -261,8 +261,8 @@ export default function WorkOrderSubmission() {
             <option value="">Select address…</option>
             {addresses.map((addr) => {
               const parts = [
-                addr.address,
-                addr.address2,
+                addr.line1,
+                addr.line2,
                 addr.city,
                 addr.state,
                 addr.zipcode

@@ -14,8 +14,8 @@ type CreateProfileBody = {
     name?: string | null
   } | null
   address?: {
-    address?: string | null
-    address2?: string | null
+    line1?: string | null
+    line2?: string | null
     city?: string | null
     state?: string | null
     zipcode?: string | null
@@ -113,11 +113,12 @@ export async function POST(req: NextRequest) {
 
         const addressData = {
           lab_id: labId,
-          address: body.address?.address ?? null,
-          address2: body.address?.address2 ?? null,
+          line1: body.address?.line1 ?? null,
+          line2: body.address?.line2 ?? null,
           city: body.address?.city ?? null,
           state: body.address?.state ?? null,
           zipcode: body.address?.zipcode ?? null,
+          is_default: !existingAddress, // Set as default if it's the first address
         }
 
         if (existingAddress) {
@@ -128,7 +129,7 @@ export async function POST(req: NextRequest) {
             .eq("id", existingAddress.id)
           if (addrErr) return NextResponse.json({ error: addrErr.message }, { status: 500 })
         } else {
-          // Create new address
+          // Create new address (will be default since it's the first one)
           const { error: addrErr } = await serviceClient
             .from("addresses")
             .insert(addressData)

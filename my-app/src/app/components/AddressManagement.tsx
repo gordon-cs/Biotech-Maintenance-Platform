@@ -2,15 +2,17 @@
 
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabaseClient"
+import Link from "next/link"
 
 type Address = {
   id: number
   lab_id: number
-  address: string | null
-  address2: string | null
+  line1: string | null
+  line2: string | null
   city: string | null
   state: string | null
   zipcode: string | null
+  is_default: boolean
 }
 
 export default function AddressManagement() {
@@ -23,8 +25,8 @@ export default function AddressManagement() {
   const [showAddForm, setShowAddForm] = useState(false)
 
   const [formData, setFormData] = useState({
-    address: "",
-    address2: "",
+    line1: "",
+    line2: "",
     city: "",
     state: "",
     zipcode: "",
@@ -83,8 +85,8 @@ export default function AddressManagement() {
   const handleEdit = (address: Address) => {
     setEditingId(address.id)
     setFormData({
-      address: address.address || "",
-      address2: address.address2 || "",
+      line1: address.line1 || "",
+      line2: address.line2 || "",
       city: address.city || "",
       state: address.state || "",
       zipcode: address.zipcode || "",
@@ -95,8 +97,8 @@ export default function AddressManagement() {
   const handleAdd = () => {
     setEditingId(null)
     setFormData({
-      address: "",
-      address2: "",
+      line1: "",
+      line2: "",
       city: "",
       state: "",
       zipcode: "",
@@ -108,8 +110,8 @@ export default function AddressManagement() {
     setEditingId(null)
     setShowAddForm(false)
     setFormData({
-      address: "",
-      address2: "",
+      line1: "",
+      line2: "",
       city: "",
       state: "",
       zipcode: "",
@@ -129,8 +131,8 @@ export default function AddressManagement() {
     try {
       const addressData = {
         lab_id: labId,
-        address: formData.address || null,
-        address2: formData.address2 || null,
+        line1: formData.line1 || null,
+        line2: formData.line2 || null,
         city: formData.city || null,
         state: formData.state || null,
         zipcode: formData.zipcode || null,
@@ -143,15 +145,23 @@ export default function AddressManagement() {
           .update(addressData)
           .eq("id", editingId)
 
-        if (error) throw error
+        if (error) {
+          console.error("Update error:", error)
+          throw new Error(error.message || "Failed to update address")
+        }
         setMessage("Address updated successfully!")
       } else {
         // Create new address
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from("addresses")
           .insert(addressData)
+          .select()
 
-        if (error) throw error
+        if (error) {
+          console.error("Insert error:", error)
+          throw new Error(error.message || "Failed to add address")
+        }
+        console.log("Address created:", data)
         setMessage("Address added successfully!")
       }
 
@@ -159,7 +169,8 @@ export default function AddressManagement() {
       await loadAddresses()
       handleCancel()
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
+      console.error("Error saving address:", err)
+      const msg = err instanceof Error ? err.message : (typeof err === 'object' && err !== null && 'message' in err ? String((err as any).message) : String(err))
       setMessage(msg)
     } finally {
       setSaving(false)
@@ -182,7 +193,42 @@ export default function AddressManagement() {
       setMessage("Address deleted successfully!")
       await loadAddresses()
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
+      console.error("Error deleting address:", err)
+      const msg = err instanceof Error ? err.message : (typeof err === 'object' && err !== null && 'message' in err ? String((err as any).message) : String(err))
+      setMessage(msg)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleSetDefault = async (id: number) => {
+    if (!labId) return
+
+    setSaving(true)
+    setMessage(null)
+
+    try {
+      // First, unset all defaults for this lab
+      const { error: unsetError } = await supabase
+        .from("addresses")
+        .update({ is_default: false })
+        .eq("lab_id", labId)
+
+      if (unsetError) throw unsetError
+
+      // Then set the selected address as default
+      const { error: setError } = await supabase
+        .from("addresses")
+        .update({ is_default: true })
+        .eq("id", id)
+
+      if (setError) throw setError
+
+      setMessage("Default address updated successfully!")
+      await loadAddresses()
+    } catch (err) {
+      console.error("Error setting default address:", err)
+      const msg = err instanceof Error ? err.message : (typeof err === 'object' && err !== null && 'message' in err ? String((err as any).message) : String(err))
       setMessage(msg)
     } finally {
       setSaving(false)
@@ -223,8 +269,8 @@ export default function AddressManagement() {
             <label className="block mb-1 text-sm font-medium">Address Line 1 *</label>
             <input
               type="text"
-              value={formData.address}
-              onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+              value={formData.line1}
+              onChange={(e) => setFormData({ ...formData, line1: e.target.value })}
               className="w-full border px-2 py-1 rounded"
               required
             />
@@ -234,8 +280,8 @@ export default function AddressManagement() {
             <label className="block mb-1 text-sm font-medium">Address Line 2</label>
             <input
               type="text"
-              value={formData.address2}
-              onChange={(e) => setFormData({ ...formData, address2: e.target.value })}
+              value={formData.line2}
+              onChange={(e) => setFormData({ ...formData, line2: e.target.value })}
               className="w-full border px-2 py-1 rounded"
             />
           </div>
@@ -299,15 +345,29 @@ export default function AddressManagement() {
         ) : (
           addresses.map((addr) => (
             <div key={addr.id} className="p-4 border rounded bg-white">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="font-medium">{addr.address}</p>
-                  {addr.address2 && <p className="text-sm text-gray-600">{addr.address2}</p>}
+              <div className="flex justify-between items-start gap-4">
+                <div className="flex-1 min-w-0">
+                  {addr.is_default && (
+                    <span className="inline-block mb-2 px-2 py-1 text-xs bg-green-100 text-green-700 rounded font-semibold">
+                      Default
+                    </span>
+                  )}
+                  <p className="font-medium">{addr.line1}</p>
+                  {addr.line2 && <p className="text-sm text-gray-600">{addr.line2}</p>}
                   <p className="text-sm text-gray-600">
                     {[addr.city, addr.state, addr.zipcode].filter(Boolean).join(", ")}
                   </p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2 flex-shrink-0">
+                  {!addr.is_default && (
+                    <button
+                      onClick={() => handleSetDefault(addr.id)}
+                      className="px-2 py-1 text-sm bg-green-100 text-green-700 rounded hover:bg-green-200 whitespace-nowrap"
+                      disabled={saving}
+                    >
+                      Set Default
+                    </button>
+                  )}
                   <button
                     onClick={() => handleEdit(addr)}
                     className="px-2 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
@@ -326,6 +386,15 @@ export default function AddressManagement() {
             </div>
           ))
         )}
+      </div>
+
+      <div className="mt-6 text-center">
+        <Link
+          href="/"
+          className="inline-flex items-center px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
+        >
+          Return to Homepage
+        </Link>
       </div>
     </div>
   )
