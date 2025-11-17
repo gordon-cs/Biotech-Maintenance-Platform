@@ -3,14 +3,14 @@
 import React, { useState, useEffect } from "react"
 import { supabase } from "@/lib/supabaseClient"
 import Link from "next/link"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 
 // payload type (no `any`)
 type WorkOrderPayload = {
   title: string | null
   description: string | null
   equipment: string | null
-  urgency: "low" | "medium" | "high" | "critical" | string | null
+  urgency: "low" | "normal" | "high" | "critical" | string | null
   lab?: number | null
   category_id?: number | null
   date?: string | null
@@ -27,17 +27,20 @@ type InsertIdRow = { id: string } // bigint/int8 is returned as string by the cl
 
 export default function WorkOrderSubmission() {
   const searchParams = useSearchParams()
+  const router = useRouter()
   const initialCategory = searchParams?.get("category") ?? ""
   const initialDate = searchParams?.get("date") ?? ""
+  const initialTitle = searchParams?.get("title") ?? ""
+  const initialAddressId = searchParams?.get("address_id") ?? ""
 
   const [form, setForm] = useState({
-    title: "",
+    title: initialTitle,
     description: "",
     equipment: "",
     urgency: "", // display "Select..." by default
     category_id: initialCategory, // can be slug or id
     date: initialDate,
-    address_id: "", // new field for address selection
+    address_id: initialAddressId, // new field for address selection
   })
   const [categories, setCategories] = useState<CategoryRow[]>([])
   const [addresses, setAddresses] = useState<AddressRow[]>([])
@@ -90,7 +93,20 @@ export default function WorkOrderSubmission() {
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target
+    
+    // Handle "add_new" address option
+    if (name === "address_id" && value === "add_new") {
+      router.push("/manage-addresses")
+      return
+    }
+    
     setForm((s) => ({ ...s, [name]: value }))
+  }
+
+  // Helper function to format address for display
+  const formatAddress = (addr: AddressRow) => {
+    const parts = [addr.line1, addr.city, addr.state, addr.zipcode].filter(Boolean)
+    return parts.join(", ")
   }
 
   // Ensure current user is a manager of a lab and return the lab id
@@ -227,7 +243,6 @@ export default function WorkOrderSubmission() {
             <option value="">Select…</option>
             <option value="normal">Normal</option>
             <option value="low">Low</option>
-            <option value="medium">Medium</option>
             <option value="high">High</option>
             <option value="critical">Critical</option>
           </select>
@@ -251,29 +266,21 @@ export default function WorkOrderSubmission() {
         </label>
 
         <label className="block mb-3">
-          <div className="text-sm mb-1">Address</div>
+          <div className="text-sm mb-1">Service Area (Address) *</div>
           <select
             name="address_id"
             value={form.address_id}
             onChange={handleChange}
             className="w-full border px-2 py-1 rounded"
+            required
           >
-            <option value="">Select address…</option>
-            {addresses.map((addr) => {
-              const parts = [
-                addr.line1,
-                addr.line2,
-                addr.city,
-                addr.state,
-                addr.zipcode
-              ].filter(Boolean)
-              const displayText = parts.join(", ")
-              return (
-                <option key={addr.id} value={addr.id}>
-                  {displayText || `Address #${addr.id}`}
-                </option>
-              )
-            })}
+            <option value="">Select an address...</option>
+            {addresses.map((addr) => (
+              <option key={addr.id} value={addr.id}>
+                {formatAddress(addr)}
+              </option>
+            ))}
+            <option value="add_new" className="font-semibold">+ Add New Address</option>
           </select>
         </label>
 

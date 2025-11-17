@@ -104,11 +104,12 @@ export async function POST(req: NextRequest) {
 
       // Handle address separately if provided
       if (body.address) {
-        // Check if address already exists for this lab
-        const { data: existingAddress } = await serviceClient
+        // Check if a default address already exists for this lab
+        const { data: existingDefaultAddress } = await serviceClient
           .from("addresses")
           .select("id")
           .eq("lab_id", labId)
+          .eq("is_default", true)
           .maybeSingle()
 
         const addressData = {
@@ -118,18 +119,18 @@ export async function POST(req: NextRequest) {
           city: body.address?.city ?? null,
           state: body.address?.state ?? null,
           zipcode: body.address?.zipcode ?? null,
-          is_default: !existingAddress, // Set as default if it's the first address
+          is_default: true, // Always set/keep as default
         }
 
-        if (existingAddress) {
-          // Update existing address
+        if (existingDefaultAddress) {
+          // Update existing default address
           const { error: addrErr } = await serviceClient
             .from("addresses")
             .update(addressData)
-            .eq("id", existingAddress.id)
+            .eq("id", existingDefaultAddress.id)
           if (addrErr) return NextResponse.json({ error: addrErr.message }, { status: 500 })
         } else {
-          // Create new address (will be default since it's the first one)
+          // Create new default address (first address for this lab)
           const { error: addrErr } = await serviceClient
             .from("addresses")
             .insert(addressData)
