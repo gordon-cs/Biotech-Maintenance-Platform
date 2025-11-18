@@ -7,6 +7,15 @@ import { supabase } from "@/lib/supabaseClient"
 import AuthStatus from "../components/AuthStatus"
 
 type Category = { id: number; slug: string; name: string }
+type Address = {
+  id: number
+  line1: string | null
+  line2: string | null
+  city: string | null
+  state: string | null
+  zipcode: string | null
+  is_default: boolean
+}
 type WorkOrder = {
   id: string
   title: string
@@ -20,7 +29,9 @@ export default function ManagerDashboard() {
   const [serviceArea, setServiceArea] = useState("")
   const [date, setDate] = useState<string>("")
   const [category, setCategory] = useState("")
+  const [selectedAddressId, setSelectedAddressId] = useState<string>("")
   const [categories, setCategories] = useState<Category[]>([])
+  const [addresses, setAddresses] = useState<Address[]>([])
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([])
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
@@ -64,22 +75,40 @@ export default function ManagerDashboard() {
 
         const userId = authData.user.id
 
-        // Get labs managed by user
-        const labsRes = await supabase
+        // Load lab and addresses for this user
+        const { data: labData, error: labError } = await supabase
           .from("labs")
           .select("id")
           .eq("manager_id", userId)
+          .single()
         
-        if (labsRes.error || !labsRes.data) return
-        const labIds = labsRes.data.map((l) => l.id)
+        if (labError || !labData) return
+        
+        const labId = labData.id
 
-        if (labIds.length === 0) return
+        if (mounted) {
+          // Load addresses for this lab
+          const { data: addressData, error: addressError } = await supabase
+            .from("addresses")
+            .select("*")
+            .eq("lab_id", labId)
+            .order("is_default", { ascending: false })
+          
+          if (!addressError && addressData) {
+            setAddresses(addressData)
+            // Auto-select the default address if available
+            const defaultAddr = addressData.find(a => a.is_default)
+            if (defaultAddr) {
+              setSelectedAddressId(String(defaultAddr.id))
+            }
+          }
+        }
 
         // Fetch recent work orders with status
         const ordersRes = await supabase
           .from("work_orders")
           .select("id, title, category_id, created_at, status")
-          .in("lab", labIds)
+          .eq("lab", labId)
           .order("created_at", { ascending: false })
           .limit(4)
 
@@ -115,11 +144,25 @@ export default function ManagerDashboard() {
   // navigate to the dedicated submission page with pre-filled query params
   const handleNavigateToSubmission = (e?: React.FormEvent) => {
     e?.preventDefault()
+    
+    // Handle "add_new" option by redirecting to manage addresses first
+    if (selectedAddressId === "add_new") {
+      router.push("/manage-addresses")
+      return
+    }
+    
     const params = new URLSearchParams()
     if (category) params.set("category", category)
     if (date) params.set("date", date)
     if (serviceArea) params.set("title", serviceArea)
+    if (selectedAddressId) params.set("address_id", selectedAddressId)
     router.push(`/work-orders/submission?${params.toString()}`)
+  }
+
+  // Helper function to format address for display
+  const formatAddress = (addr: Address) => {
+    const parts = [addr.line1, addr.city, addr.state, addr.zipcode].filter(Boolean)
+    return parts.join(", ")
   }
 
   // Navigate to past orders page with specific order selected
@@ -140,14 +183,31 @@ export default function ManagerDashboard() {
 
           <form onSubmit={handleNavigateToSubmission} className="space-y-4">
             <div>
-              <label className="block text-sm mb-1">Service Area</label>
+              <label className="block text-sm mb-1">Title (Optional)</label>
               <input
                 value={serviceArea}
                 onChange={(e) => setServiceArea(e.target.value)}
                 className="w-full border px-3 py-2 rounded"
-                placeholder="Short title or service area"
-                required
+                placeholder="Short title or description"
               />
+            </div>
+            
+            <div>
+              <label className="block text-sm mb-1">Service Area (Address) *</label>
+              <select
+                value={selectedAddressId}
+                onChange={(e) => setSelectedAddressId(e.target.value)}
+                className="w-full border px-3 py-2 rounded"
+                required
+              >
+                <option value="">Select an address...</option>
+                {addresses.map((addr) => (
+                  <option key={addr.id} value={String(addr.id)}>
+                    {formatAddress(addr)}{addr.is_default ? " (Default)" : ""}
+                  </option>
+                ))}
+                <option value="add_new" className="font-semibold">+ Add New Address</option>
+              </select>
             </div>
 
             <div className="grid grid-cols-2 gap-4">

@@ -86,7 +86,7 @@ function PastOrdersContent() {
         return sorted.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
       case "by_priority":
         return sorted.sort((a, b) => {
-          const urgencyOrder = { "high": 3, "medium": 2, "low": 1, "": 0, "N/A": 0 }
+          const urgencyOrder = { "critical": 4, "high": 3, "normal": 2, "low": 1, "": 0, "N/A": 0 }
           const aUrgency = urgencyOrder[a.urgency?.toLowerCase() as keyof typeof urgencyOrder] || 0
           const bUrgency = urgencyOrder[b.urgency?.toLowerCase() as keyof typeof urgencyOrder] || 0
           return bUrgency - aUrgency // Higher priority first
@@ -114,7 +114,7 @@ function PastOrdersContent() {
         // Get labs managed by user
         const labsRes = await supabase
           .from("labs")
-          .select("id, name, address, address2, city, state, zipcode")
+          .select("id, name")
           .eq("manager_id", userId)
         
         if (labsRes.error) throw labsRes.error
@@ -126,15 +126,32 @@ function PastOrdersContent() {
           return
         }
 
-        // Fetch work orders with urgency and status fields
+        // Fetch work orders with urgency, status, and address_id fields
         const ordersRes = await supabase
           .from("work_orders")
-          .select("id, title, description, category_id, lab, created_at, urgency, status")
+          .select("id, title, description, category_id, lab, created_at, urgency, status, address_id")
           .in("lab", labIds)
           .order("created_at", { ascending: false })
 
         if (ordersRes.error) throw ordersRes.error
         const woRows = ordersRes.data || []
+
+        // Get all unique address IDs from work orders
+        const addressIds = Array.from(new Set(woRows.map(w => w.address_id).filter(Boolean)))
+        const addressMap: Record<number, string> = {}
+        if (addressIds.length) {
+          const addrRes = await supabase
+            .from("addresses")
+            .select("id, line1, line2, city, state, zipcode")
+            .in("id", addressIds)
+          
+          if (!addrRes.error) {
+            for (const addr of addrRes.data || []) {
+              const parts = [addr.line1, addr.line2, addr.city, addr.state, addr.zipcode].filter(Boolean)
+              addressMap[addr.id] = parts.length ? parts.join(", ") : "N/A"
+            }
+          }
+        }
 
         // Get categories
         const catIds = Array.from(new Set(woRows.map(w => w.category_id).filter(Boolean)))
@@ -148,18 +165,11 @@ function PastOrdersContent() {
           }
         }
 
-        // Build lab address map
-        const labMap: Record<number, string> = {}
-        for (const l of labRows) {
-          const parts = [l.address, l.address2, l.city, l.state, l.zipcode].filter(Boolean)
-          labMap[l.id] = parts.length ? parts.join(", ") : "N/A"
-        }
-
         // Build display data
         const display: DisplayRow[] = woRows.map(r => ({
           id: String(r.id),
           title: r.title || "Untitled",
-          address: labMap[r.lab] || "N/A",
+          address: r.address_id ? (addressMap[r.address_id] || "N/A") : "N/A",
           category: categoryMap[r.category_id] || "N/A",
           description: r.description || "No description available",
           created_at: r.created_at || "",
@@ -331,8 +341,9 @@ function PastOrdersContent() {
                         <div className="text-xs text-gray-400">{order.category}</div>
                         {order.urgency && order.urgency !== "N/A" && (
                           <div className={`text-xs mt-1 px-2 py-1 rounded inline-block ${
-                            order.urgency?.toLowerCase() === "high" ? "bg-red-100 text-red-800" :
-                            order.urgency?.toLowerCase() === "medium" ? "bg-yellow-100 text-yellow-800" :
+                            order.urgency?.toLowerCase() === "critical" ? "bg-red-100 text-red-800" :
+                            order.urgency?.toLowerCase() === "high" ? "bg-orange-100 text-orange-800" :
+                            order.urgency?.toLowerCase() === "normal" ? "bg-yellow-100 text-yellow-800" :
                             order.urgency?.toLowerCase() === "low" ? "bg-green-100 text-green-800" :
                             "bg-gray-100 text-gray-800"
                           }`}>
@@ -378,8 +389,9 @@ function PastOrdersContent() {
                   <div className="text-sm font-medium mb-2">Category: {selectedOrder.category}</div>
                   {selectedOrder.urgency && selectedOrder.urgency !== "N/A" && (
                     <div className={`inline-block text-sm px-3 py-1 rounded-full ${
-                      selectedOrder.urgency?.toLowerCase() === "high" ? "bg-red-100 text-red-800" :
-                      selectedOrder.urgency?.toLowerCase() === "medium" ? "bg-yellow-100 text-yellow-800" :
+                      selectedOrder.urgency?.toLowerCase() === "critical" ? "bg-red-100 text-red-800" :
+                      selectedOrder.urgency?.toLowerCase() === "high" ? "bg-orange-100 text-orange-800" :
+                      selectedOrder.urgency?.toLowerCase() === "normal" ? "bg-yellow-100 text-yellow-800" :
                       selectedOrder.urgency?.toLowerCase() === "low" ? "bg-green-100 text-green-800" :
                       "bg-gray-100 text-gray-800"
                     }`}>

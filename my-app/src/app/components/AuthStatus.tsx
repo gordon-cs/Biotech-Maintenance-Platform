@@ -8,6 +8,7 @@ import type { Session } from "@supabase/supabase-js"
 
 export default function AuthStatus() {
   const [session, setSession] = useState<Session | null>(null);
+  const [userRole, setUserRole] = useState<"lab" | "technician" | null>(null);
   const [hasRole, setHasRole] = useState<boolean | null>(null);
   const router = useRouter();
 
@@ -19,7 +20,7 @@ export default function AuthStatus() {
       if (!mounted) return;
       setSession(data?.session ?? null);
       
-      // Check if user has a role set
+      // Get user's role
       if (data?.session?.user) {
         const { data: profile } = await supabase
           .from("profiles")
@@ -27,7 +28,10 @@ export default function AuthStatus() {
           .eq("id", data.session.user.id)
           .single();
         
-        setHasRole(profile?.role !== null && profile?.role !== undefined);
+        if (mounted) {
+          setUserRole(profile?.role ?? null);
+          setHasRole(profile?.role !== null && profile?.role !== undefined);
+        }
       }
     };
     get();
@@ -35,7 +39,7 @@ export default function AuthStatus() {
     const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
       setSession(s ?? null);
       
-      // Re-check role when auth state changes
+      // Update role when auth state changes
       if (s?.user) {
         supabase
           .from("profiles")
@@ -43,9 +47,13 @@ export default function AuthStatus() {
           .eq("id", s.user.id)
           .single()
           .then(({ data: profile }) => {
+            if (profile) {
+              setUserRole(profile.role);
+            }
             setHasRole(profile?.role !== null && profile?.role !== undefined);
           });
       } else {
+        setUserRole(null);
         setHasRole(null);
       }
     });
@@ -76,10 +84,13 @@ export default function AuthStatus() {
       <span className="text-sm">
         Signed in as <strong>{session.user?.email}</strong>
       </span>
-      {!hasRole ? (
+      {!userRole ? (
         <Link href="/complete-profile" className="text-blue-600 underline">Complete profile</Link>
       ) : (
         <Link href="/edit-profile" className="text-blue-600 underline">Edit profile</Link>
+      )}
+      {userRole === "lab" && (
+        <Link href="/manage-addresses" className="text-blue-600 underline">Manage Addresses</Link>
       )}
       <button onClick={signOut} className="px-2 py-1 bg-gray-200 rounded">Sign out</button>
     </div>

@@ -39,7 +39,7 @@ export default function Home() {
 
   // technician UI state
   const [search, setSearch] = useState("")
-  const [labs, setLabs] = useState<Array<{ id: number; name: string; address?: string }>>([])
+  const [labs, setLabs] = useState<Array<{ id: number; name: string }>>([])
   const [categories, setCategories] = useState<Array<{ id: number; name: string }>>([])
   const [selectedLab, setSelectedLab] = useState<number | null>(null)
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null)
@@ -147,16 +147,15 @@ export default function Home() {
     let mounted = true
     const load = async () => {
       // load labs and categories first (typed)
-      type LabRow = { id: number; name: string; address?: string }
+      type LabRow = { id: number; name: string }
       type CategoryRow = { id: number; name: string }
-      const labsRes = (await supabase.from("labs").select("id,name,address")) as PostgrestResponse<LabRow>
+      const labsRes = (await supabase.from("labs").select("id,name")) as PostgrestResponse<LabRow>
       const catsRes = (await supabase.from("categories").select("id,name")) as PostgrestResponse<CategoryRow>
 
       if (!mounted) return
 
       if (!labsRes.error && labsRes.data) {
-        // convert nullable address -> undefined to match state type
-        setLabs(labsRes.data.map(l => ({ id: l.id, name: l.name, address: l.address ?? undefined })))
+        setLabs(labsRes.data)
       }
 
       if (!catsRes.error && catsRes.data) {
@@ -204,7 +203,41 @@ export default function Home() {
     labs.forEach(l => labsMap.set(l.id, l.name))
     categories.forEach(c => catsMap.set(c.id, c.name))
 
+    // Fetch addresses for all work orders
     const raw = (data || []) as WorkOrdersRow[]
+    const addressIds = raw.map(wo => wo.address_id).filter(Boolean) as number[]
+    const addressMap = new Map<number, string>()
+    
+    console.log("Work orders:", raw.length)
+    console.log("Address IDs found:", addressIds)
+    
+    if (addressIds.length > 0) {
+      // First check what we can see from addresses table
+      const { data: allAddresses, error: allError } = await supabase
+        .from("addresses")
+        .select("id, line1, line2, city, state, zipcode, lab_id")
+      
+      console.log("All addresses visible:", allAddresses)
+      console.log("All addresses error:", allError)
+      
+      const { data: addressData, error: addrError } = await supabase
+        .from("addresses")
+        .select("id, line1, line2, city, state, zipcode")
+        .in("id", addressIds)
+      
+      console.log("Filtered address data:", addressData)
+      console.log("Filtered address error:", addrError)
+      
+      if (addressData) {
+        addressData.forEach((addr) => {
+          const parts = [addr.line1, addr.city, addr.state, addr.zipcode].filter(Boolean)
+          addressMap.set(addr.id, parts.join(", "))
+        })
+      }
+    }
+    
+    console.log("Address map:", addressMap)
+
     const enriched = raw.map((wo) => ({
       id: Number(wo.id),
       title: wo.title ?? null,
@@ -215,7 +248,8 @@ export default function Home() {
       created_by: wo.created_by ?? null,
       status: wo.status ?? null,
       created_at: wo.created_at ?? null,
-      address: null,
+      address_id: wo.address_id != null ? Number(wo.address_id) : null,
+      address: wo.address_id ? addressMap.get(Number(wo.address_id)) ?? null : null,
       labName: wo.lab ? labsMap.get(Number(wo.lab)) ?? null : null,
       categoryName: wo.category_id ? catsMap.get(Number(wo.category_id)) ?? null : null
     })) as WO[]
@@ -374,7 +408,7 @@ export default function Home() {
                           <div>
                             <div className="text-sm font-medium">{wo.title ?? "Title"}</div>
                             <div className="text-xs text-gray-500">{wo.labName ?? "Lab"}</div>
-                            <div className="text-xs text-gray-500">{wo.address ?? ""}</div>
+                            {wo.address && <div className="text-xs text-gray-500">{wo.address}</div>}
                           </div>
                           <div className="text-xs text-gray-500">{wo.categoryName ?? "Category"}</div>
                         </div>
@@ -400,7 +434,7 @@ export default function Home() {
                         <div className="text-sm text-gray-600">{selectedOrder.labName}</div>
                         <h2 className="text-xl font-semibold">{selectedOrder.title}</h2>
                         <div className="text-xs text-gray-500 mt-1">Submitted by {selectedOrder.creatorEmail ?? selectedOrder.created_by ?? "Unknown"} • {selectedOrder.created_at}</div>
-                        <div className="text-sm text-gray-700 mt-2">{selectedOrder.address ?? ""}</div>
+                        {selectedOrder.address && <div className="text-sm text-gray-700 mt-2">📍 {selectedOrder.address}</div>}
                         <div className="text-sm text-gray-600 mt-1">{selectedOrder.categoryName ?? ""}</div>
                       </div>
 
