@@ -13,13 +13,8 @@ type Profile = {
 }
 
 type Lab = {
-  id: string
+  id: number
   name: string
-  address: string
-  address2?: string
-  city: string
-  state: string
-  zipcode: string
   manager_id: string
 }
 
@@ -49,11 +44,6 @@ export default function EditProfile() {
   
   // Lab-specific fields
   const [labName, setLabName] = useState("")
-  const [address1, setAddress1] = useState("")
-  const [address2, setAddress2] = useState("")
-  const [city, setCity] = useState("")
-  const [stateVal, setStateVal] = useState("")
-  const [zipcode, setZipcode] = useState("")
   
   // Technician-specific fields
   const [company, setCompany] = useState("")
@@ -94,17 +84,12 @@ export default function EditProfile() {
         if (profileData.role === "lab") {
           const { data: labData, error: labError } = await supabase
             .from("labs")
-            .select("*")
+            .select("id, name")
             .eq("manager_id", userId)
             .single()
 
           if (!labError && labData) {
             setLabName(labData.name ?? "")
-            setAddress1(labData.address ?? "")
-            setAddress2(labData.address2 ?? "")
-            setCity(labData.city ?? "")
-            setStateVal(labData.state ?? "")
-            setZipcode(labData.zipcode ?? "")
           }
         } else if (profileData.role === "technician") {
           // Load technician data
@@ -186,11 +171,6 @@ export default function EditProfile() {
         phone: string
         lab?: {
           name: string
-          address: string
-          address2: string | null
-          city: string
-          state: string
-          zipcode: string
         }
         tech?: {
           experience: string
@@ -207,12 +187,7 @@ export default function EditProfile() {
 
       if (profile?.role === "lab") {
         requestBody.lab = {
-          name: labName,
-          address: address1,
-          address2: address2 || null,
-          city: city,
-          state: stateVal,
-          zipcode: zipcode
+          name: labName
         }
       } else if (profile?.role === "technician") {
         requestBody.tech = {
@@ -356,61 +331,11 @@ export default function EditProfile() {
                 className="w-full border px-2 py-1 rounded"
               />
             </div>
-            <div className="mb-3">
-              <label htmlFor="lab-address1" className="block font-medium mb-1">Address 1</label>
-              <input
-                id="lab-address1"
-                value={address1}
-                onChange={(e) => setAddress1(e.target.value)}
-                placeholder="Address 1"
-                required
-                className="w-full border px-2 py-1 rounded"
-              />
-            </div>
-            <div className="mb-3">
-              <label htmlFor="lab-address2" className="block font-medium mb-1">Address 2</label>
-              <input
-                id="lab-address2"
-                value={address2}
-                onChange={(e) => setAddress2(e.target.value)}
-                placeholder="Address 2"
-                className="w-full border px-2 py-1 rounded"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label htmlFor="lab-city" className="block font-medium mb-1">City</label>
-                <input
-                  id="lab-city"
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  placeholder="City"
-                  required
-                  className="w-full border px-2 py-1 rounded"
-                />
-              </div>
-              <div>
-                <label htmlFor="lab-state" className="block font-medium mb-1">State</label>
-                <input
-                  id="lab-state"
-                  value={stateVal}
-                  onChange={(e) => setStateVal(e.target.value)}
-                  placeholder="State"
-                  required
-                  className="w-full border px-2 py-1 rounded"
-                />
-              </div>
-            </div>
-            <div className="mb-3">
-              <label htmlFor="lab-zipcode" className="block font-medium mb-1">Zipcode</label>
-              <input
-                id="lab-zipcode"
-                value={zipcode}
-                onChange={(e) => setZipcode(e.target.value)}
-                placeholder="Zipcode"
-                required
-                className="w-full border px-2 py-1 rounded"
-              />
+            
+            <div className="mb-3 p-4 bg-blue-50 border border-blue-200 rounded">
+              <p className="text-sm text-blue-800">
+                To manage lab addresses, visit the <a href="/manage-addresses" className="underline font-semibold">Manage Addresses</a> page.
+              </p>
             </div>
           </>
         )}

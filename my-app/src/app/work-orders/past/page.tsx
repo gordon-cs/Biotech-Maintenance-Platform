@@ -77,9 +77,9 @@ const sortOrders = (ordersToSort: DisplayRow[], sortOrder: string) => {
   }
 }
 
+// Updated to only allow deletion of 'open' orders
 const canDeleteOrder = (status?: string) => {
-  const deletableStatuses = ['open', 'pending', 'cancelled']
-  return deletableStatuses.includes(status?.toLowerCase() || 'open')
+  return status?.toLowerCase() === 'open'
 }
 
 function PastOrdersContent() {
@@ -120,10 +120,12 @@ function PastOrdersContent() {
       if (labsError) throw labsError
       const labIds = labs?.map(lab => lab.id) || []
 
+      // Only delete orders that are 'open' status
       const { error } = await supabase
         .from("work_orders")
         .delete()
         .eq("id", orderId)
+        .eq("status", "open") // Additional safety check
         .in("lab", labIds)
       
       if (error) throw error
@@ -363,8 +365,8 @@ function PastOrdersContent() {
                             handleDeleteOrder(order.id, order.title)
                           }}
                           disabled={deletingOrderId === order.id}
-                          className="px-2 py-1 text-xs bg-gray-600 text-white rounded hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                          title="Delete Order"
+                          className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Delete Open Order"
                         >
                           {deletingOrderId === order.id ? "..." : "Delete"}
                         </button>
@@ -427,7 +429,7 @@ function PastOrdersContent() {
                         <button
                           onClick={() => handleDeleteOrder(selectedOrder.id, selectedOrder.title)}
                           disabled={deletingOrderId === selectedOrder.id}
-                          className="px-3 py-1 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {deletingOrderId === selectedOrder.id ? "Deleting..." : "Delete Order"}
                         </button>

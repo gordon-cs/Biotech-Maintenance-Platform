@@ -10,3 +10,5 @@ Senior Project: Problem Statement
 
 
 [View the Initial Setup Guide Google Doc](https://docs.google.com/document/d/1UmBzsSn8KSae8E6zIPa5BilChfpzylDUkqIbXDprjMg/edit?usp=sharing)
+
+[View the MVP Proposal Google Doc](https://docs.google.com/document/d/1okkQGsnzDkQsZZoRUl9LF_misE58Y3LKGDQUYEBdovY/edit?usp=sharing)
