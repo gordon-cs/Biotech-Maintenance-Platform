@@ -49,6 +49,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [serviceArea, setServiceArea] = useState("")
   const [category, setCategory] = useState("")
   const [categoriesList, setCategoriesList] = useState<Array<{id:number, slug:string, name:string}>>([])
@@ -97,6 +98,7 @@ export default function Home() {
           return
         }
         
+        if (mounted) setCurrentUserId(session.user.id)
         const userId = session.user.id
         console.log("User ID:", userId)
         
@@ -175,7 +177,7 @@ export default function Home() {
     setMessage(null)
     const { data, error } = await supabase
       .from("work_orders")
-      .select("id,title,description,date,category_id,lab,created_by,status,created_at,address_id")
+      .select("id,title,description,date,category_id,lab,created_by,status,created_at,address_id,assigned_to")
       .order("created_at", { ascending: sortBy === "oldest" })
     if (error) {
       setMessage(error.message)
@@ -194,6 +196,7 @@ export default function Home() {
       lab?: number | string | null
       created_by?: string | null
       status?: string | null
+      assigned_to?: string | null
       created_at?: string | null
       address_id?: number | string | null
     }
@@ -247,6 +250,7 @@ export default function Home() {
       lab: wo.lab != null ? Number(wo.lab) : null,
       created_by: wo.created_by ?? null,
       status: wo.status ?? null,
+      assigned_to: wo.assigned_to ?? null,
       created_at: wo.created_at ?? null,
       address_id: wo.address_id != null ? Number(wo.address_id) : null,
       address: wo.address_id ? addressMap.get(Number(wo.address_id)) ?? null : null,
@@ -301,6 +305,39 @@ export default function Home() {
       setSelectedId(woId)
     }
 
+    setLoading(false)
+  }
+
+  const cancelJob = async (woId: number | null) => {
+    if (!woId) return
+    setLoading(true)
+    setMessage(null)
+
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.user?.id) {
+      setMessage("Unable to get session.")
+      setLoading(false)
+      return
+    }
+
+    // update DB: set status back to 'open' and assigned_to = null
+    const { data: updated, error } = await supabase
+      .from("work_orders")
+      .update({ status: "open", assigned_to: null })
+      .eq("id", woId)
+      .select()
+      .maybeSingle()
+
+    if (error) {
+      setMessage(error.message)
+      setLoading(false)
+      return
+    }
+
+    setOrders((prev) =>
+      prev.map((o) => (o.id === woId ? { ...o, status: "open", assigned_to: null } : o))
+    )
+    if (selectedId === woId) setSelectedId(woId)
     setLoading(false)
   }
 
@@ -456,13 +493,23 @@ export default function Home() {
                     </div>
 
                     <div className="mt-4 flex gap-3">
-                      <button
-                        onClick={() => acceptJob(selectedOrder?.id ?? null)}
-                        disabled={loading || !selectedOrder}
-                        className="px-4 py-2 border rounded-full disabled:opacity-50"
-                      >
-                        Accept Job
-                      </button>
+                      {selectedOrder?.status === "claimed" && selectedOrder?.assigned_to === currentUserId ? (
+                        <button
+                          onClick={() => cancelJob(selectedOrder?.id ?? null)}
+                          disabled={loading}
+                          className="px-4 py-2 bg-red-600 text-white border border-red-700 rounded-full hover:bg-red-700 disabled:opacity-50"
+                        >
+                          Cancel
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => acceptJob(selectedOrder?.id ?? null)}
+                          disabled={loading || !selectedOrder}
+                          className="px-4 py-2 border rounded-full disabled:opacity-50"
+                        >
+                          Accept Job
+                        </button>
+                      )}
                     </div>
                   </>
                 ) : (
