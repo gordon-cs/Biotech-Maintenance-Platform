@@ -3,49 +3,84 @@
 import React, { useState, useEffect } from "react"
 import { supabase } from "@/lib/supabaseClient"
 import Link from "next/link"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 
 // payload type (no `any`)
 type WorkOrderPayload = {
   title: string | null
   description: string | null
   equipment: string | null
-  urgency: "low" | "medium" | "high" | "critical" | string | null
+  urgency: "low" | "normal" | "high" | "critical" | string | null
   lab?: number | null
   category_id?: number | null
   date?: string | null
   created_by?: string | null
+  address_id?: number | null
 }
 
 // small row shapes used for casting query results
 type LabRow = { id: number; manager_id: string }
 // full category shape used in the dropdown
 type CategoryRow = { id: number; slug: string; name: string }
+type AddressRow = { id: number; line1: string | null; line2: string | null; city: string | null; state: string | null; zipcode: string | null }
 type InsertIdRow = { id: string } // bigint/int8 is returned as string by the client
 
 export default function WorkOrderSubmission() {
   const searchParams = useSearchParams()
+  const router = useRouter()
   const initialCategory = searchParams?.get("category") ?? ""
   const initialDate = searchParams?.get("date") ?? ""
+  const initialTitle = searchParams?.get("title") ?? ""
+  const initialAddressId = searchParams?.get("address_id") ?? ""
 
   const [form, setForm] = useState({
-    title: "",
+    title: initialTitle,
     description: "",
     equipment: "",
     urgency: "", // display "Select..." by default
     category_id: initialCategory, // can be slug or id
     date: initialDate,
+    address_id: initialAddressId, // new field for address selection
   })
   const [categories, setCategories] = useState<CategoryRow[]>([])
+  const [addresses, setAddresses] = useState<AddressRow[]>([])
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<{ id?: string; message: string } | null>(null)
 
   useEffect(() => {
     let mounted = true
     const load = async () => {
-      const { data, error } = await supabase.from("categories").select("id,slug,name")
-      if (!error && data && mounted) {
-        setCategories(data as CategoryRow[])
+      // Load categories
+      const { data: catData, error: catError } = await supabase.from("categories").select("id,slug,name")
+      if (!catError && catData && mounted) {
+        setCategories(catData as CategoryRow[])
+      }
+
+      // Load addresses for the current user's lab
+      try {
+        const { data: authData } = await supabase.auth.getUser()
+        if (authData?.user?.id) {
+          // Get the user's lab
+          const { data: labData } = await supabase
+            .from("labs")
+            .select("id")
+            .eq("manager_id", authData.user.id)
+            .maybeSingle()
+          
+          if (labData?.id) {
+            // Load addresses for this lab
+            const { data: addrData, error: addrError } = await supabase
+              .from("addresses")
+              .select("id, line1, line2, city, state, zipcode")
+              .eq("lab_id", labData.id)
+            
+            if (!addrError && addrData && mounted) {
+              setAddresses(addrData as AddressRow[])
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error loading addresses:", err)
       }
     }
     load()
@@ -58,7 +93,20 @@ export default function WorkOrderSubmission() {
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target
+    
+    // Handle "add_new" address option
+    if (name === "address_id" && value === "add_new") {
+      router.push("/manage-addresses")
+      return
+    }
+    
     setForm((s) => ({ ...s, [name]: value }))
+  }
+
+  // Helper function to format address for display
+  const formatAddress = (addr: AddressRow) => {
+    const parts = [addr.line1, addr.city, addr.state, addr.zipcode].filter(Boolean)
+    return parts.join(", ")
   }
 
   // Ensure current user is a manager of a lab and return the lab id
@@ -130,6 +178,7 @@ export default function WorkOrderSubmission() {
         category_id: resolvedCategoryId,
         date: form.date || null,
         created_by: user.id,
+        address_id: form.address_id ? Number(form.address_id) : null,
       }
 
       const { data, error } = await supabase
@@ -143,7 +192,7 @@ export default function WorkOrderSubmission() {
       } else {
         const inserted = data as InsertIdRow | null
         setResult({ id: inserted?.id, message: "Work order submitted successfully." })
-        setForm({ title: "", description: "", equipment: "", urgency: "", category_id: "", date: "" })
+        setForm({ title: "", description: "", equipment: "", urgency: "", category_id: "", date: "", address_id: "" })
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err)
@@ -194,7 +243,6 @@ export default function WorkOrderSubmission() {
             <option value="">Select…</option>
             <option value="normal">Normal</option>
             <option value="low">Low</option>
-            <option value="medium">Medium</option>
             <option value="high">High</option>
             <option value="critical">Critical</option>
           </select>
@@ -214,6 +262,25 @@ export default function WorkOrderSubmission() {
                 {c.name}
               </option>
             ))}
+          </select>
+        </label>
+
+        <label className="block mb-3">
+          <div className="text-sm mb-1">Service Area (Address) *</div>
+          <select
+            name="address_id"
+            value={form.address_id}
+            onChange={handleChange}
+            className="w-full border px-2 py-1 rounded"
+            required
+          >
+            <option value="">Select an address...</option>
+            {addresses.map((addr) => (
+              <option key={addr.id} value={addr.id}>
+                {formatAddress(addr)}
+              </option>
+            ))}
+            <option value="add_new" className="font-semibold">+ Add New Address</option>
           </select>
         </label>
 
