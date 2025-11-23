@@ -78,8 +78,10 @@ export default function CompleteLabInfo({ initialFull = "", initialPhone = "" }:
           phone: phone || initialPhone,
           lab: {
             name: labName,
-            address: address1,
-            address2: address2 || null, // Include address2 field
+          },
+          address: {
+            line1: address1,
+            line2: address2 || null,
             city: city,
             state: stateVal,
             zipcode: zipcode
@@ -89,7 +91,8 @@ export default function CompleteLabInfo({ initialFull = "", initialPhone = "" }:
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.error || "Failed to save lab info")
+        console.error("API Error:", error)
+        throw new Error(error.error || `Failed to save lab info (${response.status})`)
       }
 
       console.log("Lab created, redirecting to /")
