@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useState, Suspense } from "react"
+import React, { useEffect, useState, Suspense, useMemo } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { supabase } from "@/lib/supabaseClient"
@@ -14,11 +14,76 @@ type DisplayRow = {
   created_at: string
   urgency?: string
   status?: string
+  labName?: string
+}
+
+const formatDateTime = (dateString?: string) => {
+  if (!dateString) return "N/A"
+  const date = new Date(dateString)
+  if (isNaN(date.getTime())) return "Invalid date"
+  
+  const formattedDate = date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  })
+  const formattedTime = date.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  })
+  return `${formattedDate} ${formattedTime}`
+}
+
+const getStatusBadgeStyle = (status?: string) => {
+  switch (status?.toLowerCase()) {
+    case 'completed':
+      return 'bg-green-100 text-green-800 border-green-200'
+    case 'in_progress':
+    case 'in progress':
+      return 'bg-blue-100 text-blue-800 border-blue-200'
+    case 'pending':
+      return 'bg-yellow-100 text-yellow-800 border-yellow-200'
+    case 'cancelled':
+      return 'bg-red-100 text-red-800 border-red-200'
+    case 'open':
+    default:
+      return 'bg-gray-100 text-gray-800 border-gray-200'
+  }
+}
+
+const formatStatus = (status?: string) => {
+  if (!status) return 'Open'
+  return status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+}
+
+const urgencyOrder = { high: 3, medium: 2, low: 1, "": 0, "n/a": 0 } as const
+
+const getUrgencyScore = (urgency?: string) => 
+  urgencyOrder[urgency?.toLowerCase() as keyof typeof urgencyOrder] ?? 0
+
+const sortOrders = (ordersToSort: DisplayRow[], sortOrder: string) => {
+  const sorted = [...ordersToSort]
+  
+  switch (sortOrder) {
+    case "most_recent":
+      return sorted.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    case "oldest_first":
+      return sorted.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    case "by_priority":
+      return sorted.sort((a, b) => getUrgencyScore(b.urgency) - getUrgencyScore(a.urgency))
+    default:
+      return sorted
+  }
+}
+
+const canDeleteOrder = (status?: string) => {
+  const deletableStatuses = ['open', 'pending', 'cancelled']
+  return deletableStatuses.includes(status?.toLowerCase() || 'open')
 }
 
 function PastOrdersContent() {
   const [orders, setOrders] = useState<DisplayRow[]>([])
-  const [filteredOrders, setFilteredOrders] = useState<DisplayRow[]>([])
   const [selectedOrder, setSelectedOrder] = useState<DisplayRow | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -26,73 +91,58 @@ function PastOrdersContent() {
   const [locationFilter, setLocationFilter] = useState("")
   const [categoryFilter, setCategoryFilter] = useState("")
   const [sortOrder, setSortOrder] = useState("most_recent")
+  const [deletingOrderId, setDeletingOrderId] = useState<string | null>(null)
   
   const searchParams = useSearchParams()
   const selectedOrderId = searchParams.get("selected")
 
-  // Helper function to format date and time
-  const formatDateTime = (dateString: string) => {
-    if (!dateString) return "N/A"
-    try {
-      const date = new Date(dateString)
-      const formattedDate = date.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-      })
-      const formattedTime = date.toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true
-      })
-      return `${formattedDate} ${formattedTime}`
-    } catch (error) {
-      return "Invalid date"
-    }
-  }
-
-  // Function to get status badge styling
-  const getStatusBadgeStyle = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case 'completed':
-        return 'bg-green-100 text-green-800 border-green-200'
-      case 'in_progress':
-      case 'in progress':
-        return 'bg-blue-100 text-blue-800 border-blue-200'
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200'
-      case 'cancelled':
-        return 'bg-red-100 text-red-800 border-red-200'
-      case 'open':
-      default:
-        return 'bg-gray-100 text-gray-800 border-gray-200'
-    }
-  }
-
-  // Function to format status text
-  const formatStatus = (status: string) => {
-    if (!status) return 'Open'
-    return status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
-  }
-
-  // Sort orders based on selected sort order
-  const sortOrders = (ordersToSort: DisplayRow[]) => {
-    const sorted = [...ordersToSort]
+  const handleDeleteOrder = async (orderId: string, orderTitle: string) => {
+    const confirmed = window.confirm(
+      `Are you sure you want to permanently delete "${orderTitle}"? This action cannot be undone.`
+    )
     
-    switch (sortOrder) {
-      case "most_recent":
-        return sorted.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-      case "oldest_first":
-        return sorted.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-      case "by_priority":
-        return sorted.sort((a, b) => {
-          const urgencyOrder = { "high": 3, "medium": 2, "low": 1, "": 0, "N/A": 0 }
-          const aUrgency = urgencyOrder[a.urgency?.toLowerCase() as keyof typeof urgencyOrder] || 0
-          const bUrgency = urgencyOrder[b.urgency?.toLowerCase() as keyof typeof urgencyOrder] || 0
-          return bUrgency - aUrgency // Higher priority first
-        })
-      default:
-        return sorted
+    if (!confirmed) return
+    
+    setDeletingOrderId(orderId)
+    
+    try {
+      const { data: authData, error: authErr } = await supabase.auth.getUser()
+      if (authErr) throw authErr
+      const userId = authData?.user?.id
+      if (!userId) throw new Error("Not authenticated")
+
+      // Get labs managed by user
+      const { data: labs, error: labsError } = await supabase
+        .from("labs")
+        .select("id")
+        .eq("manager_id", userId)
+
+      if (labsError) throw labsError
+      const labIds = labs?.map(lab => lab.id) || []
+
+      const { error } = await supabase
+        .from("work_orders")
+        .delete()
+        .eq("id", orderId)
+        .in("lab", labIds)
+      
+      if (error) throw error
+      
+      setOrders(prevOrders => 
+        prevOrders.filter(order => order.id !== orderId)
+      )
+      
+      if (selectedOrder?.id === orderId) {
+        setSelectedOrder(null)
+      }
+      
+      alert("Order deleted successfully")
+      
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Unknown error occurred"
+      alert("Failed to delete order: " + errorMessage)
+    } finally {
+      setDeletingOrderId(null)
     }
   }
 
@@ -111,7 +161,6 @@ function PastOrdersContent() {
           return
         }
 
-        // Get labs managed by user
         const labsRes = await supabase
           .from("labs")
           .select("id, name, address, address2, city, state, zipcode")
@@ -122,11 +171,10 @@ function PastOrdersContent() {
         const labIds = labRows.map((r) => r.id)
 
         if (labIds.length === 0) {
-          setOrders([])
+          if (mounted) setOrders([])
           return
         }
 
-        // Fetch work orders with urgency and status fields
         const ordersRes = await supabase
           .from("work_orders")
           .select("id, title, description, category_id, lab, created_at, urgency, status")
@@ -136,7 +184,6 @@ function PastOrdersContent() {
         if (ordersRes.error) throw ordersRes.error
         const woRows = ordersRes.data || []
 
-        // Get categories
         const catIds = Array.from(new Set(woRows.map(w => w.category_id).filter(Boolean)))
         const categoryMap: Record<number, string> = {}
         if (catIds.length) {
@@ -148,14 +195,14 @@ function PastOrdersContent() {
           }
         }
 
-        // Build lab address map
         const labMap: Record<number, string> = {}
+        const labNameMap: Record<number, string> = {}
         for (const l of labRows) {
           const parts = [l.address, l.address2, l.city, l.state, l.zipcode].filter(Boolean)
           labMap[l.id] = parts.length ? parts.join(", ") : "N/A"
+          labNameMap[l.id] = l.name || "Unknown Lab"
         }
 
-        // Build display data
         const display: DisplayRow[] = woRows.map(r => ({
           id: String(r.id),
           title: r.title || "Untitled",
@@ -163,18 +210,14 @@ function PastOrdersContent() {
           category: categoryMap[r.category_id] || "N/A",
           description: r.description || "No description available",
           created_at: r.created_at || "",
-          urgency: r.urgency || "N/A",
-          status: r.status || "Open"
+          urgency: r.urgency || undefined,
+          status: r.status || "Open",
+          labName: labNameMap[r.lab] || "Unknown Lab"
         }))
 
         if (mounted) {
           setOrders(display)
-          
-          // Set selected order based on URL parameter or default to first
-          if (selectedOrderId) {
-            const targetOrder = display.find(o => o.id === selectedOrderId)
-            setSelectedOrder(targetOrder || (display.length > 0 ? display[0] : null))
-          } else if (display.length > 0) {
+          if (display.length > 0) {
             setSelectedOrder(display[0])
           }
         }
@@ -187,16 +230,24 @@ function PastOrdersContent() {
 
     load()
     return () => { mounted = false }
-  }, [selectedOrderId])
+  }, [])
 
-  // Filter and sort orders
   useEffect(() => {
+    if (!selectedOrderId || orders.length === 0) return
+    const target = orders.find(o => o.id === selectedOrderId)
+    if (target) {
+      setSelectedOrder(target)
+    }
+  }, [selectedOrderId, orders])
+
+  const filteredOrders = useMemo(() => {
     let filtered = orders
     
     if (searchTerm) {
+      const q = searchTerm.toLowerCase()
       filtered = filtered.filter(order => 
-        order.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        order.description.toLowerCase().includes(searchTerm.toLowerCase())
+        order.title.toLowerCase().includes(q) ||
+        order.description.toLowerCase().includes(q)
       )
     }
     
@@ -208,9 +259,7 @@ function PastOrdersContent() {
       filtered = filtered.filter(order => order.category === categoryFilter)
     }
     
-    // Apply sorting
-    const sorted = sortOrders(filtered)
-    setFilteredOrders(sorted)
+    return sortOrders(filtered, sortOrder)
   }, [orders, searchTerm, locationFilter, categoryFilter, sortOrder])
 
   return (
@@ -272,13 +321,6 @@ function PastOrdersContent() {
                 <option key={cat} value={cat}>{cat}</option>
               ))}
             </select>
-
-            <button className="px-3 py-2 border rounded hover:bg-gray-50 flex items-center gap-2">
-              Filters
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707v4.586l-4-2v-2.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-              </svg>
-            </button>
           </div>
         </div>
 
@@ -306,30 +348,44 @@ function PastOrdersContent() {
                 {filteredOrders.map((order) => (
                   <div
                     key={order.id}
-                    onClick={() => setSelectedOrder(order)}
                     className={`border rounded-lg p-3 cursor-pointer transition-colors relative ${
                       selectedOrder?.id === order.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
                     }`}
                   >
-                    {/* Status badge in top right */}
-                    <div className="absolute top-2 right-2">
-                      <span className={`px-2 py-1 text-xs rounded border font-medium ${getStatusBadgeStyle(order.status || '')}`}>
-                        {formatStatus(order.status || '')}
+                    <div className="absolute top-2 right-2 flex items-center gap-2">
+                      <span className={`px-2 py-1 text-xs rounded border font-medium ${getStatusBadgeStyle(order.status)}`}>
+                        {formatStatus(order.status)}
                       </span>
+                      {canDeleteOrder(order.status) && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDeleteOrder(order.id, order.title)
+                          }}
+                          disabled={deletingOrderId === order.id}
+                          className="px-2 py-1 text-xs bg-gray-600 text-white rounded hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Delete Order"
+                        >
+                          {deletingOrderId === order.id ? "..." : "Delete"}
+                        </button>
+                      )}
                     </div>
 
-                    <div className="flex items-start gap-3 pr-16">
+                    <div 
+                      onClick={() => setSelectedOrder(order)}
+                      className="flex items-start gap-3 pr-24"
+                    >
                       <div className="w-8 h-8 bg-gray-200 rounded flex items-center justify-center flex-shrink-0">
                         <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-xs text-gray-500 mb-1">Lab Name 1</div>
+                        <div className="text-xs text-gray-500 mb-1">{order.labName}</div>
                         <div className="font-medium text-sm mb-1">{order.title}</div>
                         <div className="text-xs text-gray-500 mb-1">{order.address}</div>
                         <div className="text-xs text-gray-400">{order.category}</div>
-                        {order.urgency && order.urgency !== "N/A" && (
+                        {order.urgency && (
                           <div className={`text-xs mt-1 px-2 py-1 rounded inline-block ${
                             order.urgency?.toLowerCase() === "high" ? "bg-red-100 text-red-800" :
                             order.urgency?.toLowerCase() === "medium" ? "bg-yellow-100 text-yellow-800" :
@@ -360,14 +416,22 @@ function PastOrdersContent() {
                 <div className="mb-4">
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex-1">
-                      <div className="text-sm text-gray-500 mb-1">Lab Name</div>
+                      <div className="text-sm text-gray-500 mb-1">{selectedOrder.labName}</div>
                       <h2 className="text-xl font-semibold">{selectedOrder.title}</h2>
                     </div>
-                    {/* Status badge in detail view */}
-                    <div>
-                      <span className={`px-3 py-1 text-sm rounded-full border font-medium ${getStatusBadgeStyle(selectedOrder.status || '')}`}>
-                        {formatStatus(selectedOrder.status || '')}
+                    <div className="flex items-center gap-3">
+                      <span className={`px-3 py-1 text-sm rounded-full border font-medium ${getStatusBadgeStyle(selectedOrder.status)}`}>
+                        {formatStatus(selectedOrder.status)}
                       </span>
+                      {canDeleteOrder(selectedOrder.status) && (
+                        <button
+                          onClick={() => handleDeleteOrder(selectedOrder.id, selectedOrder.title)}
+                          disabled={deletingOrderId === selectedOrder.id}
+                          className="px-3 py-1 text-sm bg-gray-600 text-white rounded hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {deletingOrderId === selectedOrder.id ? "Deleting..." : "Delete Order"}
+                        </button>
+                      )}
                     </div>
                   </div>
                   
@@ -376,7 +440,7 @@ function PastOrdersContent() {
                   </div>
                   <div className="text-sm text-gray-500 mb-2">{selectedOrder.address}</div>
                   <div className="text-sm font-medium mb-2">Category: {selectedOrder.category}</div>
-                  {selectedOrder.urgency && selectedOrder.urgency !== "N/A" && (
+                  {selectedOrder.urgency && (
                     <div className={`inline-block text-sm px-3 py-1 rounded-full ${
                       selectedOrder.urgency?.toLowerCase() === "high" ? "bg-red-100 text-red-800" :
                       selectedOrder.urgency?.toLowerCase() === "medium" ? "bg-yellow-100 text-yellow-800" :
