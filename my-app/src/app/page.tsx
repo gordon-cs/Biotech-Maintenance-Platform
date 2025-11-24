@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabaseClient"
 import AuthStatus from "./components/AuthStatus"
+import AddWorkOrderUpdate from "./components/AddWorkOrderUpdate"
 import type { PostgrestResponse } from "@supabase/supabase-js"
 
 type WO = {
@@ -490,6 +491,17 @@ export default function Home() {
                         <div className="h-28 bg-gray-100 rounded flex items-center justify-center">Image</div>
                         <div className="h-28 bg-gray-100 rounded flex items-center justify-center">Image</div>
                       </div>
+
+                      {/* Work Order Updates Section */}
+                      {selectedOrder.id && (
+                        <div className="mt-6 pt-6 border-t border-gray-200">
+                          <AddWorkOrderUpdate 
+                            workOrderId={selectedOrder.id} 
+                            currentStatus={selectedOrder.status || "open"}
+                            userRole={role}
+                          />
+                        </div>
+                      )}
                     </div>
 
                     <div className="mt-4 flex gap-3">
