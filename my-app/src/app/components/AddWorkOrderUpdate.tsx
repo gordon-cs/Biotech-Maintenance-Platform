@@ -13,40 +13,47 @@ type Props = {
 export default function AddWorkOrderUpdate({ workOrderId, currentStatus = "open", userRole = null }: Props) {
   const [updateType, setUpdateType] = useState<"comment" | "status_change">("comment")
   const [body, setBody] = useState("")
-  const [newStatus, setNewStatus] = useState(currentStatus)
+  const [newStatus, setNewStatus] = useState("completed")
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(userRole)
   
-  // Fetch user role if not provided
+  // Fetch user role if not provided (only runs once when userRole is not provided)
   useEffect(() => {
-    if (userRole) {
+    // Skip fetching if userRole is already provided
+    if (userRole !== null) {
       setCurrentUserRole(userRole)
       return
     }
     
+    // Only fetch if we don't have a role yet
+    if (currentUserRole !== null) return
+    
+    let mounted = true
     const fetchUserRole = async () => {
       const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
+      if (user && mounted) {
         const { data: profile } = await supabase
           .from("profiles")
           .select("role")
           .eq("id", user.id)
           .single()
         
-        if (profile) {
+        if (profile && mounted) {
           setCurrentUserRole(profile.role)
         }
       }
     }
     
     fetchUserRole()
-  }, [userRole])
+    return () => { mounted = false }
+  }, [userRole]) // Only re-run if userRole prop changes
   
-  // Only technicians can change status
-  const allowStatusChange = currentUserRole === "technician"
+  // Only technicians can change status, and only if work order is not already completed
+  const isWorkOrderCompleted = currentStatus?.toLowerCase() === "completed"
+  const allowStatusChange = currentUserRole === "technician" && !isWorkOrderCompleted
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -98,7 +105,7 @@ export default function AddWorkOrderUpdate({ workOrderId, currentStatus = "open"
       // Reset form
       setBody("")
       setUpdateType("comment")
-      setNewStatus(currentStatus)
+      setNewStatus("completed")
       setSuccess("Update posted successfully!")
       
       // Trigger refresh of updates list
@@ -120,6 +127,12 @@ export default function AddWorkOrderUpdate({ workOrderId, currentStatus = "open"
       {/* Add Update Form */}
       <div className="p-4 border rounded bg-white">
         <h3 className="font-semibold mb-4">Add Update</h3>
+        
+        {isWorkOrderCompleted && (
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded">
+            <p className="text-sm text-blue-800">This work order is completed. No further updates can be made.</p>
+          </div>
+        )}
         
         {message && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded">
@@ -162,21 +175,13 @@ export default function AddWorkOrderUpdate({ workOrderId, currentStatus = "open"
             </div>
           )}
 
-          {/* Status Selection */}
+          {/* Status Selection - Only "completed" option */}
           {updateType === "status_change" && (
-            <label className="block">
-              <span className="text-sm">New Status</span>
-              <select
-                value={newStatus}
-                onChange={(e) => setNewStatus(e.target.value)}
-                className="mt-1 block w-full border px-2 py-1 rounded"
-              >
-                <option value="open">Open</option>
-                <option value="claimed">Claimed</option>
-                <option value="completed">Completed</option>
-                <option value="canceled">Canceled</option>
-              </select>
-            </label>
+            <div className="p-3 bg-gray-50 border border-gray-200 rounded">
+              <p className="text-sm text-gray-700">
+                <strong>Status will be changed to:</strong> Completed
+              </p>
+            </div>
           )}
 
           {/* Message Body */}
@@ -189,19 +194,19 @@ export default function AddWorkOrderUpdate({ workOrderId, currentStatus = "open"
               onChange={(e) => setBody(e.target.value)}
               placeholder={
                 updateType === "status_change"
-                  ? "Explain why the status is changing..."
+                  ? "Explain why the work is completed..."
                   : "Add a comment or update..."
               }
               rows={4}
               className="mt-1 block w-full border px-2 py-1 rounded"
-              disabled={loading}
+              disabled={loading || isWorkOrderCompleted}
             />
           </label>
 
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={loading || !body.trim()}
+            disabled={loading || !body.trim() || isWorkOrderCompleted}
             className="px-3 py-1 bg-blue-600 text-white rounded disabled:opacity-50"
           >
             {loading ? "Posting..." : "Post Update"}

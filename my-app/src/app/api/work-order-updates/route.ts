@@ -128,7 +128,15 @@ export async function POST(req: NextRequest) {
         )
       }
 
-      // Verify the technician is assigned to this work order (or it's an open order they can claim)
+      // Only allow changing status to "completed"
+      if (body.new_status !== "completed") {
+        return NextResponse.json(
+          { error: "Status can only be changed to 'completed'" },
+          { status: 400 }
+        )
+      }
+
+      // Verify the technician is assigned to this work order
       const { data: workOrder } = await serviceClient
         .from("work_orders")
         .select("assigned_to, status")
@@ -142,14 +150,20 @@ export async function POST(req: NextRequest) {
         )
       }
 
-      // Technician must be assigned to the work order to change its status
-      // (unless they're claiming an open work order)
-      const isAssigned = workOrder.assigned_to === user.id
-      const isClaimingOpen = workOrder.status === "open" && body.new_status === "claimed"
-
-      if (!isAssigned && !isClaimingOpen) {
+      // Cannot change status if already completed
+      if (workOrder.status === "completed") {
         return NextResponse.json(
-          { error: "You must be assigned to this work order to change its status" },
+          { error: "This work order is already completed and cannot be modified" },
+          { status: 400 }
+        )
+      }
+
+      // Technician must be assigned to the work order to complete it
+      const isAssigned = workOrder.assigned_to === user.id
+
+      if (!isAssigned) {
+        return NextResponse.json(
+          { error: "You must be assigned to this work order to mark it as completed" },
           { status: 403 }
         )
       }

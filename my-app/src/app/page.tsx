@@ -56,75 +56,38 @@ export default function Home() {
   const [categoriesList, setCategoriesList] = useState<Array<{id:number, slug:string, name:string}>>([])
   const [date, setDate] = useState<string>("")
 
-  // load role once and on auth changes
+  // Load role once and on auth changes
   useEffect(() => {
     let mounted = true
-    const loadRole = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.user) {
-        if (mounted) setRoleLoaded(true)
-        return
-      }
-      const userId = session.user.id
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", userId)
-        .maybeSingle()
-      if (!mounted) return
-      if (!error && data) {
-        const r = (data.role || "").toString().trim().toLowerCase()
-        setRole(r === "technician" ? "technician" : r === "lab" ? "lab" : null)
-      }
-      if (mounted) setRoleLoaded(true)
-    }
-    loadRole()
-    const { data: sub } = supabase.auth.onAuthStateChange(() => { loadRole() })
-    return () => {
-      mounted = false
-      try { sub?.subscription?.unsubscribe?.() } catch {}
-    }
-  }, [])
-
-  useEffect(() => {
-    let mounted = true
+    
     const loadRole = async () => {
       try {
-        console.log("Checking user role...")
-        
         const { data: { session } } = await supabase.auth.getSession()
+        
         if (!session?.user) {
-          console.log("No user session found")
           if (mounted) setRoleLoaded(true)
           return
         }
         
-        if (mounted) setCurrentUserId(session.user.id)
         const userId = session.user.id
-        console.log("User ID:", userId)
+        if (mounted) setCurrentUserId(userId)
         
         const { data, error } = await supabase
           .from("profiles")
           .select("role")
           .eq("id", userId)
           .maybeSingle()
-          
-        console.log("Profile query result:", data, error)
         
         if (!mounted) return
         
         if (!error && data) {
           const r = (data.role || "").toString().toLowerCase()
           const userRole = r === "technician" ? "technician" : r === "lab" ? "lab" : null
-          
-          console.log("Detected role:", userRole)
           setRole(userRole)
           
           // Auto-redirect lab users to manager dashboard
           if (userRole === "lab") {
-            console.log("Lab user detected - redirecting to /manager")
             setIsRedirecting(true)
-            // Use window.location.href for a more forceful redirect
             window.location.href = "/manager"
             return
           }
@@ -138,7 +101,16 @@ export default function Home() {
     }
     
     loadRole()
-    return () => { mounted = false }
+    
+    // Listen for auth state changes
+    const { data: sub } = supabase.auth.onAuthStateChange(() => { 
+      loadRole() 
+    })
+    
+    return () => {
+      mounted = false
+      try { sub?.subscription?.unsubscribe?.() } catch {}
+    }
   }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -486,12 +458,6 @@ export default function Home() {
                     <div className="flex-1 overflow-auto">
                       <p className="text-sm text-gray-700">{selectedOrder.description}</p>
 
-                      <div className="mt-6 grid grid-cols-3 gap-4">
-                        <div className="h-28 bg-gray-100 rounded flex items-center justify-center">Image</div>
-                        <div className="h-28 bg-gray-100 rounded flex items-center justify-center">Image</div>
-                        <div className="h-28 bg-gray-100 rounded flex items-center justify-center">Image</div>
-                      </div>
-
                       {/* Work Order Updates Section */}
                       {selectedOrder.id && (
                         <div className="mt-6 pt-6 border-t border-gray-200">
@@ -505,7 +471,11 @@ export default function Home() {
                     </div>
 
                     <div className="mt-4 flex gap-3">
-                      {selectedOrder?.status === "claimed" && selectedOrder?.assigned_to === currentUserId ? (
+                      {selectedOrder?.status === "completed" ? (
+                        <div className="px-4 py-2 text-green-700 font-medium">
+                          ✓ Work Order Completed
+                        </div>
+                      ) : selectedOrder?.status === "claimed" && selectedOrder?.assigned_to === currentUserId ? (
                         <button
                           onClick={() => cancelJob(selectedOrder?.id ?? null)}
                           disabled={loading}
