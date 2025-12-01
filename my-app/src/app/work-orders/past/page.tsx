@@ -410,7 +410,7 @@ function PastOrdersContent() {
                 {/* Work Order Updates Section */}
                 <div className="mt-6 pt-6 border-t border-gray-200">
                   <AddWorkOrderUpdate 
-                    workOrderId={selectedOrder.id} 
+                    workOrderId={Number(selectedOrder.id)} 
                     currentStatus={selectedOrder.status || "open"}
                   />
                 </div>
