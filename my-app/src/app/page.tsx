@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabaseClient"
 import AuthStatus from "./components/AuthStatus"
+import AddWorkOrderUpdate from "./components/AddWorkOrderUpdate"
 import type { PostgrestResponse } from "@supabase/supabase-js"
 
 type WO = {
@@ -54,76 +55,41 @@ export default function Home() {
   const [category, setCategory] = useState("")
   const [categoriesList, setCategoriesList] = useState<Array<{id:number, slug:string, name:string}>>([])
   const [date, setDate] = useState<string>("")
+  const [activeTab, setActiveTab] = useState<"open" | "mine">("open")
 
-  // load role once and on auth changes
+  // Load role once and on auth changes
   useEffect(() => {
     let mounted = true
-    const loadRole = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.user) {
-        if (mounted) setRoleLoaded(true)
-        return
-      }
-      const userId = session.user.id
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", userId)
-        .maybeSingle()
-      if (!mounted) return
-      if (!error && data) {
-        const r = (data.role || "").toString().trim().toLowerCase()
-        setRole(r === "technician" ? "technician" : r === "lab" ? "lab" : null)
-      }
-      if (mounted) setRoleLoaded(true)
-    }
-    loadRole()
-    const { data: sub } = supabase.auth.onAuthStateChange(() => { loadRole() })
-    return () => {
-      mounted = false
-      try { sub?.subscription?.unsubscribe?.() } catch {}
-    }
-  }, [])
-
-  useEffect(() => {
-    let mounted = true
+    
     const loadRole = async () => {
       try {
-        console.log("Checking user role...")
-        
         const { data: { session } } = await supabase.auth.getSession()
+        
         if (!session?.user) {
-          console.log("No user session found")
           if (mounted) setRoleLoaded(true)
           return
         }
         
         if (mounted) setCurrentUserId(session.user.id)
         const userId = session.user.id
-        console.log("User ID:", userId)
+        if (mounted) setCurrentUserId(userId)
         
         const { data, error } = await supabase
           .from("profiles")
           .select("role")
           .eq("id", userId)
           .maybeSingle()
-          
-        console.log("Profile query result:", data, error)
         
         if (!mounted) return
         
         if (!error && data) {
           const r = (data.role || "").toString().toLowerCase()
           const userRole = r === "technician" ? "technician" : r === "lab" ? "lab" : null
-          
-          console.log("Detected role:", userRole)
           setRole(userRole)
           
           // Auto-redirect lab users to manager dashboard
           if (userRole === "lab") {
-            console.log("Lab user detected - redirecting to /manager")
             setIsRedirecting(true)
-            // Use window.location.href for a more forceful redirect
             window.location.href = "/manager"
             return
           }
@@ -137,7 +103,16 @@ export default function Home() {
     }
     
     loadRole()
-    return () => { mounted = false }
+    
+    // Listen for auth state changes
+    const { data: sub } = supabase.auth.onAuthStateChange(() => { 
+      loadRole() 
+    })
+    
+    return () => {
+      mounted = false
+      try { sub?.subscription?.unsubscribe?.() } catch {}
+    }
   }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -341,8 +316,17 @@ export default function Home() {
     setLoading(false)
   }
 
-  // derived lists
-  const filteredOrders = orders.filter((o) => {
+  // derived lists: first filter by active tab, then by search/filters
+  const tabFiltered = orders.filter((o) => {
+    if (activeTab === "open") {
+      // Open Requests: status === "open" and not assigned
+      return (o.status || "").toLowerCase() === "open" && !o.assigned_to
+    }
+    // My Work Orders: assigned to current user
+    return currentUserId ? o.assigned_to === currentUserId : false
+  })
+
+  const filteredOrders = tabFiltered.filter((o) => {
     if (search) {
       const hay = ((o.title || "") + " " + (o.description || "") + " " + (o.labName || "")).toLowerCase()
       if (!hay.includes(search.toLowerCase())) return false
@@ -351,6 +335,19 @@ export default function Home() {
     if (selectedCategory && o.category_id !== selectedCategory) return false
     return true
   })
+
+  // ensure selectedId points to a visible item when filters/tabs change
+  useEffect(() => {
+    if (!filteredOrders.length) {
+      setSelectedId(null)
+      return
+    }
+    if (!selectedId || !filteredOrders.find((f) => f.id === selectedId)) {
+      setSelectedId(filteredOrders[0].id)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, orders, search, selectedLab, selectedCategory])
+
   const selectedOrder = orders.find((o) => o.id === selectedId) ?? (filteredOrders[0] ?? null)
 
   // wait for role load
@@ -366,16 +363,32 @@ export default function Home() {
             <AuthStatus />
           </header>
 
+          {/* Tabs */}
+          <div className="mb-4 flex items-center gap-3">
+            <button
+              onClick={() => setActiveTab("open")}
+              className={`px-4 py-2 rounded-full ${activeTab === "open" ? "bg-green-600 text-white" : "bg-gray-100 text-gray-700"}`}
+            >
+              Open Requests
+            </button>
+            <button
+              onClick={() => setActiveTab("mine")}
+              className={`px-4 py-2 rounded-full ${activeTab === "mine" ? "bg-green-600 text-white" : "bg-gray-100 text-gray-700"}`}
+            >
+              My Work Orders
+            </button>
+          </div>
+
           {/* Filter bar */}
-          <section className="space-y-6">
+           <section className="space-y-6">
             <div className="rounded-xl bg-gray-50 p-4 flex gap-3 items-center">
-              <input
-                type="search"
-                placeholder="Search Request"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="flex-1 px-4 py-3 border rounded-lg bg-white"
-              />
+               <input
+                 type="search"
+                 placeholder="Search Request"
+                 value={search}
+                 onChange={(e) => setSearch(e.target.value)}
+                 className="flex-1 px-4 py-3 border rounded-lg bg-white"
+               />
 
               <select
                 value={selectedLab ?? ""}
@@ -485,15 +498,24 @@ export default function Home() {
                     <div className="flex-1 overflow-auto">
                       <p className="text-sm text-gray-700">{selectedOrder.description}</p>
 
-                      <div className="mt-6 grid grid-cols-3 gap-4">
-                        <div className="h-28 bg-gray-100 rounded flex items-center justify-center">Image</div>
-                        <div className="h-28 bg-gray-100 rounded flex items-center justify-center">Image</div>
-                        <div className="h-28 bg-gray-100 rounded flex items-center justify-center">Image</div>
-                      </div>
+                      {/* Work Order Updates Section */}
+                      {selectedOrder.id && (
+                        <div className="mt-6 pt-6 border-t border-gray-200">
+                          <AddWorkOrderUpdate 
+                            workOrderId={selectedOrder.id} 
+                            currentStatus={selectedOrder.status || "open"}
+                            userRole={role}
+                          />
+                        </div>
+                      )}
                     </div>
 
                     <div className="mt-4 flex gap-3">
-                      {selectedOrder?.status === "claimed" && selectedOrder?.assigned_to === currentUserId ? (
+                      {selectedOrder?.status === "completed" ? (
+                        <div className="px-4 py-2 text-green-700 font-medium">
+                          ✓ Work Order Completed
+                        </div>
+                      ) : selectedOrder?.status === "claimed" && selectedOrder?.assigned_to === currentUserId ? (
                         <button
                           onClick={() => cancelJob(selectedOrder?.id ?? null)}
                           disabled={loading}

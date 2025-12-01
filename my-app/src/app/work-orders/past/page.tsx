@@ -4,6 +4,7 @@ import React, { useEffect, useState, Suspense, useMemo } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { supabase } from "@/lib/supabaseClient"
+import AddWorkOrderUpdate from "../../components/AddWorkOrderUpdate"
 
 type DisplayRow = {
   id: string
@@ -478,6 +479,14 @@ function PastOrdersContent() {
                   <p className="text-gray-700 leading-relaxed">
                     {selectedOrder.description}
                   </p>
+                </div>
+
+                {/* Work Order Updates Section */}
+                <div className="mt-6 pt-6 border-t border-gray-200">
+                  <AddWorkOrderUpdate 
+                    workOrderId={Number(selectedOrder.id)} 
+                    currentStatus={selectedOrder.status || "open"}
+                  />
                 </div>
               </div>
             ) : (
