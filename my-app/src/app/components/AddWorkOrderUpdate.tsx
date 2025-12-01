@@ -49,7 +49,7 @@ export default function AddWorkOrderUpdate({ workOrderId, currentStatus = "open"
     
     fetchUserRole()
     return () => { mounted = false }
-  }, [userRole]) // Only re-run if userRole prop changes
+  }, [userRole, currentUserRole]) // Only re-run if userRole or currentUserRole changes
   
   // Only technicians can change status, and only if work order is not already completed
   const isWorkOrderCompleted = currentStatus?.toLowerCase() === "completed"
