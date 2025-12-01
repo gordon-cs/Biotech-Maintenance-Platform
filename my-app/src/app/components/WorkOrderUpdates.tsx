@@ -29,28 +29,48 @@ export default function WorkOrderUpdates({ workOrderId, onRefresh }: Props) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const loadUpdates = async () => {
-    setLoading(true)
-    setError(null)
 
-    try {
-      const res = await fetch(`/api/work-order-updates?work_order_id=${workOrderId}`)
-      const json = await res.json()
 
-      if (!res.ok) {
-        throw new Error(json.error || "Failed to load updates")
-      }
 
-      setUpdates(json.data || [])
-    } catch (err) {
-      console.error("Error loading updates:", err)
-      setError(err instanceof Error ? err.message : "Failed to load updates")
-    } finally {
-      setLoading(false)
-    }
-  }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
   useEffect(() => {
+    const loadUpdates = async () => {
+      setLoading(true)
+      setError(null)
+
+      try {
+        const res = await fetch(`/api/work-order-updates?work_order_id=${workOrderId}`)
+        const json = await res.json()
+
+        if (!res.ok) {
+          throw new Error(json.error || "Failed to load updates")
+        }
+
+        setUpdates(json.data || [])
+      } catch (err) {
+        console.error("Error loading updates:", err)
+        setError(err instanceof Error ? err.message : "Failed to load updates")
+      } finally {
+        setLoading(false)
+      }
+    }
     loadUpdates()
   }, [workOrderId])
 
