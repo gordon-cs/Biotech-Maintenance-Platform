@@ -215,13 +215,15 @@ export async function POST(req: NextRequest) {
       
       // Provide more helpful error messages
       let errorMessage = error.message
+      let statusCode = 500
       if (error.message?.includes("permission") || error.message?.includes("policy")) {
         errorMessage = "You don't have permission to update this work order. You may need to be assigned to it first."
+        statusCode = 403
       }
       
       return NextResponse.json(
         { error: errorMessage },
-        { status: 500 }
+        { status: statusCode }
       )
     }
 
