@@ -137,12 +137,19 @@ export async function POST(req: NextRequest) {
       }
 
       // Verify the technician is assigned to this work order
-      const { data: workOrder } = await serviceClient
+      const { data: workOrder, error: woErr } = await serviceClient
         .from("work_orders")
         .select("assigned_to, status")
         .eq("id", body.work_order_id)
         .single()
 
+      if (woErr) {
+        console.error("Error fetching work order:", woErr)
+        return NextResponse.json(
+          { error: "Failed to fetch work order" },
+          { status: 500 }
+        )
+      }
       if (!workOrder) {
         return NextResponse.json(
           { error: "Work order not found" },
