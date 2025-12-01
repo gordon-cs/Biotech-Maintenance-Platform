@@ -55,6 +55,7 @@ export default function Home() {
   const [category, setCategory] = useState("")
   const [categoriesList, setCategoriesList] = useState<Array<{id:number, slug:string, name:string}>>([])
   const [date, setDate] = useState<string>("")
+  const [activeTab, setActiveTab] = useState<"open" | "mine">("open")
 
   // Load role once and on auth changes
   useEffect(() => {
@@ -314,8 +315,17 @@ export default function Home() {
     setLoading(false)
   }
 
-  // derived lists
-  const filteredOrders = orders.filter((o) => {
+  // derived lists: first filter by active tab, then by search/filters
+  const tabFiltered = orders.filter((o) => {
+    if (activeTab === "open") {
+      // Open Requests: status === "open" and not assigned
+      return (o.status || "").toLowerCase() === "open" && !o.assigned_to
+    }
+    // My Work Orders: assigned to current user
+    return currentUserId ? o.assigned_to === currentUserId : false
+  })
+
+  const filteredOrders = tabFiltered.filter((o) => {
     if (search) {
       const hay = ((o.title || "") + " " + (o.description || "") + " " + (o.labName || "")).toLowerCase()
       if (!hay.includes(search.toLowerCase())) return false
@@ -324,6 +334,19 @@ export default function Home() {
     if (selectedCategory && o.category_id !== selectedCategory) return false
     return true
   })
+
+  // ensure selectedId points to a visible item when filters/tabs change
+  useEffect(() => {
+    if (!filteredOrders.length) {
+      setSelectedId(null)
+      return
+    }
+    if (!selectedId || !filteredOrders.find((f) => f.id === selectedId)) {
+      setSelectedId(filteredOrders[0].id)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, orders, search, selectedLab, selectedCategory])
+
   const selectedOrder = orders.find((o) => o.id === selectedId) ?? (filteredOrders[0] ?? null)
 
   // wait for role load
@@ -339,16 +362,32 @@ export default function Home() {
             <AuthStatus />
           </header>
 
+          {/* Tabs */}
+          <div className="mb-4 flex items-center gap-3">
+            <button
+              onClick={() => setActiveTab("open")}
+              className={`px-4 py-2 rounded-full ${activeTab === "open" ? "bg-green-600 text-white" : "bg-gray-100 text-gray-700"}`}
+            >
+              Open Requests
+            </button>
+            <button
+              onClick={() => setActiveTab("mine")}
+              className={`px-4 py-2 rounded-full ${activeTab === "mine" ? "bg-green-600 text-white" : "bg-gray-100 text-gray-700"}`}
+            >
+              My Work Orders
+            </button>
+          </div>
+
           {/* Filter bar */}
-          <section className="space-y-6">
+           <section className="space-y-6">
             <div className="rounded-xl bg-gray-50 p-4 flex gap-3 items-center">
-              <input
-                type="search"
-                placeholder="Search Request"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="flex-1 px-4 py-3 border rounded-lg bg-white"
-              />
+               <input
+                 type="search"
+                 placeholder="Search Request"
+                 value={search}
+                 onChange={(e) => setSearch(e.target.value)}
+                 className="flex-1 px-4 py-3 border rounded-lg bg-white"
+               />
 
               <select
                 value={selectedLab ?? ""}
