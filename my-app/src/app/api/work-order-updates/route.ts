@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { sendWorkOrderUpdateEmail } from "@/lib/email"
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -225,6 +226,96 @@ export async function POST(req: NextRequest) {
         { error: errorMessage },
         { status: statusCode }
       )
+    }
+
+    // Send email notification after successful update
+    try {
+      // Fetch work order details for email
+      const { data: workOrderDetails } = await serviceClient
+        .from("work_orders")
+        .select(`
+          id,
+          title,
+          lab,
+          assigned_to
+        `)
+        .eq("id", body.work_order_id)
+        .single()
+
+      if (workOrderDetails && data?.author) {
+        // Get author info from the returned data
+        const author = Array.isArray(data.author) ? data.author[0] : data.author
+        const authorRole = author?.role as string
+        const authorName = author?.full_name || author?.email || "Unknown User"
+        
+        // Determine recipient based on author role
+        let recipientEmail: string | null = null
+        let recipientName: string | null = null
+
+        if (authorRole === "technician") {
+          // Technician posted update -> send to lab manager
+          // Get the lab manager's info
+          const { data: labData } = await serviceClient
+            .from("labs")
+            .select("manager_id")
+            .eq("id", workOrderDetails.lab)
+            .single()
+          
+          if (labData?.manager_id) {
+            const { data: managerProfile } = await serviceClient
+              .from("profiles")
+              .select("email, full_name")
+              .eq("id", labData.manager_id)
+              .single()
+            
+            if (managerProfile?.email) {
+              recipientEmail = managerProfile.email
+              recipientName = managerProfile.full_name || null
+            }
+          }
+        } else if (authorRole === "lab") {
+          // Lab manager posted update -> send to assigned technician
+          if (workOrderDetails.assigned_to) {
+            const { data: technicianProfile } = await serviceClient
+              .from("profiles")
+              .select("email, full_name")
+              .eq("id", workOrderDetails.assigned_to)
+              .single()
+            
+            if (technicianProfile?.email) {
+              recipientEmail = technicianProfile.email
+              recipientName = technicianProfile.full_name || null
+            }
+          }
+        }
+
+        // Send email if we have a recipient
+        if (recipientEmail) {
+          const emailResult = await sendWorkOrderUpdateEmail(
+            {
+              email: recipientEmail,
+              name: recipientName || undefined,
+            },
+            {
+              workOrderId: body.work_order_id,
+              workOrderTitle: workOrderDetails.title || `Work Order #${body.work_order_id}`,
+              updateType: body.update_type,
+              newStatus: body.new_status || undefined,
+              updateBody: body.body.trim(),
+              authorName,
+              authorRole,
+            }
+          )
+
+          if (!emailResult.success) {
+            console.error("Failed to send email notification:", emailResult.error)
+            // Don't fail the request if email fails - just log it
+          }
+        }
+      }
+    } catch (emailError) {
+      console.error("Error sending email notification:", emailError)
+      // Don't fail the request if email fails - just log it
     }
 
     return NextResponse.json({ data }, { status: 201 })
