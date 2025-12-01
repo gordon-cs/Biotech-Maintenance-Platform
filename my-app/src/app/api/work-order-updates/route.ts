@@ -115,12 +115,19 @@ export async function POST(req: NextRequest) {
 
     // For status changes, verify user is a technician
     if (body.update_type === "status_change") {
-      const { data: profile } = await serviceClient
+      const { data: profile, error: profileErr } = await serviceClient
         .from("profiles")
         .select("role")
         .eq("id", user.id)
         .single()
 
+      if (profileErr) {
+        console.error("Database error fetching user profile:", profileErr.message)
+        return NextResponse.json(
+          { error: "Internal server error" },
+          { status: 500 }
+        )
+      }
       if (profile?.role !== "technician") {
         return NextResponse.json(
           { error: "Only technicians can change work order status" },
