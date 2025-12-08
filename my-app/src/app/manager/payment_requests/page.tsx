@@ -306,8 +306,8 @@ export default function PaymentRequests() {
                     <strong>ℹ️ What happens next?</strong><br/>
                     • AR Invoice will be created in Bill.com<br/>
                     • Payment link will be emailed to the lab manager<br/>
-                    • Lab manager clicks "Pay" in email → pays on Bill.com hosted page<br/>
-                    • Payment status automatically updates to "Paid" via webhook
+                    • Lab manager clicks &quot;Pay&quot; in email → pays on Bill.com hosted page<br/>
+                    • Payment status automatically updates to &quot;Paid&quot; via webhook
                   </p>
                 </div>
               </div>
