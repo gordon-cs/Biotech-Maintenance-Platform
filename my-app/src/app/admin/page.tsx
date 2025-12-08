@@ -92,19 +92,10 @@ export default function AdminPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <button onClick={() => router.push("/admin/users")} className="p-4 border rounded-lg text-left">Manage Users</button>
           <button onClick={() => router.push("/admin/work-orders")} className="p-4 border rounded-lg text-left">Manage Work Orders</button>
-          <button onClick={() => router.push("/admin/labs")} className="p-4 border rounded-lg text-left">Manage Labs</button>
           <button onClick={() => router.push("/admin/categories")} className="p-4 border rounded-lg text-left">Manage Categories</button>
-          <button onClick={() => router.push("/admin/addresses")} className="p-4 border rounded-lg text-left">Manage Addresses</button>
-          <button onClick={() => router.push("/admin/audit-logs")} className="p-4 border rounded-lg text-left">Audit Logs</button>
         </div>
 
-        <section className="bg-white border rounded-lg p-4">
-          <h2 className="font-semibold mb-2">Quick actions</h2>
-          <div className="flex gap-3">
-            <button className="px-3 py-2 bg-green-600 text-white rounded" onClick={() => router.push("/admin/invite")}>Invite Admin/User</button>
-            <button className="px-3 py-2 border rounded" onClick={() => router.push("/admin/export")}>Export Data (CSV)</button>
-          </div>
-        </section>
+        {/* simplified: no quick actions for now */}
       </main>
     </div>
   )
