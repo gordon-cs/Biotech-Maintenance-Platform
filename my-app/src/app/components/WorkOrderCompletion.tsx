@@ -8,6 +8,8 @@ interface WorkOrderCompletionProps {
   onComplete: () => void
 }
 
+const MIN_PAYMENT_AMOUNT = 0.01
+
 export default function WorkOrderCompletion({ workOrderId, onComplete }: WorkOrderCompletionProps) {
   const [isCompleting, setIsCompleting] = useState(false)
   const [requestPayment, setRequestPayment] = useState(false)
@@ -21,8 +23,8 @@ export default function WorkOrderCompletion({ workOrderId, onComplete }: WorkOrd
     // Validate payment amount if payment is requested
     if (requestPayment) {
       const amount = parseFloat(requestedAmount)
-      if (isNaN(amount) || amount < 0.01) {
-        setValidationError('Payment amount must be at least $0.01')
+      if (!requestedAmount || requestedAmount.trim() === '' || isNaN(amount) || amount < MIN_PAYMENT_AMOUNT) {
+        setValidationError(`Payment amount must be at least $${MIN_PAYMENT_AMOUNT.toFixed(2)}`)
         setIsCompleting(false)
         return
       }
@@ -117,7 +119,7 @@ export default function WorkOrderCompletion({ workOrderId, onComplete }: WorkOrd
             <input
               type="number"
               step="0.01"
-              min="0.01"
+              min={MIN_PAYMENT_AMOUNT}
               value={requestedAmount}
               onChange={(e) => setRequestedAmount(e.target.value)}
               className="pl-7 block w-full border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
