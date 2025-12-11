@@ -5,6 +5,16 @@ import { billClient } from '@/lib/billClient'
 export async function POST(request: NextRequest) {
   try {
     const { invoiceId } = await request.json()
+    // Validate invoiceId
+    if (
+      invoiceId === undefined ||
+      invoiceId === null ||
+      (typeof invoiceId !== 'number' && typeof invoiceId !== 'string') ||
+      (typeof invoiceId === 'string' && invoiceId.trim() === '') ||
+      (typeof invoiceId === 'number' && !Number.isFinite(invoiceId))
+    ) {
+      return NextResponse.json({ error: 'Invalid or missing invoiceId' }, { status: 400 })
+    }
     console.log('Processing invoice ID:', invoiceId)
 
     const authHeader = request.headers.get('authorization')
