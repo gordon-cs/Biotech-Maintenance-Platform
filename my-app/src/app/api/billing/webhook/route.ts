@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { createHmac } from 'crypto'
+import { createHmac, timingSafeEqual } from 'crypto'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -28,7 +28,17 @@ function verifyWebhookSignature(
 
   // Compare signatures using timing-safe comparison
   try {
-    return signature === expectedSignature
+    // Convert both strings to buffers for timing-safe comparison
+    const sigBuffer = Buffer.from(signature, 'hex')
+    const expectedBuffer = Buffer.from(expectedSignature, 'hex')
+    
+    // Ensure both buffers are the same length before comparison
+    if (sigBuffer.length !== expectedBuffer.length) {
+      return false
+    }
+    
+    // Use crypto.timingSafeEqual for timing-safe comparison
+    return timingSafeEqual(sigBuffer, expectedBuffer)
   } catch (error) {
     console.error('Signature comparison failed:', error)
     return false
