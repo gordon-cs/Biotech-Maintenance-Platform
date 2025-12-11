@@ -9,7 +9,15 @@ const supabaseAdmin = createClient(
 
 /**
  * Verify the webhook signature from Bill.com
- * Bill.com sends a signature in the X-Bill-Signature header
+ * 
+ * Note: This implementation assumes Bill.com sends the signature in hex format.
+ * If Bill.com uses a different format (e.g., base64, or with a prefix like 'sha256='),
+ * update the signature parsing logic below.
+ * 
+ * Common header names to check in Bill.com documentation:
+ * - X-Bill-Signature
+ * - X-Signature
+ * - X-Hub-Signature-256
  */
 function verifyWebhookSignature(
   payload: string,
@@ -24,16 +32,44 @@ function verifyWebhookSignature(
   // Create HMAC-SHA256 hash of the payload
   const hmac = createHmac('sha256', secret)
   hmac.update(payload)
-  const expectedSignature = hmac.digest('hex')
-
+  
   // Compare signatures using timing-safe comparison
   try {
-    // Convert both strings to buffers for timing-safe comparison
-    const sigBuffer = Buffer.from(signature, 'hex')
-    const expectedBuffer = Buffer.from(expectedSignature, 'hex')
+    // Check if signature has a format prefix (e.g., 'sha256=')
+    const cleanSignature = signature.includes('=') && signature.split('=')[0].match(/^[a-z0-9]+$/i)
+      ? signature.split('=')[1]
+      : signature
+    
+    // Determine the expected signature buffer
+    const expectedBuffer = hmac.digest()
+    
+    // Try to parse signature in different formats
+    let sigBuffer: Buffer
+    
+    // Check the length to determine format:
+    // Hex: 64 chars for SHA-256 (32 bytes * 2)
+    // Base64: 44 chars for SHA-256 (32 bytes encoded)
+    if (cleanSignature.length === 64 && /^[0-9a-f]+$/i.test(cleanSignature)) {
+      // Likely hex format
+      sigBuffer = Buffer.from(cleanSignature, 'hex')
+    } else if (cleanSignature.length === 44 || /[+/=]/.test(cleanSignature)) {
+      // Likely base64 format
+      sigBuffer = Buffer.from(cleanSignature, 'base64')
+    } else {
+      // Try hex first, then base64
+      try {
+        sigBuffer = Buffer.from(cleanSignature, 'hex')
+        if (sigBuffer.length !== expectedBuffer.length) {
+          sigBuffer = Buffer.from(cleanSignature, 'base64')
+        }
+      } catch {
+        sigBuffer = Buffer.from(cleanSignature, 'base64')
+      }
+    }
     
     // Ensure both buffers are the same length before comparison
     if (sigBuffer.length !== expectedBuffer.length) {
+      console.error('Signature length mismatch:', sigBuffer.length, 'vs', expectedBuffer.length)
       return false
     }
     

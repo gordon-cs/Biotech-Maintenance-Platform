@@ -22,9 +22,18 @@ The following environment variables are required for the application:
 
 ### Webhook Security
 
-The Bill.com webhook endpoint (`/api/billing/webhook`) requires signature verification to ensure requests are authentic. The webhook signature is verified using HMAC-SHA256 with the `BILL_WEBHOOK_SECRET` environment variable. Bill.com sends the signature in the `X-Bill-Signature` header.
+The Bill.com webhook endpoint (`/api/billing/webhook`) requires signature verification to ensure requests are authentic. The webhook signature is verified using HMAC-SHA256 with the `BILL_WEBHOOK_SECRET` environment variable.
 
-If the `BILL_WEBHOOK_SECRET` is not configured, the webhook endpoint will return a 500 error. If the signature verification fails, the endpoint will return a 401 error.
+**Important Notes:**
+- The webhook expects the signature in the `X-Bill-Signature` header (verify this matches Bill.com's documentation)
+- The implementation supports both hex and base64 encoded signatures
+- The implementation handles signatures with or without format prefixes (e.g., `sha256=`)
+- Consult Bill.com's webhook documentation to confirm the exact header name and signature format
+
+**Error Responses:**
+- If the `BILL_WEBHOOK_SECRET` is not configured, the webhook endpoint will return a 500 error
+- If the signature verification fails, the endpoint will return a 401 error
+- If the signature header is missing, the endpoint will return a 401 error
 
 ## Getting Started
 
