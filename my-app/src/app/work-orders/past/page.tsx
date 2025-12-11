@@ -141,7 +141,7 @@ function PastOrdersContent() {
         throw new Error("You don't have permission to cancel this order")
       }
 
-      const { data: updateResult, error: updateError } = await supabase
+      const { error: updateError } = await supabase
         .from("work_orders")
         .update({ status: "canceled" })
         .eq("id", orderIdNumber)
