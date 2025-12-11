@@ -348,6 +348,15 @@ export default function Home() {
     }
   }
 
+  // Call checkExistingPaymentRequest whenever selectedId changes
+  useEffect(() => {
+    if (selectedId != null) {
+      checkExistingPaymentRequest(selectedId)
+    } else {
+      setPaymentRequestStatus({ exists: false })
+      setHasExistingRequest(false)
+    }
+  }, [selectedId])
   // handle new payment request
   const handlePaymentRequest = async (woId: number) => {
     setIsSubmittingPayment(true)
