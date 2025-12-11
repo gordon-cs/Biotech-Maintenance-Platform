@@ -209,7 +209,7 @@ function PastOrdersContent() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`
         },
-        body: JSON.stringify({ invoiceId: invoiceId.toString() })
+        body: JSON.stringify({ invoiceId: invoiceId })
       })
 
       if (response.ok) {
