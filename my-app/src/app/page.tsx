@@ -78,7 +78,6 @@ export default function Home() {
         
         if (mounted) setCurrentUserId(session.user.id)
         const userId = session.user.id
-        if (mounted) setCurrentUserId(userId)
         
         const { data, error } = await supabase
           .from("profiles")
