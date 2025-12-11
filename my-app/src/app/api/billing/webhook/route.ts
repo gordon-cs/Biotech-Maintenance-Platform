@@ -1,14 +1,68 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { createHmac } from 'crypto'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
 )
 
+/**
+ * Verify the webhook signature from Bill.com
+ * Bill.com sends a signature in the X-Bill-Signature header
+ */
+function verifyWebhookSignature(
+  payload: string,
+  signature: string | null,
+  secret: string
+): boolean {
+  if (!signature) {
+    console.error('Missing webhook signature header')
+    return false
+  }
+
+  // Create HMAC-SHA256 hash of the payload
+  const hmac = createHmac('sha256', secret)
+  hmac.update(payload)
+  const expectedSignature = hmac.digest('hex')
+
+  // Compare signatures using timing-safe comparison
+  try {
+    return signature === expectedSignature
+  } catch (error) {
+    console.error('Signature comparison failed:', error)
+    return false
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const payload = await req.json()
+    // Get the raw body for signature verification
+    const rawBody = await req.text()
+    
+    // Verify webhook signature
+    const webhookSecret = process.env.BILL_WEBHOOK_SECRET
+    
+    if (!webhookSecret) {
+      console.error('BILL_WEBHOOK_SECRET is not configured')
+      return NextResponse.json(
+        { error: 'Webhook secret not configured' },
+        { status: 500 }
+      )
+    }
+
+    const signature = req.headers.get('x-bill-signature')
+    
+    if (!verifyWebhookSignature(rawBody, signature, webhookSecret)) {
+      console.error('Invalid webhook signature')
+      return NextResponse.json(
+        { error: 'Invalid signature' },
+        { status: 401 }
+      )
+    }
+
+    // Parse the payload after verification
+    const payload = JSON.parse(rawBody)
     console.log('Bill.com webhook payload:', payload)
 
     const billInvoiceId = payload?.data?.invoiceId || payload?.invoiceId || payload?.id
