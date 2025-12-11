@@ -1,5 +1,40 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Environment Variables
+
+The following environment variables are required for the application:
+
+### Bill.com Integration
+
+- `BILL_BASE_URL` - Base URL for Bill.com API (e.g., `https://gateway.stage.bill.com/connect/v3`)
+- `BILL_DEVELOPER_KEY` - Bill.com developer key for API authentication
+- `BILL_USERNAME` - Bill.com account username
+- `BILL_PASSWORD` - Bill.com account password
+- `BILL_ORGANIZATION_ID` - Bill.com organization ID
+- `BILL_ENV` - Environment mode (`mock`, `development`, or `production`)
+- `BILL_WEBHOOK_SECRET` - Secret key for verifying Bill.com webhook signatures (required for webhook security)
+
+### Supabase
+
+- `NEXT_PUBLIC_SUPABASE_URL` - Supabase project URL
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase anonymous key
+- `SUPABASE_SERVICE_ROLE_KEY` - Supabase service role key (server-side only)
+
+### Webhook Security
+
+The Bill.com webhook endpoint (`/api/billing/webhook`) requires signature verification to ensure requests are authentic. The webhook signature is verified using HMAC-SHA256 with the `BILL_WEBHOOK_SECRET` environment variable.
+
+**Important Notes:**
+- The webhook expects the signature in the `X-Bill-Signature` header (verify this matches Bill.com's documentation)
+- The implementation supports both hex and base64 encoded signatures
+- The implementation handles signatures with or without format prefixes (e.g., `sha256=`)
+- Consult Bill.com's webhook documentation to confirm the exact header name and signature format
+
+**Error Responses:**
+- If the `BILL_WEBHOOK_SECRET` is not configured, the webhook endpoint will return a 500 error
+- If the signature verification fails, the endpoint will return a 401 error
+- If the signature header is missing, the endpoint will return a 401 error
+
 ## Getting Started
 
 First, run the development server:
