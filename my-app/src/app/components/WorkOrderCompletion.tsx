@@ -16,18 +16,20 @@ export default function WorkOrderCompletion({ workOrderId, onComplete }: WorkOrd
   const [requestedAmount, setRequestedAmount] = useState('150.00')
   const [validationError, setValidationError] = useState('')
 
+  const isValidAmount = (amount: string): boolean => {
+    const parsed = parseFloat(amount)
+    return !isNaN(parsed) && parsed >= MIN_PAYMENT_AMOUNT
+  }
+
   const completeWorkOrder = async () => {
     setIsCompleting(true)
     setValidationError('')
     
     // Validate payment amount if payment is requested
-    if (requestPayment) {
-      const amount = parseFloat(requestedAmount)
-      if (!requestedAmount || requestedAmount.trim() === '' || isNaN(amount) || amount < MIN_PAYMENT_AMOUNT) {
-        setValidationError(`Payment amount must be at least $${MIN_PAYMENT_AMOUNT.toFixed(2)}`)
-        setIsCompleting(false)
-        return
-      }
+    if (requestPayment && !isValidAmount(requestedAmount)) {
+      setValidationError(`Payment amount must be at least $${MIN_PAYMENT_AMOUNT.toFixed(2)}`)
+      setIsCompleting(false)
+      return
     }
     
     try {
