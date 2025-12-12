@@ -3,7 +3,18 @@
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabaseClient"
 
-type WO = {
+/* UI types */
+type WorkOrderUpdate = {
+  id: number
+  work_order_id: number
+  author_id?: string | null
+  update_type?: string | null
+  new_status?: string | null
+  body?: string | null
+  created_at?: string | null
+}
+
+type WorkOrder = {
   id: number
   created_by?: string | null
   lab?: number | null
@@ -18,12 +29,30 @@ type WO = {
   updated_at?: string | null
   category_id?: number | null
   address_id?: number | null
-  updates?: Update[]
+  updates?: WorkOrderUpdate[]
 }
 
-type Update = {
-  id: number
-  work_order_id: number
+/* DB row shapes returned by Supabase (bigint may be string) */
+type DBWorkOrderRow = {
+  id: number | string
+  created_by?: string | null
+  lab?: number | null
+  title?: string | null
+  description?: string | null
+  equipment?: string | null
+  urgency?: string | null
+  status?: string | null
+  date?: string | null
+  assigned_to?: string | null
+  created_at?: string | null
+  updated_at?: string | null
+  category_id?: number | null
+  address_id?: number | null
+}
+
+type DBWorkOrderUpdateRow = {
+  id: number | string
+  work_order_id: number | string
   author_id?: string | null
   update_type?: string | null
   new_status?: string | null
@@ -39,7 +68,7 @@ const STATUS_OPTIONS = [
 ]
 
 export default function AdminWorkOrdersPage() {
-  const [rows, setRows] = useState<WO[]>([])
+  const [rows, setRows] = useState<WorkOrder[]>([])
   const [loading, setLoading] = useState(false)
   const [expanded, setExpanded] = useState<Record<number, boolean>>({})
   const [deleting, setDeleting] = useState<Record<number, boolean>>({})
@@ -47,63 +76,79 @@ export default function AdminWorkOrdersPage() {
   const [message, setMessage] = useState<string | null>(null)
 
   useEffect(() => {
-    loadAll()
+    void loadAll()
   }, [])
 
   const loadAll = async () => {
     setLoading(true)
     setMessage(null)
     try {
-      const { data: workOrders, error: woErr } = await supabase
+      const res = await supabase
         .from("work_orders")
         .select(
           `id, created_by, lab, title, description, equipment, urgency, status, date, assigned_to, created_at, updated_at, category_id, address_id`
         )
         .order("id", { ascending: true })
 
-      if (woErr) throw woErr
+      // cast the returned data to the DB row type
+      const workOrders = (res.data as DBWorkOrderRow[] | null)
 
-      const ids = (workOrders ?? []).map((w: any) => Number(w.id))
-      let updates: Update[] = []
+      if (res.error) throw res.error
+
+      const ids: number[] = (workOrders ?? []).map((w) => Number(w.id))
+      let updatesRows: DBWorkOrderUpdateRow[] = []
       if (ids.length) {
-        const { data: updData, error: updErr } = await supabase
+        const updRes = await supabase
           .from("work_order_updates")
           .select("id, work_order_id, author_id, update_type, new_status, body, created_at")
           .in("work_order_id", ids)
           .order("created_at", { ascending: true })
-        if (updErr) throw updErr
-        updates = (updData ?? []) as Update[]
+
+        if (updRes.error) throw updRes.error
+        updatesRows = (updRes.data as DBWorkOrderUpdateRow[]) ?? []
       }
 
-      const updatesMap = new Map<number, Update[]>()
-      updates.forEach((u) => {
-        const list = updatesMap.get(u.work_order_id) ?? []
-        list.push(u)
-        updatesMap.set(u.work_order_id, list)
+      const updatesMap = new Map<number, WorkOrderUpdate[]>()
+      updatesRows.forEach((u) => {
+        const wid = Number(u.work_order_id)
+        const list = updatesMap.get(wid) ?? []
+        list.push({
+          id: Number(u.id),
+          work_order_id: wid,
+          author_id: u.author_id ?? null,
+          update_type: u.update_type ?? null,
+          new_status: u.new_status ?? null,
+          body: u.body ?? null,
+          created_at: u.created_at ?? null
+        })
+        updatesMap.set(wid, list)
       })
 
-      const enriched = (workOrders ?? []).map((w: any) => ({
-        id: Number(w.id),
-        created_by: w.created_by ?? null,
-        lab: w.lab ?? null,
-        title: w.title ?? null,
-        description: w.description ?? null,
-        equipment: w.equipment ?? null,
-        urgency: w.urgency ?? null,
-        status: w.status ?? null,
-        date: w.date ?? null,
-        assigned_to: w.assigned_to ?? null,
-        created_at: w.created_at ?? null,
-        updated_at: w.updated_at ?? null,
-        category_id: w.category_id ?? null,
-        address_id: w.address_id ?? null,
-        updates: updatesMap.get(Number(w.id)) ?? []
-      })) as WO[]
+      const enriched: WorkOrder[] = (workOrders ?? []).map((w) => {
+        const idNum = Number(w.id)
+        return {
+          id: idNum,
+          created_by: w.created_by ?? null,
+          lab: w.lab ?? null,
+          title: w.title ?? null,
+          description: w.description ?? null,
+          equipment: w.equipment ?? null,
+          urgency: w.urgency ?? null,
+          status: w.status ?? null,
+          date: w.date ?? null,
+          assigned_to: w.assigned_to ?? null,
+          created_at: w.created_at ?? null,
+          updated_at: w.updated_at ?? null,
+          category_id: w.category_id ?? null,
+          address_id: w.address_id ?? null,
+          updates: updatesMap.get(idNum) ?? []
+        }
+      })
 
       setRows(enriched)
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err)
-      setMessage(err?.message ?? "Failed to load work orders")
+      setMessage((err as { message?: string })?.message ?? "Failed to load work orders")
     } finally {
       setLoading(false)
     }
@@ -113,19 +158,21 @@ export default function AdminWorkOrdersPage() {
     setChanging((s) => ({ ...s, [woId]: true }))
     setMessage(null)
     try {
-      const { data, error } = await supabase
+      const payload = { status: newStatus, updated_at: new Date().toISOString() } as Partial<DBWorkOrderRow>
+      const res = await supabase
         .from("work_orders")
-        .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .update(payload)
         .eq("id", woId)
         .select()
         .maybeSingle()
-      if (error) throw error
 
-      // update local state
-      setRows((prev) => prev.map((r) => (r.id === woId ? { ...r, status: data?.status ?? newStatus } : r)))
-    } catch (err: any) {
+      if (res.error) throw res.error
+      const updated = res.data as DBWorkOrderRow | null
+
+      setRows((prev) => prev.map((r) => (r.id === woId ? { ...r, status: updated?.status ?? newStatus } : r)))
+    } catch (err: unknown) {
       console.error(err)
-      setMessage(err?.message ?? "Unable to change status")
+      setMessage((err as { message?: string })?.message ?? "Unable to change status")
     } finally {
       setChanging((s) => ({ ...s, [woId]: false }))
     }
@@ -136,17 +183,16 @@ export default function AdminWorkOrdersPage() {
     setDeleting((s) => ({ ...s, [woId]: true }))
     setMessage(null)
     try {
-      // delete related updates first (if cascades exist this is optional)
-      const { error: delUpdatesErr } = await supabase.from("work_order_updates").delete().eq("work_order_id", woId)
-      if (delUpdatesErr) throw delUpdatesErr
+      const delUpd = await supabase.from("work_order_updates").delete().eq("work_order_id", woId)
+      if (delUpd.error) throw delUpd.error
 
-      const { error: delWoErr } = await supabase.from("work_orders").delete().eq("id", woId)
-      if (delWoErr) throw delWoErr
+      const delWo = await supabase.from("work_orders").delete().eq("id", woId)
+      if (delWo.error) throw delWo.error
 
       setRows((prev) => prev.filter((r) => r.id !== woId))
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err)
-      setMessage(err?.message ?? "Failed to delete work order")
+      setMessage((err as { message?: string })?.message ?? "Failed to delete work order")
     } finally {
       setDeleting((s) => ({ ...s, [woId]: false }))
     }
