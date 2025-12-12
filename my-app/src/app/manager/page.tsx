@@ -240,9 +240,28 @@ export default function ManagerDashboard() {
           </form>
         </section>
 
+        {/* Quick Links */}
+        <section className="bg-white rounded p-6 shadow mb-8">
+          <h2 className="text-lg font-semibold mb-4">Quick Links</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Link 
+              href="/work-orders/past"
+              className="flex items-center justify-center px-6 py-4 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+            >
+              📋 View All Work Orders
+            </Link>
+            <Link 
+              href="/manager/payment_requests"
+              className="flex items-center justify-center px-6 py-4 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+            >
+              💰 Payment Requests
+            </Link>
+          </div>
+        </section>
+
         {/* Work Orders Section */}
         <section className="bg-white rounded p-6 shadow">
-          <h2 className="text-xl font-semibold text-center mb-6">Work Orders</h2>
+          <h2 className="text-xl font-semibold text-center mb-6">Recent Work Orders</h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             {workOrders.length > 0 ? (
