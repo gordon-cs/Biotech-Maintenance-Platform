@@ -102,7 +102,6 @@ export default function Home() {
         
         if (mounted) setRoleLoaded(true)
       } catch (err) {
-        console.error("Error loading role:", err)
         if (mounted) setRoleLoaded(true)
       }
     }
@@ -191,25 +190,11 @@ export default function Home() {
     const addressIds = raw.map(wo => wo.address_id).filter(Boolean) as number[]
     const addressMap = new Map<number, string>()
     
-    console.log("Work orders:", raw.length)
-    console.log("Address IDs found:", addressIds)
-    
     if (addressIds.length > 0) {
-      // First check what we can see from addresses table
-      const { data: allAddresses, error: allError } = await supabase
-        .from("addresses")
-        .select("id, line1, line2, city, state, zipcode, lab_id")
-      
-      console.log("All addresses visible:", allAddresses)
-      console.log("All addresses error:", allError)
-      
-      const { data: addressData, error: addrError } = await supabase
+      const { data: addressData } = await supabase
         .from("addresses")
         .select("id, line1, line2, city, state, zipcode")
         .in("id", addressIds)
-      
-      console.log("Filtered address data:", addressData)
-      console.log("Filtered address error:", addrError)
       
       if (addressData) {
         addressData.forEach((addr) => {
@@ -218,8 +203,6 @@ export default function Home() {
         })
       }
     }
-    
-    console.log("Address map:", addressMap)
 
     const enriched = raw.map((wo) => ({
       id: Number(wo.id),
@@ -385,7 +368,6 @@ export default function Home() {
         })
 
       if (error) {
-        console.error('Error creating payment request:', error)
         alert('Failed to submit payment request')
         return
       }
@@ -395,7 +377,6 @@ export default function Home() {
       setShowPaymentRequest(false)
 
     } catch (error) {
-      console.error('Error:', error)
       alert('Failed to submit payment request')
     } finally {
       setIsSubmittingPayment(false)

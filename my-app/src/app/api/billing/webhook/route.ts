@@ -9,20 +9,12 @@ const supabaseAdmin = createClient(
 export async function POST(req: NextRequest) {
   try {
     const payload = await req.json()
-    console.log('Bill.com webhook payload:', payload)
 
     const billInvoiceId = payload?.data?.invoiceId || payload?.invoiceId || payload?.id
     const eventType = payload?.eventType || payload?.type
     const status = payload?.data?.status || payload?.status
 
-    console.log('Webhook data:', {
-      billInvoiceId,
-      eventType,
-      status,
-    })
-
     if (!billInvoiceId) {
-      console.error('Missing invoice ID in webhook')
       return NextResponse.json({ error: 'Missing invoice id' }, { status: 400 })
     }
 
@@ -33,11 +25,8 @@ export async function POST(req: NextRequest) {
       .single()
 
     if (error || !invoice) {
-      console.error('Invoice not found for webhook id:', billInvoiceId, error)
       return NextResponse.json({ error: 'Invoice not found' }, { status: 404 })
     }
-
-    console.log('Found invoice:', invoice.id, 'Current status:', invoice.payment_status)
 
     if (
       eventType === 'invoice.paid' ||
@@ -45,8 +34,6 @@ export async function POST(req: NextRequest) {
       status === 'Paid' ||
       eventType === 'payment.completed'
     ) {
-      console.log('Invoice paid! Updating status...')
-
       const { error: updateError } = await supabaseAdmin
         .from('invoices')
         .update({
@@ -57,19 +44,15 @@ export async function POST(req: NextRequest) {
         .eq('id', invoice.id)
 
       if (updateError) {
-        console.error('Update failed:', updateError)
         return NextResponse.json({ error: 'Update failed' }, { status: 500 })
       }
 
-      console.log('Invoice marked as paid:', invoice.id)
       return NextResponse.json({ ok: true, message: 'Invoice marked as paid' }, { status: 200 })
     }
 
-    console.log('Webhook received but no action needed for event:', eventType)
     return NextResponse.json({ ok: true, message: 'Webhook received' }, { status: 200 })
 
   } catch (e: unknown) {
-    console.error('Webhook error:', e)
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Webhook error' }, { status: 500 })
   }
 }

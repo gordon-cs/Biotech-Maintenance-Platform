@@ -81,9 +81,6 @@ export async function POST(request: NextRequest) {
     // Process vendor payment using Bill.com client
     await billClient.payVendorForWorkOrder(workOrderId);
 
-    // Log the payment initiation
-    console.log(`Payment initiated for work order ${workOrderId} by user ${user.id}`);
-
     return NextResponse.json({ 
       success: true, 
       message: 'Vendor payment processed successfully',
@@ -92,8 +89,6 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Bill.com vendor payment error:', error);
-    
     return NextResponse.json(
       { 
         error: 'Failed to process vendor payment', 

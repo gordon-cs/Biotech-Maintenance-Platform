@@ -57,11 +57,9 @@ export default function PaymentRequests() {
         .order('created_at', { ascending: false })
 
       if (error) {
-        console.error('Error loading payment requests:', error)
         return
       }
 
-      console.log('Payment requests loaded:', data)
       setRequests(data || [])
       
       // Auto-select first request
@@ -69,7 +67,6 @@ export default function PaymentRequests() {
         setSelectedRequest(data[0])
       }
     } catch (err) {
-      console.error('Error:', err)
     } finally {
       setLoading(false)
     }
@@ -90,8 +87,6 @@ export default function PaymentRequests() {
         return
       }
 
-      console.log('Approving payment for invoice:', request.id)
-
       const response = await fetch('/api/bill/create-invoice', {
         method: 'POST',
         headers: {
@@ -110,7 +105,6 @@ export default function PaymentRequests() {
         alert(`Failed to approve payment: ${result.error}`)
       }
     } catch (error) {
-      console.error('Error approving payment:', error)
       alert('Failed to approve payment')
     } finally {
       setIsApproving(false)

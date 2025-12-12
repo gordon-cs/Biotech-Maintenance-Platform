@@ -16,20 +16,11 @@ class BillClient {
   constructor() {
     this.apiUrl = process.env.BILL_BASE_URL || 'https://gateway.stage.bill.com/connect/v3'
     this.devKey = (process.env.BILL_DEVELOPER_KEY || '').trim()
-    
-    console.log('BillClient initialized with:', {
-      apiUrl: this.apiUrl,
-      devKey: this.devKey ? 'Set' : 'Missing',
-    })
   }
 
   private async login() {
-    console.log('Attempting Bill.com login...');
-    
     if (process.env.BILL_ENV === 'mock' || process.env.BILL_ENV === 'development') {
-      console.log('Using MOCK Bill.com API (development mode)');
       this.sessionId = 'mock-session-' + Date.now();
-      console.log('Mock login successful, sessionId:', this.sessionId);
       return;
     }
     
@@ -38,14 +29,6 @@ class BillClient {
     const username = (process.env.BILL_USERNAME || '').trim();
     const password = (process.env.BILL_PASSWORD || '').trim();
     const organizationId = (process.env.BILL_ORGANIZATION_ID || '').trim();
-
-    console.log('API URL:', baseUrl);
-    console.log('Login payload:', {
-      username,
-      password: '***',
-      devKey: devKey ? `${devKey.substring(0, 5)}...` : 'MISSING!',
-      organizationId,
-    });
 
     const res = await fetch(`${baseUrl}/login`, {
       method: 'POST',
@@ -65,12 +48,8 @@ class BillClient {
     try {
       data = responseText ? JSON.parse(responseText) : null;
     } catch (e) {
-      console.error('Bill.com login: non-JSON response:', responseText);
       throw new Error(`Bill.com authentication failed: ${responseText}`);
     }
-
-    console.log('Login response status:', res.status);
-    console.log('Login response body:', data);
 
     const billData = data as { message?: string; response_data?: { sessionId?: string }; sessionId?: string; responseData?: { sessionId?: string } };
 
@@ -88,14 +67,12 @@ class BillClient {
       billData?.responseData?.sessionId;
 
     if (!sessionId) {
-      console.error('Failed to get sessionId from Bill.com:', data);
       throw new Error(
         `Bill.com authentication failed: ${billData?.message || JSON.stringify(data)}`,
       );
     }
 
     this.sessionId = sessionId;
-    console.log('Bill.com login successful, sessionId:', this.sessionId);
   }
 
   private async ensureLoggedIn() {
@@ -113,8 +90,6 @@ class BillClient {
       accountType: 'BUSINESS',
     };
 
-    console.log('Creating Bill.com customer:', payload);
-
     const res = await fetch(`${this.apiUrl}/customers`, {
       method: 'POST',
       headers: {
@@ -130,11 +105,8 @@ class BillClient {
     try {
       data = text ? JSON.parse(text) : null;
     } catch {
-      console.error('Bill createCustomer non-JSON response:', text);
       throw new Error(`Bill.com create customer error: ${text}`);
     }
-
-    console.log('Bill createCustomer response:', res.status, data);
 
     const customerData = data as { message?: string; id?: string };
 
@@ -153,7 +125,6 @@ class BillClient {
       );
     }
 
-    console.log('Bill.com customer created, id:', id);
     return { id };
   }
 
@@ -354,8 +325,6 @@ class BillClient {
       ]
     }
 
-    console.log('📤 Creating Bill.com invoice:', invoiceData)
-
     const response = await fetch(`${this.apiUrl}/Invoice.json`, {
       method: 'POST',
       headers: {
@@ -371,11 +340,9 @@ class BillClient {
     const result = await response.json()
 
     if (result.response_status !== 0) {
-      console.error('❌ Bill.com API error:', result)
       throw new Error(result.response_message || 'Failed to create invoice')
     }
 
-    console.log('✅ Bill.com invoice created:', result.response_data)
     return result.response_data
   }
 
@@ -387,8 +354,6 @@ class BillClient {
     labs?: { bill_vendor_id?: string };
     [key: string]: unknown 
   }) {
-    console.log('📝 Creating Bill.com invoice from record:', invoiceRecord)
-
     if (!invoiceRecord) {
       throw new Error('Invoice record is required')
     }
@@ -397,13 +362,6 @@ class BillClient {
     const workOrderTitle = invoiceRecord.work_orders?.title || `Work Order #${workOrderId}`
     const vendorId = invoiceRecord.labs?.bill_vendor_id
     const totalAmount = invoiceRecord.total_amount
-
-    console.log('📊 Extracted data:', {
-      workOrderId,
-      workOrderTitle,
-      vendorId,
-      totalAmount
-    })
 
     if (!totalAmount || totalAmount <= 0) {
       throw new Error('Invalid invoice amount')
@@ -440,9 +398,7 @@ class BillClient {
   }) {
     await this.ensureLoggedIn()
 
-    // DEVELOPMENT MODE: Mock Bill.com AR Invoice creation
     if (process.env.BILL_ENV === 'mock' || process.env.BILL_ENV === 'development') {
-      console.log('⚠️  Using MOCK Bill.com AR Invoice API');
       const mockInvoice = {
         id: 'MOCK-AR-INV-' + Date.now(),
         invoiceNumber: data.invoiceNumber,
@@ -451,7 +407,6 @@ class BillClient {
         status: 'Sent',
         createdAt: new Date().toISOString()
       };
-      console.log('✅ Mock AR Invoice created:', mockInvoice);
       return mockInvoice;
     }
 
@@ -478,14 +433,7 @@ class BillClient {
       },
     }
 
-    console.log('📤 AR Invoice payload:', payload)
-    console.log('📤 AR Invoice headers:', {
-      devKey: this.devKey ? `${this.devKey.substring(0, 5)}...` : 'MISSING',
-      sessionId: this.sessionId ? `${this.sessionId.substring(0, 10)}...` : 'MISSING',
-    })
-
     const url = `${this.apiUrl}/invoices`
-    console.log('📤 AR Invoice URL:', url)
 
     const response = await fetch(url, {
       method: 'POST',
@@ -502,17 +450,13 @@ class BillClient {
     try {
       result = responseText ? JSON.parse(responseText) : null
     } catch (e) {
-      console.error('🔴 AR invoice non-JSON response:', responseText)
       throw new Error(`Bill.com AR invoice error: ${responseText}`)
     }
-
-    console.log('📄 AR invoice response:', response.status, result)
 
     const arResult = result as { message?: string; response_data?: { id?: string; [key: string]: unknown }; id?: string; invoiceId?: string };
 
     if (!response.ok) {
       const msg = arResult?.message || JSON.stringify(result)
-      console.error('❌ Bill.com AR Invoice error:', result)
       throw new Error(`Bill.com AR invoice error: ${msg}`)
     }
 
@@ -524,7 +468,6 @@ class BillClient {
       )
     }
 
-    console.log('✅ AR Invoice created, id:', id, 'emailed to:', data.customerEmail)
     if (arResult.response_data) {
       return { id, ...arResult.response_data }
     }
@@ -558,8 +501,6 @@ class BillClient {
       ]
     }
 
-    console.log('📤 Creating Vendor Bill in Bill.com:', billData)
-
     const response = await fetch(`${this.apiUrl}/Bill.json`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -573,7 +514,6 @@ class BillClient {
     const result = await response.json()
 
     if (result.response_status !== 0) {
-      console.error('❌ Bill.com Vendor Bill error:', result)
       throw new Error(result.response_message || 'Failed to create Vendor Bill')
     }
 

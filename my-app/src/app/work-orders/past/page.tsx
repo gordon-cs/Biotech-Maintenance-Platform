@@ -188,7 +188,6 @@ function PastOrdersContent() {
         setPaymentRequests(requestsMap)
       }
     } catch (err) {
-      console.error('Error loading payment requests:', err)
     }
   }
 
@@ -220,7 +219,6 @@ function PastOrdersContent() {
         alert(`Failed to approve payment: ${error.error}`)
       }
     } catch (error) {
-      console.error('Error approving payment:', error)
       alert('Failed to approve payment')
     } finally {
       setIsApprovingPayment(null)

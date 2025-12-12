@@ -40,7 +40,6 @@ export default function WorkOrderCompletion({ workOrderId, onComplete }: WorkOrd
       alert('Work order completed successfully!')
       
     } catch (error) {
-      console.error('Error completing work order:', error)
       alert('Failed to complete work order')
     } finally {
       setIsCompleting(false)
