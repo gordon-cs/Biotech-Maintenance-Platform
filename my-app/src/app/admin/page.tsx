@@ -91,7 +91,7 @@ export default function AdminPage() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <button onClick={() => router.push("/admin/users")} className="p-4 border rounded-lg text-left">Manage Users</button>
-          <button onClick={() => router.push("/admin/work-orders")} className="p-4 border rounded-lg text-left">Manage Work Orders</button>
+          <button onClick={() => router.push("/admin/workorders")} className="p-4 border rounded-lg text-left">Manage Work Orders</button>
           <button onClick={() => router.push("/admin/categories")} className="p-4 border rounded-lg text-left">Manage Categories</button>
         </div>
 
