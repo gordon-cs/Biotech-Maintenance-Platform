@@ -28,6 +28,7 @@ export default function PaymentRequests() {
   const [loading, setLoading] = useState(true)
   const [selectedRequest, setSelectedRequest] = useState<PaymentRequest | null>(null)
   const [isApproving, setIsApproving] = useState(false)
+  const [isSyncing, setIsSyncing] = useState(false)
 
   useEffect(() => {
     loadPaymentRequests()
@@ -37,7 +38,27 @@ export default function PaymentRequests() {
     try {
       setLoading(true)
       
-      // Fetch unbilled invoices with related data
+      // Get current user's managed labs
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setLoading(false)
+        return
+      }
+
+      const { data: labs } = await supabase
+        .from('labs')
+        .select('id')
+        .eq('manager_id', user.id)
+
+      const labIds = labs?.map(lab => lab.id) || []
+
+      if (labIds.length === 0) {
+        setRequests([])
+        setLoading(false)
+        return
+      }
+
+      // Fetch unbilled and awaiting_payment invoices with related data for manager's labs only
       const { data, error } = await supabase
         .from('invoices')
         .select(`
@@ -53,7 +74,8 @@ export default function PaymentRequests() {
             bill_customer_id
           )
         `)
-        .eq('payment_status', 'unbilled')
+        .in('payment_status', ['unbilled', 'awaiting_payment'])
+        .in('lab_id', labIds)
         .order('created_at', { ascending: false })
 
       if (error) {
@@ -108,6 +130,37 @@ export default function PaymentRequests() {
       alert('Failed to approve payment')
     } finally {
       setIsApproving(false)
+    }
+  }
+
+  const handleSyncStatus = async (request: PaymentRequest) => {
+    setIsSyncing(true)
+
+    try {
+      const response = await fetch('/api/bill/sync-status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ invoiceId: request.id })
+      })
+
+      const result = await response.json()
+
+      if (response.ok) {
+        if (result.status === 'paid') {
+          alert('✅ Payment confirmed! Status updated to Paid.')
+        } else {
+          alert('Payment is still pending in Bill.com')
+        }
+        loadPaymentRequests()
+      } else {
+        alert(`Failed to sync status: ${result.error}`)
+      }
+    } catch (error) {
+      alert('Failed to sync payment status')
+    } finally {
+      setIsSyncing(false)
     }
   }
 
@@ -178,8 +231,12 @@ export default function PaymentRequests() {
                         {request.work_orders?.title || 'No title'}
                       </p>
                     </div>
-                    <span className="px-2 py-1 bg-orange-100 text-orange-800 rounded text-xs font-medium whitespace-nowrap ml-2">
-                      Unbilled
+                    <span className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ml-2 ${
+                      request.payment_status === 'unbilled' 
+                        ? 'bg-orange-100 text-orange-800'
+                        : 'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {request.payment_status === 'unbilled' ? '⏳ Unbilled' : '📤 Sent'}
                     </span>
                   </div>
                   <div className="flex justify-between items-center mt-2">
@@ -209,8 +266,12 @@ export default function PaymentRequests() {
                         Work Order #{selectedRequest.work_order_id}
                       </p>
                     </div>
-                    <span className="px-4 py-2 bg-orange-100 text-orange-800 rounded-full text-sm font-medium">
-                      ⏳ Payment Requested
+                    <span className={`px-4 py-2 rounded-full text-sm font-medium ${
+                      selectedRequest.payment_status === 'unbilled'
+                        ? 'bg-orange-100 text-orange-800'
+                        : 'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {selectedRequest.payment_status === 'unbilled' ? '⏳ Payment Requested' : '📤 Awaiting Payment'}
                     </span>
                   </div>
 
@@ -278,21 +339,51 @@ export default function PaymentRequests() {
                   )}
                 </div>
 
-                {/* Approve Button */}
-                <button
-                  onClick={() => handleApprovePayment(selectedRequest)}
-                  disabled={isApproving}
-                  className="w-full bg-green-600 text-white py-4 px-6 rounded-lg font-bold text-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-[1.02] active:scale-[0.98] shadow-lg"
-                >
-                  {isApproving ? (
-                    <span className="flex items-center justify-center">
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></div>
-                      Processing Payment...
-                    </span>
-                  ) : (
-                    '✓ Approve & Pay via Bill.com'
-                  )}
-                </button>
+                {/* Approve Button or Status Message */}
+                {selectedRequest.payment_status === 'unbilled' ? (
+                  <button
+                    onClick={() => handleApprovePayment(selectedRequest)}
+                    disabled={isApproving}
+                    className="w-full bg-green-600 text-white py-4 px-6 rounded-lg font-bold text-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-[1.02] active:scale-[0.98] shadow-lg"
+                  >
+                    {isApproving ? (
+                      <span className="flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></div>
+                        Processing Payment...
+                      </span>
+                    ) : (
+                      '✓ Approve & Pay via Bill.com'
+                    )}
+                  </button>
+                ) : (
+                  <div>
+                    <div className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-6 mb-4">
+                      <div className="flex items-center">
+                        <span className="text-3xl mr-4">📤</span>
+                        <div>
+                          <p className="font-bold text-yellow-900 text-lg">Payment in Progress</p>
+                          <p className="text-sm text-yellow-700 mt-1">
+                            Invoice sent to Bill.com. Payment is being processed.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleSyncStatus(selectedRequest)}
+                      disabled={isSyncing}
+                      className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    >
+                      {isSyncing ? (
+                        <span className="flex items-center justify-center">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                          Checking Bill.com...
+                        </span>
+                      ) : (
+                        '🔄 Check Payment Status from Bill.com'
+                      )}
+                    </button>
+                  </div>
+                )}
 
                 {/* Info Box */}
                 <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
