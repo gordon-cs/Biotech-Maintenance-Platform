@@ -11,10 +11,12 @@ interface PaymentRequest {
   total_amount: number
   payment_status: string
   created_at: string
+  invoice_type: string // 'initial_fee' or 'service'
   work_orders?: {
     id: number
     title: string
     description: string
+    initial_fee: number
   }
   labs?: {
     id: number
@@ -58,7 +60,7 @@ export default function PaymentRequests() {
         return
       }
 
-      // Fetch unbilled and awaiting_payment invoices with related data for manager's labs only
+      // Fetch unbilled and awaiting_payment invoices (both initial_fee and service types)
       const { data, error } = await supabase
         .from('invoices')
         .select(`
@@ -66,7 +68,8 @@ export default function PaymentRequests() {
           work_orders (
             id,
             title,
-            description
+            description,
+            initial_fee
           ),
           labs (
             id,
@@ -76,7 +79,8 @@ export default function PaymentRequests() {
         `)
         .in('payment_status', ['unbilled', 'awaiting_payment'])
         .in('lab_id', labIds)
-        .order('created_at', { ascending: false })
+        .order('work_order_id', { ascending: false })
+        .order('invoice_type', { ascending: true }) // initial_fee first, then service
 
       if (error) {
         return
@@ -224,10 +228,19 @@ export default function PaymentRequests() {
                 >
                   <div className="flex justify-between items-start mb-2">
                     <div className="flex-1">
-                      <p className="font-semibold text-gray-900">
-                        Invoice #{request.id}
-                      </p>
-                      <p className="text-sm text-gray-600 truncate">
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-gray-900">
+                          Invoice #{request.id}
+                        </p>
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                          request.invoice_type === 'initial_fee'
+                            ? 'bg-purple-100 text-purple-800'
+                            : 'bg-blue-100 text-blue-800'
+                        }`}>
+                          {request.invoice_type === 'initial_fee' ? '🏢 Platform Fee' : '🔧 Service'}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-600 truncate mt-1">
                         {request.work_orders?.title || 'No title'}
                       </p>
                     </div>
@@ -275,25 +288,46 @@ export default function PaymentRequests() {
                     </span>
                   </div>
 
-                  {/* Amount and Lab Info */}
-                  <div className="grid grid-cols-2 gap-4 mb-6">
-                    <div className="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-lg border-2 border-green-300">
-                      <p className="text-sm text-green-700 mb-1 font-semibold">Requested Amount</p>
-                      <p className="text-4xl font-bold text-green-900">
+                  {/* Invoice Type Badge */}
+                  <div className={`p-4 rounded-lg border-2 mb-4 ${
+                    selectedRequest.invoice_type === 'initial_fee'
+                      ? 'bg-purple-50 border-purple-300'
+                      : 'bg-blue-50 border-blue-300'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-semibold mb-1 ${
+                          selectedRequest.invoice_type === 'initial_fee' ? 'text-purple-900' : 'text-blue-900'
+                        }">
+                          {selectedRequest.invoice_type === 'initial_fee' ? '🏢 Platform Initial Fee' : '🔧 Technician Service Fee'}
+                        </p>
+                        <p className="text-xs ${
+                          selectedRequest.invoice_type === 'initial_fee' ? 'text-purple-700' : 'text-blue-700'
+                        }">
+                          {selectedRequest.invoice_type === 'initial_fee' 
+                            ? 'Platform service charge - paid to BBM'
+                            : 'Service charge - paid to technician'}
+                        </p>
+                      </div>
+                      <p className="text-3xl font-bold ${
+                        selectedRequest.invoice_type === 'initial_fee' ? 'text-purple-900' : 'text-blue-900'
+                      }">
                         ${selectedRequest.total_amount ? Number(selectedRequest.total_amount).toFixed(2) : '0.00'}
                       </p>
                     </div>
-                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-lg border-2 border-blue-300">
-                      <p className="text-sm text-blue-700 mb-1 font-semibold">Lab</p>
-                      <p className="text-xl font-bold text-blue-900">
-                        {selectedRequest.labs?.name || 'Unknown'}
+                  </div>
+
+                  {/* Lab Info */}
+                  <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-lg border-2 border-blue-300 mb-6">
+                    <p className="text-sm text-blue-700 mb-1 font-semibold">Lab</p>
+                    <p className="text-xl font-bold text-blue-900">
+                      {selectedRequest.labs?.name || 'Unknown'}
+                    </p>
+                    {selectedRequest.labs?.bill_customer_id && (
+                      <p className="text-xs text-blue-600 mt-1">
+                        ✅ Bill.com configured
                       </p>
-                      {selectedRequest.labs?.bill_customer_id && (
-                        <p className="text-xs text-blue-600 mt-1">
-                          ✅ Bill.com configured
-                        </p>
-                      )}
-                    </div>
+                    )}
                   </div>
 
                   {/* Work Order Details */}

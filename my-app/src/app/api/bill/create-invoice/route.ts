@@ -2,10 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { billClient } from '@/lib/billClient'
 
+// Create admin client for bypassing RLS
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
+
 export async function POST(request: NextRequest) {
   try {
     const { invoiceId } = await request.json()
-    // Validate invoiceId
+    
     if (
       invoiceId === undefined ||
       invoiceId === null ||
@@ -28,8 +34,12 @@ export async function POST(request: NextRequest) {
       { global: { headers: { Authorization: `Bearer ${token}` } } }
     )
 
-    // 2) 인보이스 가져오기
-    const { data: invoice, error: invoiceError } = await supabase
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { data: invoice, error: invoiceError } = await supabaseAdmin
       .from('invoices')
       .select('*')
       .eq('id', invoiceId)
@@ -39,9 +49,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invoice not found' }, { status: 404 })
     }
 
-    const { data: workOrder, error: woError } = await supabase
+    const { data: workOrder, error: woError } = await supabaseAdmin
       .from('work_orders')
-      .select('id, title, description')
+      .select('id, title, description, initial_fee')
       .eq('id', invoice.work_order_id)
       .single()
 
@@ -49,7 +59,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Work order not found' }, { status: 404 })
     }
 
-    const { data: lab, error: labError } = await supabase
+    const { data: lab, error: labError } = await supabaseAdmin
       .from('labs')
       .select('id, name, bill_customer_id, manager_id')
       .eq('id', invoice.lab_id)
@@ -59,7 +69,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Lab not found' }, { status: 404 })
     }
 
-    const { data: manager, error: managerError } = await supabase
+    const { data: manager, error: managerError } = await supabaseAdmin
       .from('profiles')
       .select('email, full_name')
       .eq('id', lab.manager_id)
@@ -86,7 +96,7 @@ export async function POST(request: NextRequest) {
 
       billCustomerId = newCustomer.id
 
-      const { error: labUpdateError } = await supabase
+      await supabaseAdmin
         .from('labs')
         .update({ bill_customer_id: billCustomerId })
         .eq('id', lab.id)
@@ -97,18 +107,29 @@ export async function POST(request: NextRequest) {
       .toISOString()
       .split('T')[0]
 
+    const invoiceType = invoice.invoice_type || 'service'
+    const isInitialFee = invoiceType === 'initial_fee'
+    
+    const description = isInitialFee 
+      ? `Platform Fee - ${workOrder.title || 'Work Order'}`
+      : `Service Fee - ${workOrder.title || 'Work Order'}`
+    
+    const invoiceNumber = isInitialFee
+      ? `WO-${workOrder.id}-INITIAL`
+      : `WO-${workOrder.id}-SERVICE`
+
     const arInvoice = await billClient.createARInvoice({
       customerId: billCustomerId!,
-      invoiceNumber: `WO-${workOrder.id}-AR`,
+      invoiceNumber: invoiceNumber,
       invoiceDate,
       dueDate,
-      description: `Service: ${workOrder.title || 'Work Order'}`,
+      description: description,
       amount: Number(invoice.total_amount),
       customerEmail: manager.email,
       customerName: manager.full_name || lab.name,
     })
 
-    const { error: updateError } = await supabase
+    const { error: updateError } = await supabaseAdmin
       .from('invoices')
       .update({
         bill_ar_invoice_id: arInvoice.id,
@@ -129,8 +150,9 @@ export async function POST(request: NextRequest) {
       { status: 200 }
     )
   } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Failed to create AR invoice'
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to create AR invoice' },
+      { error: errorMessage },
       { status: 500 }
     )
   }

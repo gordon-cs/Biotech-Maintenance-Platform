@@ -257,14 +257,61 @@ export default function Home() {
       return
     }
 
-    // update local state
+    const { data: workOrder } = await supabase
+      .from('work_orders')
+      .select('lab, initial_fee')
+      .eq('id', woId)
+      .single()
+
+    if (workOrder && workOrder.lab) {
+      const initialFeeAmount = workOrder.initial_fee || 50.00
+      
+      const { data: newInvoice, error: invoiceError } = await supabase
+        .from('invoices')
+        .insert({
+          work_order_id: woId,
+          lab_id: workOrder.lab,
+          created_by: userId,
+          total_amount: initialFeeAmount,
+          payment_status: 'unbilled',
+          invoice_type: 'initial_fee'
+        })
+        .select()
+        .single()
+
+      if (invoiceError) {
+        setMessage('Work order accepted, but failed to create initial fee invoice.')
+      } else if (newInvoice) {
+        try {
+          const response = await fetch('/api/bill/create-invoice', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session.access_token}`
+            },
+            body: JSON.stringify({ invoiceId: newInvoice.id })
+          })
+
+          const result = await response.json()
+
+          if (response.ok) {
+            setSuccess('Work order accepted! Initial fee invoice sent and confirmation email delivered.')
+          } else {
+            setMessage(`Work order accepted, but failed to send initial fee invoice: ${result.error}`)
+          }
+        } catch (error) {
+          setMessage('Work order accepted, but failed to send initial fee invoice to Bill.com.')
+        }
+      }
+    } else {
+      setMessage('Work order accepted, but no lab assigned to create invoice.')
+    }
+
     setOrders((prev) =>
       prev.map((o) => (o.id === woId ? { ...o, status: "claimed", assigned_to: userId } : o))
     )
-    // if the selected item was the one accepted, update selection
+    
     if (selectedId === woId) {
-      // keep selectedId, but selectedOrder derived from orders will reflect change
-      // trigger a small state update if needed:
       setSelectedId(woId)
     }
 
@@ -312,10 +359,12 @@ export default function Home() {
   }>({ exists: false })
 
   const checkExistingPaymentRequest = async (woId: number) => {
+    // Check for SERVICE invoice only (not initial_fee invoice)
     const { data } = await supabase
       .from('invoices')
       .select('id, payment_status, paid_at')
       .eq('work_order_id', woId)
+      .eq('invoice_type', 'service')
       .maybeSingle()
     
     if (data) {
@@ -357,6 +406,7 @@ export default function Home() {
         return
       }
 
+      // Create SERVICE invoice (initial fee invoice was created when technician accepted the job)
       const { error } = await supabase
         .from('invoices')
         .insert({
@@ -364,17 +414,19 @@ export default function Home() {
           lab_id: wo.lab,
           created_by: user.id,
           total_amount: parseFloat(requestedAmount),
-          payment_status: 'unbilled'
+          payment_status: 'unbilled',
+          invoice_type: 'service'
         })
 
       if (error) {
-        alert('Failed to submit payment request')
+        alert('Failed to submit payment request: ' + error.message)
         return
       }
 
       alert('💰 Payment request submitted successfully!')
       setHasExistingRequest(true)
       setShowPaymentRequest(false)
+      loadWorkOrders() // Refresh the list
 
     } catch (error) {
       alert('Failed to submit payment request')
@@ -678,29 +730,30 @@ export default function Home() {
                       </div>
                     )}
 
-                    <div className="mt-4 flex gap-3">
-                      {selectedOrder?.status === "completed" ? (
-                        <div className="px-4 py-2 text-green-700 font-medium">
-                          ✓ Work Order Completed
-                        </div>
-                      ) : selectedOrder?.status === "claimed" && selectedOrder?.assigned_to === currentUserId ? (
+                    {/* Action Buttons - Only show for open/available jobs or to cancel claimed jobs */}
+                    {activeTab === "open" && selectedOrder?.status === "open" && (
+                      <div className="mt-4 flex gap-3">
+                        <button
+                          onClick={() => acceptJob(selectedOrder?.id ?? null)}
+                          disabled={loading || !selectedOrder}
+                          className="px-4 py-2 bg-green-600 text-white border rounded-full hover:bg-green-700 disabled:opacity-50"
+                        >
+                          Accept Job
+                        </button>
+                      </div>
+                    )}
+
+                    {activeTab === "mine" && selectedOrder?.status === "claimed" && selectedOrder?.assigned_to === currentUserId && (
+                      <div className="mt-4 flex gap-3">
                         <button
                           onClick={() => cancelJob(selectedOrder?.id ?? null)}
                           disabled={loading}
                           className="px-4 py-2 bg-red-600 text-white border border-red-700 rounded-full hover:bg-red-700 disabled:opacity-50"
                         >
-                          Cancel
+                          Cancel Job
                         </button>
-                      ) : (
-                        <button
-                          onClick={() => acceptJob(selectedOrder?.id ?? null)}
-                          disabled={loading || !selectedOrder}
-                          className="px-4 py-2 border rounded-full disabled:opacity-50"
-                        >
-                          Accept Job
-                        </button>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </>
                 ) : (
                   <div className="text-center text-gray-500">Select a request to see details</div>

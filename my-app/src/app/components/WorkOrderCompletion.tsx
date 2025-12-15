@@ -56,15 +56,19 @@ export default function WorkOrderCompletion({ workOrderId, onComplete }: WorkOrd
 
     if (!workOrder) throw new Error('Work order not found')
 
-    // Create invoice record in your invoices table
+    const serviceAmount = parseFloat(requestedAmount)
+
+    // Create only the SERVICE invoice when work order is completed
+    // Initial fee invoice was already created when technician accepted the work order
     const { error } = await supabase
       .from('invoices')
       .insert({
         work_order_id: parseInt(workOrderId),
         lab_id: workOrder.lab,
         created_by: workOrder.assigned_to,
-        total_amount: parseFloat(requestedAmount),
-        payment_status: 'unbilled' // Waiting for manager approval
+        total_amount: serviceAmount,
+        payment_status: 'unbilled',
+        invoice_type: 'service'
       })
 
     if (error) throw error

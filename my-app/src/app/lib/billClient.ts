@@ -395,6 +395,7 @@ class BillClient {
     amount: number
     customerEmail: string
     customerName?: string
+    initialFee?: number
   }) {
     await this.ensureLoggedIn()
 
@@ -410,19 +411,48 @@ class BillClient {
       return mockInvoice;
     }
 
+    // Build line items - separate initial fee from remaining service cost
+    const invoiceLineItems = []
+    
+    console.log('=== Bill.com Invoice Creation ===')
+    console.log('Total Amount:', data.amount)
+    console.log('Initial Fee:', data.initialFee)
+    
+    if (data.initialFee && data.initialFee > 0) {
+      // Add initial fee as first line item
+      invoiceLineItems.push({
+        quantity: 1,
+        description: 'Initial Service Fee',
+        price: data.initialFee,
+      })
+      
+      // Add remaining amount as second line item
+      const remainingAmount = data.amount - data.initialFee
+      if (remainingAmount > 0) {
+        invoiceLineItems.push({
+          quantity: 1,
+          description: data.description,
+          price: remainingAmount,
+        })
+      }
+      console.log('Line Items (with initial fee):', invoiceLineItems)
+    } else {
+      // No initial fee - single line item
+      invoiceLineItems.push({
+        quantity: 1,
+        description: data.description,
+        price: data.amount,
+      })
+      console.log('Line Items (no initial fee):', invoiceLineItems)
+    }
+
     const payload = {
       // ✅ Bill.com v3 API: customer must be an object with id
       customer: {
         id: data.customerId,                // Must be Bill.com customer ID (0cu...)
       },
       
-      invoiceLineItems: [
-        {
-          quantity: 1,                      // ✅ Required by Bill.com
-          description: data.description,
-          price: data.amount,               // ✅ price (not amount) - total = price * quantity
-        }
-      ],
+      invoiceLineItems,
       
       invoiceNumber: data.invoiceNumber,
       dueDate: data.dueDate,                // "YYYY-MM-DD"
