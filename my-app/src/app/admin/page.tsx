@@ -4,32 +4,8 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabaseClient"
 
-function AuthStatus() {
-  // Minimal inline AuthStatus fallback to avoid missing module; replace with your real component if available.
-  const handleSignOut = async () => {
-    try {
-      const { error } = await supabase.auth.signOut()
-      if (error) {
-        console.error(error)
-        return
-      }
-      // redirect client-side after sign-out
-      window.location.href = "/"
-    } catch (err) {
-      console.error(err)
-    }
-  }
-
-  return (
-    <div className="text-sm">
-      <button
-        onClick={handleSignOut}
-        className="px-2 py-1 border rounded"
-      >
-        Sign out
-      </button>
-    </div>
-  )
+export const metadata = {
+  title: "Admin Dashboard",
 }
 
 export default function AdminPage() {
@@ -37,6 +13,11 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true)
   const [isAdmin, setIsAdmin] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+
+  // Set page title
+  useEffect(() => {
+    document.title = "Admin Dashboard | Biotech Maintenance"
+  }, [])
 
   useEffect(() => {
     let mounted = true
@@ -80,12 +61,7 @@ export default function AdminPage() {
   if (!isAdmin) return <div className="min-h-screen flex items-center justify-center">Unauthorized</div>
 
   return (
-    <div className="min-h-screen p-8 bg-white text-black">
-      <header className="flex items-center justify-between mb-8">
-        <h1 className="text-2xl font-bold">Admin Dashboard</h1>
-        <AuthStatus />
-      </header>
-
+    <div className="min-h-screen p-8 bg-gray-50 text-black">
       <main className="max-w-6xl mx-auto space-y-6">
         {message && <div className="text-red-600">{message}</div>}
 

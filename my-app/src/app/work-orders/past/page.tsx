@@ -31,6 +31,11 @@ function PastOrdersContent() {
   const searchParams = useSearchParams()
   const selectedOrderId = searchParams.get("selected")
 
+  // Set page title
+  useEffect(() => {
+    document.title = "Past Orders | Biotech Maintenance"
+  }, [])
+
   // Helper function to format date and time
   const formatDateTime = (dateString: string) => {
     if (!dateString) return "N/A"
@@ -226,26 +231,9 @@ function PastOrdersContent() {
 
   return (
     <div className="min-h-screen bg-gray-50 relative">
-      {/* Header */}
-      <div className="bg-green-700 text-white p-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="text-xl font-bold">B+B</div>
-          <div className="flex gap-6">
-            <span>Order</span>
-            <span>About</span>
-          </div>
-          <div className="bg-gray-200 text-gray-700 px-3 py-1 rounded">User</div>
-        </div>
-      </div>
-
       <div className="max-w-7xl mx-auto p-6">
-        {/* Page Title */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold text-gray-800">Past Orders</h1>
-        </div>
-
         {/* Search and Filters */}
-        <div className="bg-blue-100 border border-blue-300 rounded-lg p-4 mb-6">
+        <div className="bg-gray-50 rounded-lg p-4 mb-6">
           <div className="flex gap-4 items-center">
             <div className="flex-1 relative">
               <input
@@ -253,7 +241,7 @@ function PastOrdersContent() {
                 placeholder="Search Request"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2.5 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               <div className="absolute right-3 top-2.5">
                 <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -262,34 +250,16 @@ function PastOrdersContent() {
               </div>
             </div>
             
-            <select 
-              value={locationFilter}
-              onChange={(e) => setLocationFilter(e.target.value)}
-              className="px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Location</option>
-              {Array.from(new Set(orders.map(o => o.address))).map(addr => (
-                <option key={addr} value={addr}>{addr}</option>
-              ))}
-            </select>
-
             <select
               value={categoryFilter} 
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-4 py-2.5 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">Categories</option>
               {Array.from(new Set(orders.map(o => o.category))).map(cat => (
                 <option key={cat} value={cat}>{cat}</option>
               ))}
             </select>
-
-            <button className="px-3 py-2 border rounded hover:bg-gray-50 flex items-center gap-2">
-              Filters
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707v4.586l-4-2v-2.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-              </svg>
-            </button>
           </div>
         </div>
 
@@ -336,21 +306,9 @@ function PastOrdersContent() {
                         </svg>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-xs text-gray-500 mb-1">Lab Name 1</div>
                         <div className="font-medium text-sm mb-1">{order.title}</div>
                         <div className="text-xs text-gray-500 mb-1">{order.address}</div>
                         <div className="text-xs text-gray-400">{order.category}</div>
-                        {order.urgency && order.urgency !== "N/A" && (
-                          <div className={`text-xs mt-1 px-2 py-1 rounded inline-block ${
-                            order.urgency?.toLowerCase() === "critical" ? "bg-red-100 text-red-800" :
-                            order.urgency?.toLowerCase() === "high" ? "bg-orange-100 text-orange-800" :
-                            order.urgency?.toLowerCase() === "normal" ? "bg-yellow-100 text-yellow-800" :
-                            order.urgency?.toLowerCase() === "low" ? "bg-green-100 text-green-800" :
-                            "bg-gray-100 text-gray-800"
-                          }`}>
-                            {order.urgency}
-                          </div>
-                        )}
                       </div>
                     </div>
                   </div>
@@ -368,38 +326,34 @@ function PastOrdersContent() {
           {/* Right Panel - Order Details */}
           <div className="col-span-8">
             {selectedOrder ? (
-              <div className="border rounded-lg p-6 bg-white">
-                <div className="mb-4">
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex-1">
-                      <div className="text-sm text-gray-500 mb-1">Lab Name</div>
-                      <h2 className="text-xl font-semibold">{selectedOrder.title}</h2>
-                    </div>
-                    {/* Status badge in detail view */}
+              <div className="border border-gray-200 rounded-lg p-6 bg-white">
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <h2 className="text-2xl font-bold mb-2">{selectedOrder.title}</h2>
                     <div>
                       <span className={`px-3 py-1 text-sm rounded-full border font-medium ${getStatusBadgeStyle(selectedOrder.status || '')}`}>
                         {formatStatus(selectedOrder.status || '')}
                       </span>
                     </div>
                   </div>
-                  
-                  <div className="text-sm text-gray-500 mb-1">
-                    Submitted on {formatDateTime(selectedOrder.created_at)}
-                  </div>
-                  <div className="text-sm text-gray-500 mb-2">{selectedOrder.address}</div>
-                  <div className="text-sm font-medium mb-2">Category: {selectedOrder.category}</div>
-                  {selectedOrder.urgency && selectedOrder.urgency !== "N/A" && (
-                    <div className={`inline-block text-sm px-3 py-1 rounded-full ${
-                      selectedOrder.urgency?.toLowerCase() === "critical" ? "bg-red-100 text-red-800" :
-                      selectedOrder.urgency?.toLowerCase() === "high" ? "bg-orange-100 text-orange-800" :
-                      selectedOrder.urgency?.toLowerCase() === "normal" ? "bg-yellow-100 text-yellow-800" :
-                      selectedOrder.urgency?.toLowerCase() === "low" ? "bg-green-100 text-green-800" :
-                      "bg-gray-100 text-gray-800"
-                    }`}>
-                      Priority: {selectedOrder.urgency}
-                    </div>
-                  )}
                 </div>
+                
+                <div className="text-sm text-gray-500 mb-1">
+                  Submitted on {formatDateTime(selectedOrder.created_at)}
+                </div>
+                <div className="text-sm text-gray-500 mb-2">{selectedOrder.address}</div>
+                <div className="text-sm font-medium mb-2">Category: {selectedOrder.category}</div>
+                {selectedOrder.urgency && (
+                  <div className={`inline-block text-sm px-3 py-1 rounded-full mb-4 ${
+                    selectedOrder.urgency?.toLowerCase() === "critical" ? "bg-red-100 text-red-800" :
+                    selectedOrder.urgency?.toLowerCase() === "high" ? "bg-orange-100 text-orange-800" :
+                    selectedOrder.urgency?.toLowerCase() === "normal" ? "bg-yellow-100 text-yellow-800" :
+                    selectedOrder.urgency?.toLowerCase() === "low" ? "bg-green-100 text-green-800" :
+                    "bg-gray-100 text-gray-800"
+                  }`}>
+                    Priority: {selectedOrder.urgency}
+                  </div>
+                )}
 
                 <div className="mb-6">
                   <p className="text-gray-700 leading-relaxed">

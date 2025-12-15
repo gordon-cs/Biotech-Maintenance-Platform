@@ -240,13 +240,14 @@ export default function AddressManagement() {
   }
 
   return (
-    <div className="p-4 max-w-2xl mx-auto mt-10">
-      <div className="flex justify-between items-center mb-4">
-        <h3 className="font-semibold text-lg">Manage Addresses</h3>
+    <div className="min-h-screen bg-gray-50 p-8">
+      <div className="max-w-4xl mx-auto">
+      <div className="flex justify-between items-center mb-6">
+        <h3 className="text-2xl font-bold text-gray-900">Manage Addresses</h3>
         {!showAddForm && !editingId && (
           <button
             onClick={handleAdd}
-            className="px-3 py-1 bg-blue-600 text-white rounded"
+            className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700 transition-colors"
           >
             Add New Address
           </button>
@@ -260,78 +261,78 @@ export default function AddressManagement() {
       )}
 
       {(showAddForm || editingId) && (
-        <form onSubmit={handleSave} className="mb-6 p-4 border rounded bg-gray-50">
-          <h4 className="font-semibold mb-3">
+        <form onSubmit={handleSave} className="mb-6 p-6 border border-gray-200 rounded-lg bg-white">
+          <h4 className="text-lg font-semibold mb-4 text-gray-900">
             {editingId ? "Edit Address" : "Add New Address"}
           </h4>
 
-          <div className="mb-3">
-            <label className="block mb-1 text-sm font-medium">Address Line 1 *</label>
+          <div className="mb-6">
+            <label className="block mb-2 font-medium text-gray-700">Address Line 1 *</label>
             <input
               type="text"
               value={formData.line1}
               onChange={(e) => setFormData({ ...formData, line1: e.target.value })}
-              className="w-full border px-2 py-1 rounded"
+              className="w-full border border-gray-300 rounded px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
           </div>
 
-          <div className="mb-3">
-            <label className="block mb-1 text-sm font-medium">Address Line 2</label>
+          <div className="mb-6">
+            <label className="block mb-2 font-medium text-gray-700">Address Line 2</label>
             <input
               type="text"
               value={formData.line2}
               onChange={(e) => setFormData({ ...formData, line2: e.target.value })}
-              className="w-full border px-2 py-1 rounded"
+              className="w-full border border-gray-300 rounded px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-2 mb-3">
+          <div className="grid grid-cols-2 gap-4 mb-6">
             <div>
-              <label className="block mb-1 text-sm font-medium">City *</label>
+              <label className="block mb-2 font-medium text-gray-700">City *</label>
               <input
                 type="text"
                 value={formData.city}
                 onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                className="w-full border px-2 py-1 rounded"
+                className="w-full border border-gray-300 rounded px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
             </div>
             <div>
-              <label className="block mb-1 text-sm font-medium">State *</label>
+              <label className="block mb-2 font-medium text-gray-700">State *</label>
               <input
                 type="text"
                 value={formData.state}
                 onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                className="w-full border px-2 py-1 rounded"
+                className="w-full border border-gray-300 rounded px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
             </div>
           </div>
 
-          <div className="mb-3">
-            <label className="block mb-1 text-sm font-medium">Zip Code *</label>
+          <div className="mb-6">
+            <label className="block mb-2 font-medium text-gray-700">Zip Code *</label>
             <input
               type="text"
               value={formData.zipcode}
               onChange={(e) => setFormData({ ...formData, zipcode: e.target.value })}
-              className="w-full border px-2 py-1 rounded"
+              className="w-full border border-gray-300 rounded px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex gap-3">
             <button
               type="submit"
               disabled={saving}
-              className="px-3 py-1 bg-blue-600 text-white rounded disabled:opacity-60"
+              className="px-4 py-2.5 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
             >
               {saving ? "Saving..." : "Save"}
             </button>
             <button
               type="button"
               onClick={handleCancel}
-              className="px-3 py-1 bg-gray-300 text-gray-700 rounded"
+              className="px-4 py-2.5 bg-gray-200 text-gray-700 rounded font-semibold hover:bg-gray-300 transition-colors"
             >
               Cancel
             </button>
@@ -339,12 +340,12 @@ export default function AddressManagement() {
         </form>
       )}
 
-      <div className="space-y-3">
+      <div className="space-y-4">
         {addresses.length === 0 ? (
-          <p className="text-center text-gray-500 py-4">No addresses found. Add one to get started.</p>
+          <p className="text-center text-gray-500 py-8">No addresses found. Add one to get started.</p>
         ) : (
           addresses.map((addr) => (
-            <div key={addr.id} className="p-4 border rounded bg-white">
+            <div key={addr.id} className="p-6 border border-gray-200 rounded-lg bg-white">
               <div className="flex justify-between items-start gap-4">
                 <div className="flex-1 min-w-0">
                   {addr.is_default && (
@@ -388,13 +389,14 @@ export default function AddressManagement() {
         )}
       </div>
 
-      <div className="mt-6 text-center">
+      <div className="mt-8 text-center">
         <Link
           href="/"
-          className="inline-flex items-center px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
+          className="inline-flex items-center px-4 py-2.5 bg-gray-200 text-gray-800 rounded font-semibold hover:bg-gray-300 transition-colors"
         >
           Return to Homepage
         </Link>
+      </div>
       </div>
     </div>
   )

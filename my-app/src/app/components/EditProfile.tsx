@@ -276,42 +276,35 @@ export default function EditProfile() {
   }
 
   return (
-    <div className="p-4 max-w-md mx-auto mt-10">
-      <h3 className="font-semibold mb-4 text-center">Edit Your Profile</h3>
+    <div className="min-h-screen bg-gray-50 p-8">
+      <div className="max-w-2xl mx-auto">
+      <h3 className="text-2xl font-bold mb-6 text-gray-900">Edit Your Profile</h3>
       {message && (
         <p className={`text-center mb-4 ${message.includes("success") ? "text-green-600" : "text-red-600"}`}>
           {message}
         </p>
       )}
 
-      <form onSubmit={handleSubmit}>
-        {/* Role Display (Read-only) */}
-        <div className="mb-4 p-3 bg-gray-100 rounded">
-          <label className="block text-sm font-medium mb-1">Role (cannot be changed)</label>
-          <p className="font-semibold capitalize">
-            {profile.role === "lab" ? "Lab Manager" : "Technician"}
-          </p>
-        </div>
-
+      <form onSubmit={handleSubmit} className="bg-white rounded-lg border border-gray-200 p-6">
         {/* Common Fields */}
-        <div className="mb-4">
-          <label className="block mb-1 font-medium">Full Name</label>
+        <div className="mb-6">
+          <label className="block mb-2 font-medium text-gray-700">Full Name</label>
           <input
             type="text"
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
-            className="w-full border px-2 py-1 rounded"
+            className="w-full border border-gray-300 rounded px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             required
           />
         </div>
 
-        <div className="mb-4">
-          <label className="block mb-1 font-medium">Phone</label>
+        <div className="mb-6">
+          <label className="block mb-2 font-medium text-gray-700">Phone</label>
           <input
             type="tel"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
-            className="w-full border px-2 py-1 rounded"
+            className="w-full border border-gray-300 rounded px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             required
           />
         </div>
@@ -319,23 +312,17 @@ export default function EditProfile() {
         {/* Lab-specific fields */}
         {profile.role === "lab" && (
           <>
-            <h4 className="font-semibold mt-6 mb-3">Lab Information</h4>
-            <div className="mb-3">
-              <label htmlFor="lab-name" className="block font-medium mb-1">Lab Name</label>
+            <h4 className="text-lg font-semibold mt-6 mb-4 text-gray-900">Lab Information</h4>
+            <div className="mb-6">
+              <label htmlFor="lab-name" className="block font-medium mb-2 text-gray-700">Lab Name</label>
               <input
                 id="lab-name"
                 value={labName}
                 onChange={(e) => setLabName(e.target.value)}
                 placeholder="Lab name"
                 required
-                className="w-full border px-2 py-1 rounded"
+                className="w-full border border-gray-300 rounded px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-            </div>
-            
-            <div className="mb-3 p-4 bg-blue-50 border border-blue-200 rounded">
-              <p className="text-sm text-blue-800">
-                To manage lab addresses, visit the <a href="/manage-addresses" className="underline font-semibold">Manage Addresses</a> page.
-              </p>
             </div>
           </>
         )}
@@ -343,43 +330,43 @@ export default function EditProfile() {
         {/* Technician-specific fields */}
         {profile.role === "technician" && (
           <>
-            <h4 className="font-semibold mt-6 mb-3">Technician Information</h4>
-            <div className="mb-3">
-              <label htmlFor="company" className="block mb-1 font-medium">Company (optional)</label>
+            <h4 className="text-lg font-semibold mt-6 mb-4 text-gray-900">Technician Information</h4>
+            <div className="mb-6">
+              <label htmlFor="company" className="block mb-2 font-medium text-gray-700">Company (optional)</label>
               <input
                 id="company"
                 value={company}
                 onChange={(e) => setCompany(e.target.value)}
                 placeholder="Company (optional)"
-                className="w-full border px-2 py-1 rounded"
+                className="w-full border border-gray-300 rounded px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
-            <div className="mb-3">
-              <label htmlFor="experience" className="block mb-1 font-medium">Experience</label>
+            <div className="mb-6">
+              <label htmlFor="experience" className="block mb-2 font-medium text-gray-700">Experience</label>
               <textarea
                 id="experience"
                 value={experience}
                 onChange={(e) => setExperience(e.target.value)}
                 placeholder="Experience"
                 required
-                className="w-full border px-2 py-1 rounded min-h-[100px]"
+                className="w-full border border-gray-300 rounded px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[100px]"
               />
             </div>
-            <div className="mb-3">
-              <label htmlFor="bio" className="block mb-1 font-medium">Bio</label>
+            <div className="mb-6">
+              <label htmlFor="bio" className="block mb-2 font-medium text-gray-700">Bio</label>
               <textarea
                 id="bio"
                 value={bio}
                 onChange={(e) => setBio(e.target.value)}
                 placeholder="Bio"
                 required
-                className="w-full border px-2 py-1 rounded min-h-[100px]"
+                className="w-full border border-gray-300 rounded px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[100px]"
               />
             </div>
 
-            <div className="mb-4">
-              <label className="block mb-2 font-medium">Categories (select at least one)</label>
-              <div className="border rounded p-3 max-h-48 overflow-y-auto">
+            <div className="mb-6">
+              <label className="block mb-2 font-medium text-gray-700">Categories (select at least one)</label>
+              <div className="border border-gray-300 rounded p-3 max-h-48 overflow-y-auto bg-white">
                 {categories.map((category) => (
                   <label key={category.id} className="flex items-center mb-2 cursor-pointer">
                     <input
@@ -396,23 +383,24 @@ export default function EditProfile() {
           </>
         )}
 
-        <div className="flex gap-2 mt-6">
+        <div className="flex gap-3 mt-8">
           <button
             type="submit"
             disabled={saving || (profile.role === "technician" && selectedCategories.length === 0)}
-            className="flex-1 py-2 bg-blue-600 text-white rounded font-semibold disabled:opacity-60"
+            className="flex-1 py-2.5 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
           >
             {saving ? "Saving..." : "Save Changes"}
           </button>
           <button
             type="button"
             onClick={() => router.push("/")}
-            className="flex-1 py-2 bg-gray-300 text-gray-700 rounded font-semibold"
+            className="flex-1 py-2.5 bg-gray-200 text-gray-700 rounded font-semibold hover:bg-gray-300 transition-colors"
           >
             Cancel
           </button>
         </div>
       </form>
+      </div>
     </div>
   )
 }
