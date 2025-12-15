@@ -37,6 +37,7 @@ export default function Home() {
   const [role, setRole] = useState<"lab" | "technician" | "admin" | null>(null)
   const [roleLoaded, setRoleLoaded] = useState(false)
   const [isRedirecting, setIsRedirecting] = useState(false)
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
 
   // technician UI state
   const [search, setSearch] = useState("")
@@ -89,11 +90,17 @@ export default function Home() {
         const { data: { session } } = await supabase.auth.getSession()
         
         if (!session?.user) {
-          if (mounted) setRoleLoaded(true)
+          if (mounted) {
+            setRoleLoaded(true)
+            setIsLoggedIn(false)
+          }
           return
         }
         
-        if (mounted) setCurrentUserId(session.user.id)
+        if (mounted) {
+          setCurrentUserId(session.user.id)
+          setIsLoggedIn(true)
+        }
         const userId = session.user.id
         
         const { data, error } = await supabase
@@ -840,84 +847,66 @@ export default function Home() {
       </div>
     )
   }
-  // Default view (no specific role or non-lab/technician users)
+  // Show "Complete Profile" for logged-in users without a role
+  if (isLoggedIn && !role) {
+    return (
+      <div className="font-sans min-h-screen p-8 bg-gray-50 text-black">
+        <main className="max-w-3xl mx-auto">
+          <section className="bg-white rounded-2xl p-8 shadow-sm text-center">
+            <div className="mb-6">
+              <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </div>
+              <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome to Biotech Maintenance!</h1>
+              <p className="text-gray-600">
+                Please complete your profile to get started
+              </p>
+            </div>
+            
+            <button
+              onClick={() => router.push("/complete-profile")}
+              className="inline-flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Complete Profile
+            </button>
+          </section>
+        </main>
+      </div>
+    )
+  }
+
+  // Default view for non-logged-in users
   return (
     <div className="font-sans min-h-screen p-8 bg-gray-50 text-black">
       <main className="max-w-3xl mx-auto">
         <section>
-          {/* keep lab submission UI unchanged */}
-          <div className="bg-white rounded-2xl p-6 shadow-sm">
-            <form className="space-y-6" onSubmit={(e) => e.preventDefault()}>
-              <label className="block">
-                <div className="flex items-center gap-3 border rounded-xl px-4 py-6">
-                  <svg className="w-6 h-6 text-gray-600" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 2L15 8H9L12 2Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M4 14H20" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    <path d="M6 18H18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-
-                  <input
-                    value={serviceArea}
-                    onChange={(e) => setServiceArea(e.target.value)}
-                    placeholder="Service Area"
-                    className="flex-1 bg-transparent outline-none text-lg placeholder-gray-500"
-                    required
-                  />
-                </div>
-              </label>
-
-              {/* Row: Date and Category */}
-              <div className="grid grid-cols-2 gap-4">
-                <label className="block">
-                  <div className="flex items-center gap-3 border rounded-xl px-4 py-4">
-                    <svg className="w-5 h-5 text-gray-600" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M7 11H17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                      <rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="1.5"/>
-                    </svg>
-                    <input
-                      type="date"
-                      value={date}
-                      onChange={(e) => setDate(e.target.value)}
-                      className="bg-transparent outline-none text-sm"
-                      required
-                    />
-                  </div>
-                </label>
-
-                <label className="block">
-                  <div className="flex items-center gap-3 border rounded-xl px-4 py-4">
-                    <select
-                      value={category}
-                      onChange={(e) => setCategory(e.target.value)}
-                      className="bg-transparent outline-none text-sm w-full"
-                      required
-                    >
-                      <option value="" disabled>Category</option>
-                      {categoriesList.map((cat) => (
-                        <option key={cat.id} value={cat.slug}>{cat.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                </label>
-              </div>
-
-              {/* Navigate to the full submission page */}
-              <div>
-                <button
-                  type="button"
-                  onClick={() =>
-                    router.push(
-                      `/work-orders/submission?category=${encodeURIComponent(
-                        category
-                      )}&date=${encodeURIComponent(date)}`
-                    )
-                  }
-                  className="w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-full font-semibold"
-                >
-                  Submit Work Order
-                </button>
-              </div>
-            </form>
+          <div className="bg-white rounded-2xl p-8 shadow-sm text-center">
+            <div className="mb-6">
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">Biotech Maintenance Platform</h1>
+              <p className="text-gray-600">
+                Please sign in to access the platform
+              </p>
+            </div>
+            
+            <div className="flex gap-4 justify-center">
+              <button
+                onClick={() => router.push("/signin")}
+                className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition-colors"
+              >
+                Sign In
+              </button>
+              <button
+                onClick={() => router.push("/signup")}
+                className="px-6 py-3 bg-white hover:bg-gray-50 text-green-600 border-2 border-green-600 rounded-lg font-semibold transition-colors"
+              >
+                Create Account
+              </button>
+            </div>
           </div>
         </section>
       </main>

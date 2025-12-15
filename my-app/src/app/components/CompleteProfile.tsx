@@ -19,8 +19,8 @@ export default function CompleteProfile() {
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
 
-  const [role, setRole] = useState<"manager" | "technician" | null>(null)
-  const [selectedRole, setSelectedRole] = useState<"manager" | "technician" | null>(null)
+  const [role, setRole] = useState<"lab" | "technician" | null>(null)
+  const [selectedRole, setSelectedRole] = useState<"lab" | "technician" | null>(null)
   const [fullName, setFullName] = useState("")
   const [phone, setPhone] = useState("")
 
@@ -78,7 +78,7 @@ export default function CompleteProfile() {
     }
     const userId = session.user.id
 
-    if (role === "manager") {
+    if (role === "lab") {
       // Don't save yet - just pass the data to the lab info page
       // The lab info page will save everything in one call
       const searchParams = new URLSearchParams()
@@ -155,9 +155,9 @@ export default function CompleteProfile() {
               <input
                 type="radio"
                 name="role"
-                value="manager"
-                checked={role === "manager"}
-                onChange={() => setRole("manager")}
+                value="lab"
+                checked={role === "lab"}
+                onChange={() => setRole("lab")}
                 required
               />{" "}
               Lab Manager
@@ -207,7 +207,7 @@ export default function CompleteProfile() {
           className="w-full py-2 bg-blue-600 text-white rounded font-semibold mt-4 disabled:opacity-60"
           disabled={!role || saving}
         >
-          {role === "manager" ? "Next" : saving ? "Saving..." : "Submit Profile"}
+          {role === "lab" ? "Next" : saving ? "Saving..." : "Submit Profile"}
         </button>
       </form>
     </div>
