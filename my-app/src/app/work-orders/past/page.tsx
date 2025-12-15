@@ -104,58 +104,6 @@ function PastOrdersContent() {
     document.title = "Past Orders | Biotech Maintenance"
   }, [])
 
-  // Helper function to format date and time
-  const formatDateTime = (dateString: string) => {
-    if (!dateString) return "N/A"
-    try {
-      const date = new Date(dateString)
-      const formattedDate = date.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-      })
-      const formattedTime = date.toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true
-      })
-      return `${formattedDate} ${formattedTime}`
-    } catch (error) {
-      return "Invalid date"
-    }
-  }
-
-  // Function to get status badge styling
-  const getStatusBadgeStyle = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case 'completed':
-        return 'bg-green-100 text-green-800 border-green-200'
-      case 'in_progress':
-      case 'in progress':
-        return 'bg-blue-100 text-blue-800 border-blue-200'
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200'
-      case 'cancelled':
-      case 'canceled':
-        return 'bg-red-100 text-red-800 border-red-200'
-      case 'open':
-      default:
-        return 'bg-gray-100 text-gray-800 border-gray-200'
-    }
-  }
-
-  // Function to format status text
-  const formatStatus = (status: string) => {
-    if (!status) return 'Open'
-    return status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
-  }
-
-  // Helper function to check if order can be canceled
-  const canCancelOrder = (status: string) => {
-    const s = status.toLowerCase()
-    return s === 'open' || s === 'claimed' || s === 'in_progress'
-  }
-
   const handleCancelOrder = async (orderId: string, orderTitle: string) => {
     const confirmed = window.confirm(
       `Are you sure you want to cancel "${orderTitle}"? This will mark it as canceled but preserve the record.`
@@ -466,10 +414,10 @@ function PastOrdersContent() {
                     }`}
                   >
                     <div className="absolute top-2 right-2 flex items-center gap-2">
-                      <span className={`px-2 py-1 text-xs rounded border font-medium ${getStatusBadgeStyle(order.status)}`}>
-                        {formatStatus(order.status)}
+                      <span className={`px-2 py-1 text-xs rounded border font-medium ${getStatusBadgeStyle(order.status || '')}`}>
+                        {formatStatus(order.status || '')}
                       </span>
-                      {canCancelOrder(order.status) && (
+                      {canCancelOrder(order.status || '') && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
@@ -532,12 +480,12 @@ function PastOrdersContent() {
                       <h2 className="text-xl font-semibold">{selectedOrder.title}</h2>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className={`px-3 py-1 text-sm rounded-full border font-medium ${getStatusBadgeStyle(selectedOrder.status)}`}>
-                        {formatStatus(selectedOrder.status)}
+                      <span className={`px-3 py-1 text-sm rounded-full border font-medium ${getStatusBadgeStyle(selectedOrder.status || '')}`}>
+                        {formatStatus(selectedOrder.status || '')}
                       </span>
                       
                       <div className="flex gap-2">
-                        {canCancelOrder(selectedOrder.status) && (
+                        {canCancelOrder(selectedOrder.status || '') && (
                           <button
                             onClick={() => handleCancelOrder(selectedOrder.id, selectedOrder.title)}
                             disabled={cancellingOrderId === selectedOrder.id}
@@ -566,6 +514,7 @@ function PastOrdersContent() {
                     Priority: {selectedOrder.urgency}
                   </div>
                 )}
+                </div>
 
                 <div className="mb-6">
                   <p className="text-gray-700 leading-relaxed">
