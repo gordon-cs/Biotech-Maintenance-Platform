@@ -57,6 +57,12 @@ export default function Home() {
   const [date, setDate] = useState<string>("")
   const [activeTab, setActiveTab] = useState<"open" | "mine">("open")
 
+  // payment request states
+  const [showPaymentRequest, setShowPaymentRequest] = useState(false)
+  const [requestedAmount, setRequestedAmount] = useState('150.00')
+  const [isSubmittingPayment, setIsSubmittingPayment] = useState(false)
+  const [hasExistingRequest, setHasExistingRequest] = useState(false)
+
   // Load role once and on auth changes
   useEffect(() => {
     let mounted = true
@@ -70,8 +76,8 @@ export default function Home() {
           return
         }
         
+        if (mounted) setCurrentUserId(session.user.id)
         const userId = session.user.id
-        if (mounted) setCurrentUserId(userId)
         
         const { data, error } = await supabase
           .from("profiles")
@@ -104,7 +110,6 @@ export default function Home() {
         
         if (mounted) setRoleLoaded(true)
       } catch (err) {
-        console.error("Error loading role:", err)
         if (mounted) setRoleLoaded(true)
       }
     }
@@ -193,25 +198,11 @@ export default function Home() {
     const addressIds = raw.map(wo => wo.address_id).filter(Boolean) as number[]
     const addressMap = new Map<number, string>()
     
-    console.log("Work orders:", raw.length)
-    console.log("Address IDs found:", addressIds)
-    
     if (addressIds.length > 0) {
-      // First check what we can see from addresses table
-      const { data: allAddresses, error: allError } = await supabase
-        .from("addresses")
-        .select("id, line1, line2, city, state, zipcode, lab_id")
-      
-      console.log("All addresses visible:", allAddresses)
-      console.log("All addresses error:", allError)
-      
-      const { data: addressData, error: addrError } = await supabase
+      const { data: addressData } = await supabase
         .from("addresses")
         .select("id, line1, line2, city, state, zipcode")
         .in("id", addressIds)
-      
-      console.log("Filtered address data:", addressData)
-      console.log("Filtered address error:", addrError)
       
       if (addressData) {
         addressData.forEach((addr) => {
@@ -220,8 +211,6 @@ export default function Home() {
         })
       }
     }
-    
-    console.log("Address map:", addressMap)
 
     const enriched = raw.map((wo) => ({
       id: Number(wo.id),
@@ -276,14 +265,61 @@ export default function Home() {
       return
     }
 
-    // update local state
+    const { data: workOrder } = await supabase
+      .from('work_orders')
+      .select('lab, initial_fee')
+      .eq('id', woId)
+      .single()
+
+    if (workOrder && workOrder.lab) {
+      const initialFeeAmount = workOrder.initial_fee || 50.00
+      
+      const { data: newInvoice, error: invoiceError } = await supabase
+        .from('invoices')
+        .insert({
+          work_order_id: woId,
+          lab_id: workOrder.lab,
+          created_by: userId,
+          total_amount: initialFeeAmount,
+          payment_status: 'unbilled',
+          invoice_type: 'initial_fee'
+        })
+        .select()
+        .single()
+
+      if (invoiceError) {
+        setMessage('Work order accepted, but failed to create initial fee invoice.')
+      } else if (newInvoice) {
+        try {
+          const response = await fetch('/api/bill/create-invoice', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session.access_token}`
+            },
+            body: JSON.stringify({ invoiceId: newInvoice.id })
+          })
+
+          const result = await response.json()
+
+          if (response.ok) {
+            setSuccess('Work order accepted! Initial fee invoice sent and confirmation email delivered.')
+          } else {
+            setMessage(`Work order accepted, but failed to send initial fee invoice: ${result.error}`)
+          }
+        } catch (error) {
+          setMessage('Work order accepted, but failed to send initial fee invoice to Bill.com.')
+        }
+      }
+    } else {
+      setMessage('Work order accepted, but no lab assigned to create invoice.')
+    }
+
     setOrders((prev) =>
       prev.map((o) => (o.id === woId ? { ...o, status: "claimed", assigned_to: userId } : o))
     )
-    // if the selected item was the one accepted, update selection
+    
     if (selectedId === woId) {
-      // keep selectedId, but selectedOrder derived from orders will reflect change
-      // trigger a small state update if needed:
       setSelectedId(woId)
     }
 
@@ -321,6 +357,90 @@ export default function Home() {
     )
     if (selectedId === woId) setSelectedId(woId)
     setLoading(false)
+  }
+
+  // check for existing payment requests
+  const [paymentRequestStatus, setPaymentRequestStatus] = useState<{
+    exists: boolean
+    status?: string
+    paidAt?: string
+  }>({ exists: false })
+
+  const checkExistingPaymentRequest = async (woId: number) => {
+    // Check for SERVICE invoice only (not initial_fee invoice)
+    const { data } = await supabase
+      .from('invoices')
+      .select('id, payment_status, paid_at')
+      .eq('work_order_id', woId)
+      .eq('invoice_type', 'service')
+      .maybeSingle()
+    
+    if (data) {
+      setPaymentRequestStatus({
+        exists: true,
+        status: data.payment_status,
+        paidAt: data.paid_at,
+      })
+      setHasExistingRequest(true)
+    } else {
+      setPaymentRequestStatus({ exists: false })
+      setHasExistingRequest(false)
+    }
+  }
+
+  // Call checkExistingPaymentRequest whenever selectedId changes
+  useEffect(() => {
+    if (selectedId != null) {
+      checkExistingPaymentRequest(selectedId)
+    } else {
+      setPaymentRequestStatus({ exists: false })
+      setHasExistingRequest(false)
+    }
+  }, [selectedId])
+  // handle new payment request
+  const handlePaymentRequest = async (woId: number) => {
+    setIsSubmittingPayment(true)
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        alert('Please login first')
+        return
+      }
+
+      const wo = orders.find(o => o.id === woId)
+      if (!wo) {
+        alert('Work order not found')
+        return
+      }
+
+      // Create SERVICE invoice (initial fee invoice was created when technician accepted the job)
+      const { error } = await supabase
+        .from('invoices')
+        .insert({
+          work_order_id: woId,
+          lab_id: wo.lab,
+          created_by: user.id,
+          total_amount: parseFloat(requestedAmount),
+          payment_status: 'unbilled',
+          invoice_type: 'service'
+        })
+
+      if (error) {
+        alert('Failed to submit payment request: ' + error.message)
+        return
+      }
+
+      alert('💰 Payment request submitted successfully!')
+      setHasExistingRequest(true)
+      setShowPaymentRequest(false)
+      loadWorkOrders() // Refresh the list
+
+    } catch (error) {
+      alert('Failed to submit payment request')
+    } finally {
+      setIsSubmittingPayment(false)
+    }
   }
 
   // derived lists: first filter by active tab, then by search/filters
@@ -517,29 +637,131 @@ export default function Home() {
                       )}
                     </div>
 
-                    <div className="mt-4 flex gap-3">
-                      {selectedOrder?.status === "completed" ? (
-                        <div className="px-4 py-2 text-green-700 font-medium">
-                          ✓ Work Order Completed
+                    {/* Payment Request Section - ONLY show on My Work Orders tab AND when completed */}
+                    {activeTab === "mine" && selectedOrder?.status === "completed" && (
+                      <div className="mt-6 pt-6 border-t border-gray-200">
+                        <div className="flex justify-between items-center mb-4">
+                          <h3 className="text-lg font-semibold">💰 Payment Request</h3>
+                          {hasExistingRequest ? (
+                            <span className="text-sm text-green-600 font-medium">✓ Request Sent</span>
+                          ) : (
+                            <button
+                              onClick={() => setShowPaymentRequest(true)}
+                              className="px-4 py-2 bg-green-600 text-white rounded-full hover:bg-green-700 transition-colors"
+                            >
+                              Request Payment
+                            </button>
+                          )}
                         </div>
-                      ) : selectedOrder?.status === "claimed" && selectedOrder?.assigned_to === currentUserId ? (
+
+                        {/* Payment request form */}
+                        {showPaymentRequest && !hasExistingRequest && (
+                          <div className="p-4 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg border-2 border-green-300">
+                            <p className="text-sm text-gray-700 mb-3">
+                              Submit a payment request for this completed work order. Enter the amount in USD.
+                            </p>
+
+                            <div className="flex gap-3 mb-4">
+                              <div className="flex-1">
+                                <div className="relative">
+                                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <span className="text-gray-500 font-medium">$</span>
+                                  </div>
+                                  <input
+                                    type="number"
+                                    value={requestedAmount}
+                                    onChange={(e) => setRequestedAmount(e.target.value)}
+                                    className="pl-8 w-full px-4 py-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                    placeholder="0.00"
+                                    min="0"
+                                    step="0.01"
+                                  />
+                                </div>
+                              </div>
+
+                              <button
+                                onClick={() => handlePaymentRequest(selectedOrder.id)}
+                                disabled={isSubmittingPayment || !requestedAmount || parseFloat(requestedAmount) <= 0}
+                                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors"
+                              >
+                                {isSubmittingPayment ? "Submitting..." : "Submit"}
+                              </button>
+                            </div>
+
+                            <button
+                              onClick={() => setShowPaymentRequest(false)}
+                              className="text-sm text-gray-600 hover:text-gray-800 underline"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Already submitted message */}
+                        {hasExistingRequest && (
+                          <div className={`p-4 rounded-lg border-2 ${
+                            paymentRequestStatus.status === 'paid' 
+                              ? 'bg-green-50 border-green-300' 
+                              : paymentRequestStatus.status === 'awaiting_payment'
+                              ? 'bg-yellow-50 border-yellow-300'
+                              : 'bg-blue-50 border-blue-300'
+                          }`}>
+                            <div className="flex items-center">
+                              <span className="text-2xl mr-3">
+                                {paymentRequestStatus.status === 'paid' ? '✅' : '📧'}
+                              </span>
+                              <div>
+                                {paymentRequestStatus.status === 'paid' ? (
+                                  <>
+                                    <p className="font-semibold text-green-900">Payment Completed</p>
+                                    <p className="text-sm text-green-700 mt-1">
+                                      Paid on {new Date(paymentRequestStatus.paidAt!).toLocaleDateString()}
+                                    </p>
+                                  </>
+                                ) : paymentRequestStatus.status === 'awaiting_payment' ? (
+                                  <>
+                                    <p className="font-semibold text-yellow-900">Invoice Sent to Lab Manager</p>
+                                    <p className="text-sm text-yellow-700 mt-1">
+                                      Payment link emailed. Waiting for lab manager to pay via Bill.com.
+                                    </p>
+                                  </>
+                                ) : (
+                                  <>
+                                    <p className="font-semibold text-blue-900">Payment Request Submitted</p>
+                                    <p className="text-sm text-blue-700 mt-1">Your request is pending manager approval</p>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Action Buttons - Only show for open/available jobs or to cancel claimed jobs */}
+                    {activeTab === "open" && selectedOrder?.status === "open" && (
+                      <div className="mt-4 flex gap-3">
+                        <button
+                          onClick={() => acceptJob(selectedOrder?.id ?? null)}
+                          disabled={loading || !selectedOrder}
+                          className="px-4 py-2 bg-green-600 text-white border rounded-full hover:bg-green-700 disabled:opacity-50"
+                        >
+                          Accept Job
+                        </button>
+                      </div>
+                    )}
+
+                    {activeTab === "mine" && selectedOrder?.status === "claimed" && selectedOrder?.assigned_to === currentUserId && (
+                      <div className="mt-4 flex gap-3">
                         <button
                           onClick={() => cancelJob(selectedOrder?.id ?? null)}
                           disabled={loading}
                           className="px-4 py-2 bg-red-600 text-white border border-red-700 rounded-full hover:bg-red-700 disabled:opacity-50"
                         >
-                          Cancel
+                          Cancel Job
                         </button>
-                      ) : (
-                        <button
-                          onClick={() => acceptJob(selectedOrder?.id ?? null)}
-                          disabled={loading || !selectedOrder}
-                          className="px-4 py-2 border rounded-full disabled:opacity-50"
-                        >
-                          Accept Job
-                        </button>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </>
                 ) : (
                   <div className="text-center text-gray-500">Select a request to see details</div>

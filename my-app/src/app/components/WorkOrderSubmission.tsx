@@ -16,6 +16,7 @@ type WorkOrderPayload = {
   date?: string | null
   created_by?: string | null
   address_id?: number | null
+  initial_fee?: number | null
 }
 
 // small row shapes used for casting query results
@@ -46,6 +47,8 @@ export default function WorkOrderSubmission() {
   const [addresses, setAddresses] = useState<AddressRow[]>([])
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<{ id?: string; message: string } | null>(null)
+  // Fixed initial fee set by platform admin (BBM)
+  const labInitialFee = 50.00 // Platform-wide initial service fee
 
   useEffect(() => {
     let mounted = true
@@ -179,6 +182,7 @@ export default function WorkOrderSubmission() {
         date: form.date || null,
         created_by: user.id,
         address_id: form.address_id ? Number(form.address_id) : null,
+        initial_fee: labInitialFee,
       }
 
       const { data, error } = await supabase
@@ -283,6 +287,17 @@ export default function WorkOrderSubmission() {
             <option value="add_new" className="font-semibold">+ Add New Address</option>
           </select>
         </label>
+
+        {labInitialFee > 0 && (
+          <div className="mb-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold text-blue-900">Initial Service Fee</p>
+              </div>
+              <p className="text-2xl font-bold text-blue-900">${labInitialFee.toFixed(2)}</p>
+            </div>
+          </div>
+        )}
 
         <label className="block mb-4">
           <div className="text-sm mb-1">Date</div>
