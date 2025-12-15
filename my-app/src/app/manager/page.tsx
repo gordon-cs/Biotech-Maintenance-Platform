@@ -4,7 +4,6 @@ import React, { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { supabase } from "@/lib/supabaseClient"
-import AuthStatus from "../components/AuthStatus"
 
 type Category = { id: number; slug: string; name: string }
 type Address = {
@@ -36,6 +35,11 @@ export default function ManagerDashboard() {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+
+  // Set page title
+  useEffect(() => {
+    document.title = "Lab Manager Dashboard | Biotech Maintenance"
+  }, [])
 
   // Function to get status badge styling
   const getStatusBadgeStyle = (status: string) => {
@@ -171,13 +175,8 @@ export default function ManagerDashboard() {
   }
 
   return (
-    <div className="min-h-screen p-8 bg-white text-black">
+    <div className="min-h-screen p-8 bg-gray-50 text-black">
       <main className="max-w-5xl mx-auto">
-        <header className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold">Lab Manager Dashboard</h1>
-          <AuthStatus />
-        </header>
-
         <section className="bg-white rounded p-6 shadow mb-8">
           <h2 className="text-lg font-semibold mb-4">Quick Submit Work Order</h2>
 

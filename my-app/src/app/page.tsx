@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabaseClient"
-import AuthStatus from "./components/AuthStatus"
+
 import AddWorkOrderUpdate from "./components/AddWorkOrderUpdate"
 import type { PostgrestResponse } from "@supabase/supabase-js"
 
@@ -57,11 +57,28 @@ export default function Home() {
   const [date, setDate] = useState<string>("")
   const [activeTab, setActiveTab] = useState<"open" | "mine">("open")
 
-  // payment request states
+  // Payment request state
   const [showPaymentRequest, setShowPaymentRequest] = useState(false)
-  const [requestedAmount, setRequestedAmount] = useState('150.00')
+  const [requestedAmount, setRequestedAmount] = useState("")
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false)
   const [hasExistingRequest, setHasExistingRequest] = useState(false)
+  const [paymentRequestStatus, setPaymentRequestStatus] = useState<{
+    status: string | null
+    paidAt: string | null
+  }>({ status: null, paidAt: null })
+
+  // Set page title based on role
+  useEffect(() => {
+    if (role === "technician") {
+      document.title = "Technician Dashboard | Biotech Maintenance"
+    } else if (role === "lab") {
+      document.title = "Lab Dashboard | Biotech Maintenance"
+    } else if (role === "admin") {
+      document.title = "Admin Dashboard | Biotech Maintenance"
+    } else {
+      document.title = "Biotech Maintenance Platform"
+    }
+  }, [role])
 
   // Load role once and on auth changes
   useEffect(() => {
@@ -143,28 +160,28 @@ export default function Home() {
 
       if (!mounted) return
 
-      if (!labsRes.error && labsRes.data) {
-        setLabs(labsRes.data)
-      }
+      const loadedLabs = (!labsRes.error && labsRes.data) ? labsRes.data : []
+      const loadedCategories = (!catsRes.error && catsRes.data) ? catsRes.data : []
+      
+      setLabs(loadedLabs)
+      setCategories(loadedCategories)
 
-      if (!catsRes.error && catsRes.data) {
-        setCategories(catsRes.data) // CategoryRow matches state shape
-      }
+      console.log("Loaded categories for mapping:", loadedCategories)
 
-      // then load work orders
-      await loadWorkOrders()
+      // then load work orders with the loaded data
+      await loadWorkOrders(loadedLabs, loadedCategories)
     }
     load()
     return () => { mounted = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sortBy])
 
-  const loadWorkOrders = async () => {
+  const loadWorkOrders = async (labsData?: Array<{id: number; name: string}>, categoriesData?: Array<{id: number; name: string}>) => {
     setLoading(true)
     setMessage(null)
     const { data, error } = await supabase
       .from("work_orders")
-      .select("id,title,description,date,category_id,lab,created_by,status,created_at,address_id,assigned_to")
+      .select("id,title,description,date,category_id,lab,created_by,status,created_at,address_id,assigned_to,urgency")
       .order("created_at", { ascending: sortBy === "oldest" })
     if (error) {
       setMessage(error.message)
@@ -186,12 +203,20 @@ export default function Home() {
       assigned_to?: string | null
       created_at?: string | null
       address_id?: number | string | null
+      urgency?: string | null
     }
+
+    // Use passed data if available, otherwise fall back to state
+    const labsToUse = labsData || labs
+    const categoriesToUse = categoriesData || categories
 
     const labsMap = new Map<number,string>()
     const catsMap = new Map<number,string>()
-    labs.forEach(l => labsMap.set(l.id, l.name))
-    categories.forEach(c => catsMap.set(c.id, c.name))
+    labsToUse.forEach(l => labsMap.set(l.id, l.name))
+    categoriesToUse.forEach(c => catsMap.set(c.id, c.name))
+    
+    console.log("Categories for mapping:", categoriesToUse)
+    console.log("Categories map:", catsMap)
 
     // Fetch addresses for all work orders
     const raw = (data || []) as WorkOrdersRow[]
@@ -212,22 +237,29 @@ export default function Home() {
       }
     }
 
-    const enriched = raw.map((wo) => ({
-      id: Number(wo.id),
-      title: wo.title ?? null,
-      description: wo.description ?? null,
-      date: wo.date ?? null,
-      category_id: wo.category_id != null ? Number(wo.category_id) : null,
-      lab: wo.lab != null ? Number(wo.lab) : null,
-      created_by: wo.created_by ?? null,
-      status: wo.status ?? null,
-      assigned_to: wo.assigned_to ?? null,
-      created_at: wo.created_at ?? null,
-      address_id: wo.address_id != null ? Number(wo.address_id) : null,
-      address: wo.address_id ? addressMap.get(Number(wo.address_id)) ?? null : null,
-      labName: wo.lab ? labsMap.get(Number(wo.lab)) ?? null : null,
-      categoryName: wo.category_id ? catsMap.get(Number(wo.category_id)) ?? null : null
-    })) as WO[]
+    const enriched = raw.map((wo) => {
+      const categoryId = wo.category_id != null ? Number(wo.category_id) : null
+      const categoryName = categoryId ? catsMap.get(categoryId) ?? null : null
+      console.log(`WO ${wo.id}: category_id=${wo.category_id}, categoryId=${categoryId}, categoryName=${categoryName}`)
+      
+      return {
+        id: Number(wo.id),
+        title: wo.title ?? null,
+        description: wo.description ?? null,
+        date: wo.date ?? null,
+        category_id: categoryId,
+        lab: wo.lab != null ? Number(wo.lab) : null,
+        created_by: wo.created_by ?? null,
+        status: wo.status ?? null,
+        assigned_to: wo.assigned_to ?? null,
+        created_at: wo.created_at ?? null,
+        address_id: wo.address_id != null ? Number(wo.address_id) : null,
+        address: wo.address_id ? addressMap.get(Number(wo.address_id)) ?? null : null,
+        labName: wo.lab ? labsMap.get(Number(wo.lab)) ?? null : null,
+        categoryName: categoryName,
+        urgency: wo.urgency ?? null
+      }
+    }) as WO[]
 
     setOrders(enriched)
     if (!selectedId && enriched.length) setSelectedId(enriched[0].id)
@@ -359,13 +391,6 @@ export default function Home() {
     setLoading(false)
   }
 
-  // check for existing payment requests
-  const [paymentRequestStatus, setPaymentRequestStatus] = useState<{
-    exists: boolean
-    status?: string
-    paidAt?: string
-  }>({ exists: false })
-
   const checkExistingPaymentRequest = async (woId: number) => {
     // Check for SERVICE invoice only (not initial_fee invoice)
     const { data } = await supabase
@@ -377,13 +402,12 @@ export default function Home() {
     
     if (data) {
       setPaymentRequestStatus({
-        exists: true,
-        status: data.payment_status,
-        paidAt: data.paid_at,
+        status: data.payment_status || null,
+        paidAt: data.paid_at
       })
       setHasExistingRequest(true)
     } else {
-      setPaymentRequestStatus({ exists: false })
+      setPaymentRequestStatus({ status: null, paidAt: null })
       setHasExistingRequest(false)
     }
   }
@@ -393,10 +417,11 @@ export default function Home() {
     if (selectedId != null) {
       checkExistingPaymentRequest(selectedId)
     } else {
-      setPaymentRequestStatus({ exists: false })
+      setPaymentRequestStatus({ status: null, paidAt: null })
       setHasExistingRequest(false)
     }
   }, [selectedId])
+
   // handle new payment request
   const handlePaymentRequest = async (woId: number) => {
     setIsSubmittingPayment(true)
@@ -443,6 +468,7 @@ export default function Home() {
     }
   }
 
+
   // derived lists: first filter by active tab, then by search/filters
   const tabFiltered = orders.filter((o) => {
     if (activeTab === "open") {
@@ -483,13 +509,8 @@ export default function Home() {
   // Technician view (top header kept identical)
   if (role === "technician") {
     return (
-      <div className="font-sans min-h-screen p-8 bg-white text-black">
-        <main className="max-w-6xl mx-auto">
-          <header className="flex items-center justify-between mb-8">
-            <h1 className="text-2xl font-bold">Biotech Maintenance Platform</h1>
-            <AuthStatus />
-          </header>
-
+      <div className="font-sans min-h-screen p-8 bg-gray-50 text-black">
+        <main className="max-w-7xl mx-auto">
           {/* Tabs */}
           <div className="mb-4 flex items-center gap-3">
             <button
@@ -508,125 +529,138 @@ export default function Home() {
 
           {/* Filter bar */}
            <section className="space-y-6">
-            <div className="rounded-xl bg-gray-50 p-4 flex gap-3 items-center">
-               <input
-                 type="search"
-                 placeholder="Search Request"
-                 value={search}
-                 onChange={(e) => setSearch(e.target.value)}
-                 className="flex-1 px-4 py-3 border rounded-lg bg-white"
-               />
-
-              <select
-                value={selectedLab ?? ""}
-                onChange={(e) => setSelectedLab(e.target.value ? Number(e.target.value) : null)}
-                className="px-3 py-3 border rounded-lg bg-white"
-              >
-                <option value="">Location</option>
-                {labs.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.name}
-                  </option>
-                ))}
-              </select>
-
-              <select
-                value={selectedCategory ?? ""}
-                onChange={(e) => setSelectedCategory(e.target.value ? Number(e.target.value) : null)}
-                className="px-3 py-3 border rounded-lg bg-white"
-              >
-                <option value="">Categories</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value === "oldest" ? "oldest" : "recent")}
-                className="px-3 py-3 border rounded-lg bg-white"
-              >
-                <option value="recent">Most Recent</option>
-                <option value="oldest">Oldest</option>
-              </select>
-
-              <button onClick={() => loadWorkOrders()} className="ml-2 px-3 py-3 border rounded-lg bg-white">
-                Filters
-              </button>
+            <div className="bg-gray-50 rounded-lg p-4 mb-6">
+              <div className="flex gap-4 items-center">
+                <div className="flex-1 relative">
+                  <input
+                    type="text"
+                    placeholder="Search Request"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="w-full px-4 py-2.5 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <div className="absolute right-3 top-2.5">
+                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </div>
+                </div>
+                
+                <select
+                  value={selectedCategory ?? ""}
+                  onChange={(e) => setSelectedCategory(e.target.value ? Number(e.target.value) : null)}
+                  className="px-4 py-2.5 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Categories</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             {/* Content two-column: list | detail */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-1 bg-white border rounded-xl p-4 h-[70vh] overflow-auto">
-                <h3 className="text-sm text-gray-600 mb-3">Results</h3>
+            <div className="grid grid-cols-12 gap-6">
+              <div className="col-span-4">
+                <div className="mb-4 flex items-center justify-between">
+                  <span className="text-gray-600">Results</span>
+                  <select 
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value === "oldest" ? "oldest" : "recent")}
+                    className="px-3 py-1 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="recent">Most Recent</option>
+                    <option value="oldest">Oldest First</option>
+                  </select>
+                </div>
+                <div className="h-[calc(100vh-400px)] min-h-[400px] max-h-[600px] overflow-y-auto border border-gray-200 rounded-lg bg-white p-2">
 
-                <div className="space-y-4">
-                  {loading && <p className="text-sm text-gray-500">Loading...</p>}
-                  {!loading && filteredOrders.length === 0 && <p className="text-sm text-gray-500">No requests found</p>}
+                <div className="space-y-3">
+                  {loading && <p className="text-sm text-gray-500 text-center py-4">Loading...</p>}
+                  {!loading && filteredOrders.length === 0 && <p className="text-sm text-gray-500 text-center py-8">No requests found</p>}
 
                   {filteredOrders.map((wo) => (
                     <button
                       key={wo.id}
                       onClick={() => setSelectedId(wo.id)}
-                      className={`w-full text-left p-3 border rounded-lg flex gap-3 items-start ${selectedId === wo.id ? "ring-2 ring-green-400 bg-green-50" : "bg-white"}`}
+                      className={`w-full text-left p-3 border rounded-lg transition-colors relative ${
+                        selectedId === wo.id ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-gray-300 bg-white"
+                      }`}
                     >
-                      <div className="w-12 h-12 rounded-md bg-gray-100 flex items-center justify-center">
-                        <svg className="w-6 h-6 text-gray-600" viewBox="0 0 24 24" fill="none">
-                          <path d="M14 3v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                          <path d="M10 21v-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                          <path d="M3 11h18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
+                      {/* Status badge in top right */}
+                      <div className="absolute top-2 right-2">
+                        <span className={`px-2 py-1 text-xs rounded border font-medium ${
+                          wo.status?.toLowerCase() === "completed" ? "bg-green-100 text-green-800 border-green-200" :
+                          wo.status?.toLowerCase() === "claimed" ? "bg-blue-100 text-blue-800 border-blue-200" :
+                          "bg-gray-100 text-gray-800 border-gray-200"
+                        }`}>
+                          {wo.status?.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()) || "Open"}
+                        </span>
                       </div>
 
-                      <div className="flex-1">
-                        <div className="flex justify-between">
-                          <div>
-                            <div className="text-sm font-medium">{wo.title ?? "Title"}</div>
-                            <div className="text-xs text-gray-500">{wo.labName ?? "Lab"}</div>
-                            {wo.address && <div className="text-xs text-gray-500">{wo.address}</div>}
-                          </div>
-                          <div className="text-xs text-gray-500">{wo.categoryName ?? "Category"}</div>
+                      <div className="flex items-start gap-3 pr-16">
+                        <div className="w-8 h-8 bg-gray-200 rounded flex items-center justify-center flex-shrink-0">
+                          <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
                         </div>
-
-                        <div className="mt-2 text-sm text-gray-600">{(wo.description || "").slice(0, 120)}{(wo.description || "").length > 120 ? "..." : ""}</div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm mb-1">{wo.title ?? "Title"}</div>
+                          {wo.address && <div className="text-xs text-gray-500 mb-1">{wo.address}</div>}
+                          <div className="text-xs text-gray-400">{wo.categoryName ?? "Category"}</div>
+                        </div>
                       </div>
                     </button>
                   ))}
                 </div>
               </div>
+            </div>
 
-              <div className="lg:col-span-2 bg-white border rounded-xl p-6 h-[70vh] overflow-auto flex flex-col">
+            {/* Right Panel - Work Order Details */}
+            <div className="col-span-8">
+              <div className="border rounded-lg p-6 bg-white">
                 {selectedOrder ? (
-                  <>
-                    <div className="flex gap-4 items-start mb-4">
-                      <div className="w-16 h-16 rounded-md bg-gray-100 flex items-center justify-center">
-                        <svg className="w-8 h-8 text-gray-600" viewBox="0 0 24 24" fill="none">
-                          <path d="M14 3v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </div>
-
-                      <div className="flex-1">
-                        <div className="text-sm text-gray-600">{selectedOrder.labName}</div>
-                        <h2 className="text-xl font-semibold">{selectedOrder.title}</h2>
-                        <div className="text-xs text-gray-500 mt-1">Submitted by {selectedOrder.creatorEmail ?? selectedOrder.created_by ?? "Unknown"} • {selectedOrder.created_at}</div>
-                        {selectedOrder.address && <div className="text-sm text-gray-700 mt-2">📍 {selectedOrder.address}</div>}
-                        <div className="text-sm text-gray-600 mt-1">{selectedOrder.categoryName ?? ""}</div>
-                      </div>
-
-                      <div className="text-sm">
-                        <span className="px-3 py-1 rounded-full bg-gray-200 text-xs">{selectedOrder.status ?? "Status"}</span>
+                  <div>
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
+                        <h2 className="text-2xl font-bold mb-2">{selectedOrder.title}</h2>
+                        <div>
+                          <span className={`px-3 py-1 text-sm rounded-full border font-medium ${
+                            selectedOrder.status?.toLowerCase() === "completed" ? "bg-green-100 text-green-800 border-green-200" :
+                            selectedOrder.status?.toLowerCase() === "claimed" ? "bg-blue-100 text-blue-800 border-blue-200" :
+                            "bg-gray-100 text-gray-800 border-gray-200"
+                          }`}>
+                            {selectedOrder.status?.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()) || "Open"}
+                          </span>
+                        </div>
                       </div>
                     </div>
+                    
+                    <div className="text-sm text-gray-500 mb-1">
+                      Submitted on {selectedOrder.created_at}
+                    </div>
+                    <div className="text-sm text-gray-500 mb-2">{selectedOrder.address || "No address"}</div>
+                    <div className="text-sm font-medium mb-2">Category: {selectedOrder.categoryName || "N/A"}</div>
+                    {selectedOrder.urgency && (
+                      <div className={`inline-block text-sm px-3 py-1 rounded-full mb-4 ${
+                        selectedOrder.urgency?.toLowerCase() === "critical" ? "bg-red-100 text-red-800" :
+                        selectedOrder.urgency?.toLowerCase() === "high" ? "bg-orange-100 text-orange-800" :
+                        selectedOrder.urgency?.toLowerCase() === "normal" ? "bg-yellow-100 text-yellow-800" :
+                        selectedOrder.urgency?.toLowerCase() === "low" ? "bg-green-100 text-green-800" :
+                        "bg-gray-100 text-gray-800"
+                      }`}>
+                        Priority: {selectedOrder.urgency}
+                      </div>
+                    )}
 
-                    <hr className="my-3" />
+                    <div className="mb-6">
+                      <p className="text-gray-700 leading-relaxed">{selectedOrder.description}</p>
+                    </div>
 
-                    <div className="flex-1 overflow-auto">
-                      <p className="text-sm text-gray-700">{selectedOrder.description}</p>
-
-                      {/* Work Order Updates Section */}
-                      {selectedOrder.id && (
+                      {/* Work Order Updates Section - Only show for claimed/in-progress work orders */}
+                      {selectedOrder.id && selectedOrder.status?.toLowerCase() !== "open" && (
                         <div className="mt-6 pt-6 border-t border-gray-200">
                           <AddWorkOrderUpdate 
                             workOrderId={selectedOrder.id} 
@@ -635,7 +669,6 @@ export default function Home() {
                           />
                         </div>
                       )}
-                    </div>
 
                     {/* Payment Request Section - ONLY show on My Work Orders tab AND when completed */}
                     {activeTab === "mine" && selectedOrder?.status === "completed" && (
@@ -647,7 +680,7 @@ export default function Home() {
                           ) : (
                             <button
                               onClick={() => setShowPaymentRequest(true)}
-                              className="px-4 py-2 bg-green-600 text-white rounded-full hover:bg-green-700 transition-colors"
+                              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
                             >
                               Request Payment
                             </button>
@@ -740,11 +773,11 @@ export default function Home() {
 
                     {/* Action Buttons - Only show for open/available jobs or to cancel claimed jobs */}
                     {activeTab === "open" && selectedOrder?.status === "open" && (
-                      <div className="mt-4 flex gap-3">
+                      <div className="mt-6 pt-6 border-t border-gray-200 flex gap-3">
                         <button
                           onClick={() => acceptJob(selectedOrder?.id ?? null)}
                           disabled={loading || !selectedOrder}
-                          className="px-4 py-2 bg-green-600 text-white border rounded-full hover:bg-green-700 disabled:opacity-50"
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
                         >
                           Accept Job
                         </button>
@@ -752,22 +785,25 @@ export default function Home() {
                     )}
 
                     {activeTab === "mine" && selectedOrder?.status === "claimed" && selectedOrder?.assigned_to === currentUserId && (
-                      <div className="mt-4 flex gap-3">
+                      <div className="mt-6 pt-6 border-t border-gray-200 flex gap-3">
                         <button
                           onClick={() => cancelJob(selectedOrder?.id ?? null)}
                           disabled={loading}
-                          className="px-4 py-2 bg-red-600 text-white border border-red-700 rounded-full hover:bg-red-700 disabled:opacity-50"
+                          className="px-4 py-2 bg-red-600 text-white border border-red-700 rounded-lg hover:bg-red-700 disabled:opacity-50"
                         >
                           Cancel Job
                         </button>
                       </div>
                     )}
-                  </>
+                  </div>
                 ) : (
-                  <div className="text-center text-gray-500">Select a request to see details</div>
-                )}
+                  <div className="text-center text-gray-500 py-8">
+                    Select an order to view details
+                  </div>
+                )}  
               </div>
             </div>
+          </div>
           </section>
         </main>
       </div>
@@ -806,13 +842,8 @@ export default function Home() {
   }
   // Default view (no specific role or non-lab/technician users)
   return (
-    <div className="font-sans min-h-screen p-8 bg-white text-black">
+    <div className="font-sans min-h-screen p-8 bg-gray-50 text-black">
       <main className="max-w-3xl mx-auto">
-        <header className="flex items-center justify-between mb-8">
-          <h1 className="text-2xl font-bold">Biotech Maintenance Platform</h1>
-          <AuthStatus />
-        </header>
-
         <section>
           {/* keep lab submission UI unchanged */}
           <div className="bg-white rounded-2xl p-6 shadow-sm">

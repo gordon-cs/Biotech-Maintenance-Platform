@@ -99,6 +99,11 @@ function PastOrdersContent() {
   const searchParams = useSearchParams()
   const selectedOrderId = searchParams.get("selected")
 
+  // Set page title
+  useEffect(() => {
+    document.title = "Past Orders | Biotech Maintenance"
+  }, [])
+
   const handleCancelOrder = async (orderId: string, orderTitle: string) => {
     const confirmed = window.confirm(
       `Are you sure you want to cancel "${orderTitle}"? This will mark it as canceled but preserve the record.`
@@ -349,23 +354,9 @@ function PastOrdersContent() {
 
   return (
     <div className="min-h-screen bg-gray-50 relative">
-      <div className="bg-green-700 text-white p-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="text-xl font-bold">B+B</div>
-          <div className="flex gap-6">
-            <span>Order</span>
-            <span>About</span>
-          </div>
-          <div className="bg-gray-200 text-gray-700 px-3 py-1 rounded">User</div>
-        </div>
-      </div>
-
       <div className="max-w-7xl mx-auto p-6">
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold text-gray-800">Past Orders</h1>
-        </div>
-
-        <div className="bg-blue-100 border border-blue-300 rounded-lg p-4 mb-6">
+        {/* Search and Filters */}
+        <div className="bg-gray-50 rounded-lg p-4 mb-6">
           <div className="flex gap-4 items-center">
             <div className="flex-1 relative">
               <input
@@ -373,7 +364,7 @@ function PastOrdersContent() {
                 placeholder="Search Request"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2.5 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               <div className="absolute right-3 top-2.5">
                 <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -382,21 +373,10 @@ function PastOrdersContent() {
               </div>
             </div>
             
-            <select 
-              value={locationFilter}
-              onChange={(e) => setLocationFilter(e.target.value)}
-              className="px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Location</option>
-              {Array.from(new Set(orders.map(o => o.address))).map(addr => (
-                <option key={addr} value={addr}>{addr}</option>
-              ))}
-            </select>
-
             <select
               value={categoryFilter} 
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-4 py-2.5 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">Categories</option>
               {Array.from(new Set(orders.map(o => o.category))).map(cat => (
@@ -434,10 +414,10 @@ function PastOrdersContent() {
                     }`}
                   >
                     <div className="absolute top-2 right-2 flex items-center gap-2">
-                      <span className={`px-2 py-1 text-xs rounded border font-medium ${getStatusBadgeStyle(order.status)}`}>
-                        {formatStatus(order.status)}
+                      <span className={`px-2 py-1 text-xs rounded border font-medium ${getStatusBadgeStyle(order.status || '')}`}>
+                        {formatStatus(order.status || '')}
                       </span>
-                      {canCancelOrder(order.status) && (
+                      {canCancelOrder(order.status || '') && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
@@ -500,12 +480,12 @@ function PastOrdersContent() {
                       <h2 className="text-xl font-semibold">{selectedOrder.title}</h2>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className={`px-3 py-1 text-sm rounded-full border font-medium ${getStatusBadgeStyle(selectedOrder.status)}`}>
-                        {formatStatus(selectedOrder.status)}
+                      <span className={`px-3 py-1 text-sm rounded-full border font-medium ${getStatusBadgeStyle(selectedOrder.status || '')}`}>
+                        {formatStatus(selectedOrder.status || '')}
                       </span>
                       
                       <div className="flex gap-2">
-                        {canCancelOrder(selectedOrder.status) && (
+                        {canCancelOrder(selectedOrder.status || '') && (
                           <button
                             onClick={() => handleCancelOrder(selectedOrder.id, selectedOrder.title)}
                             disabled={cancellingOrderId === selectedOrder.id}
@@ -524,15 +504,16 @@ function PastOrdersContent() {
                   <div className="text-sm text-gray-500 mb-2">{selectedOrder.address}</div>
                   <div className="text-sm font-medium mb-2">Category: {selectedOrder.category}</div>
                   {selectedOrder.urgency && (
-                    <div className={`inline-block text-sm px-3 py-1 rounded-full ${
-                      selectedOrder.urgency?.toLowerCase() === "high" ? "bg-red-100 text-red-800" :
-                      selectedOrder.urgency?.toLowerCase() === "medium" ? "bg-yellow-100 text-yellow-800" :
-                      selectedOrder.urgency?.toLowerCase() === "low" ? "bg-green-100 text-green-800" :
-                      "bg-gray-100 text-gray-800"
-                    }`}>
-                      Priority: {selectedOrder.urgency}
-                    </div>
-                  )}
+                    <div className={`inline-block text-sm px-3 py-1 rounded-full mb-4 ${
+                      selectedOrder.urgency?.toLowerCase() === "critical" ? "bg-red-100 text-red-800" :
+                    selectedOrder.urgency?.toLowerCase() === "high" ? "bg-orange-100 text-orange-800" :
+                    selectedOrder.urgency?.toLowerCase() === "normal" ? "bg-yellow-100 text-yellow-800" :
+                    selectedOrder.urgency?.toLowerCase() === "low" ? "bg-green-100 text-green-800" :
+                    "bg-gray-100 text-gray-800"
+                  }`}>
+                    Priority: {selectedOrder.urgency}
+                  </div>
+                )}
                 </div>
 
                 <div className="mb-6">
