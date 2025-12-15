@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useState, Suspense } from "react"
+import React, { useEffect, useState, Suspense, useMemo } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { supabase } from "@/lib/supabaseClient"
@@ -15,11 +15,76 @@ type DisplayRow = {
   created_at: string
   urgency?: string
   status?: string
+  labName?: string
+}
+
+const formatDateTime = (dateString?: string) => {
+  if (!dateString) return "N/A"
+  const date = new Date(dateString)
+  if (isNaN(date.getTime())) return "Invalid date"
+  
+  const formattedDate = date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  })
+  const formattedTime = date.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  })
+  return `${formattedDate} ${formattedTime}`
+}
+
+const getStatusBadgeStyle = (status?: string) => {
+  switch (status?.toLowerCase()) {
+    case 'completed':
+      return 'bg-green-100 text-green-800 border-green-200'
+    case 'in_progress':
+    case 'in progress':
+      return 'bg-blue-100 text-blue-800 border-blue-200'
+    case 'pending':
+      return 'bg-yellow-100 text-yellow-800 border-yellow-200'
+    case 'canceled':
+      return 'bg-red-100 text-red-800 border-red-200'
+    case 'open':
+    default:
+      return 'bg-gray-100 text-gray-800 border-gray-200'
+  }
+}
+
+const formatStatus = (status?: string) => {
+  if (!status) return 'Open'
+  return status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+}
+
+const urgencyOrder = { high: 3, medium: 2, low: 1, "": 0, "n/a": 0 } as const
+
+const getUrgencyScore = (urgency?: string) => 
+  urgencyOrder[urgency?.toLowerCase() as keyof typeof urgencyOrder] ?? 0
+
+const sortOrders = (ordersToSort: DisplayRow[], sortOrder: string) => {
+  const sorted = [...ordersToSort]
+  
+  switch (sortOrder) {
+    case "most_recent":
+      return sorted.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    case "oldest_first":
+      return sorted.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    case "by_priority":
+      return sorted.sort((a, b) => getUrgencyScore(b.urgency) - getUrgencyScore(a.urgency))
+    default:
+      return sorted
+  }
+}
+
+const canCancelOrder = (status?: string) => {
+  const cancellableStatuses = ['open', 'pending', 'in_progress', 'claimed']
+  return cancellableStatuses.includes(status?.toLowerCase() || 'open')
 }
 
 function PastOrdersContent() {
   const [orders, setOrders] = useState<DisplayRow[]>([])
-  const [filteredOrders, setFilteredOrders] = useState<DisplayRow[]>([])
   const [selectedOrder, setSelectedOrder] = useState<DisplayRow | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -27,6 +92,9 @@ function PastOrdersContent() {
   const [locationFilter, setLocationFilter] = useState("")
   const [categoryFilter, setCategoryFilter] = useState("")
   const [sortOrder, setSortOrder] = useState("most_recent")
+  const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null)
+  const [paymentRequests, setPaymentRequests] = useState<Record<string, { id: number; payment_status: string; total_amount: number }>>({})
+  const [isApprovingPayment, setIsApprovingPayment] = useState<string | null>(null)
   
   const searchParams = useSearchParams()
   const selectedOrderId = searchParams.get("selected")
@@ -68,6 +136,7 @@ function PastOrdersContent() {
       case 'pending':
         return 'bg-yellow-100 text-yellow-800 border-yellow-200'
       case 'cancelled':
+      case 'canceled':
         return 'bg-red-100 text-red-800 border-red-200'
       case 'open':
       default:
@@ -81,24 +150,135 @@ function PastOrdersContent() {
     return status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
   }
 
-  // Sort orders based on selected sort order
-  const sortOrders = (ordersToSort: DisplayRow[]) => {
-    const sorted = [...ordersToSort]
+  // Helper function to check if order can be canceled
+  const canCancelOrder = (status: string) => {
+    const s = status.toLowerCase()
+    return s === 'open' || s === 'claimed' || s === 'in_progress'
+  }
+
+  const handleCancelOrder = async (orderId: string, orderTitle: string) => {
+    const confirmed = window.confirm(
+      `Are you sure you want to cancel "${orderTitle}"? This will mark it as canceled but preserve the record.`
+    )
     
-    switch (sortOrder) {
-      case "most_recent":
-        return sorted.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-      case "oldest_first":
-        return sorted.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-      case "by_priority":
-        return sorted.sort((a, b) => {
-          const urgencyOrder = { "critical": 4, "high": 3, "normal": 2, "low": 1, "": 0, "N/A": 0 }
-          const aUrgency = urgencyOrder[a.urgency?.toLowerCase() as keyof typeof urgencyOrder] || 0
-          const bUrgency = urgencyOrder[b.urgency?.toLowerCase() as keyof typeof urgencyOrder] || 0
-          return bUrgency - aUrgency // Higher priority first
+    if (!confirmed) return
+    
+    setCancellingOrderId(orderId)
+    
+    try {
+      const { data: authData, error: authErr } = await supabase.auth.getUser()
+      if (authErr) throw authErr
+      const userId = authData?.user?.id
+      if (!userId) throw new Error("Not authenticated")
+
+      const { data: labs, error: labsError } = await supabase
+        .from("labs")
+        .select("id")
+        .eq("manager_id", userId)
+
+      if (labsError) throw labsError
+      const labIds = labs?.map(lab => lab.id) || []
+
+      const orderIdNumber = parseInt(orderId, 10)
+      if (isNaN(orderIdNumber)) {
+        throw new Error("Invalid order ID")
+      }
+
+      const { data: existingOrder, error: checkError } = await supabase
+        .from("work_orders")
+        .select("id, status, lab")
+        .eq("id", orderIdNumber)
+        .single()
+      
+      if (checkError) {
+        throw new Error("Order not found")
+      }
+
+      if (!labIds.includes(existingOrder.lab)) {
+        throw new Error("You don't have permission to cancel this order")
+      }
+
+      const { error: updateError } = await supabase
+        .from("work_orders")
+        .update({ status: "canceled" })
+        .eq("id", orderIdNumber)
+        .select()
+      
+      if (updateError) {
+        throw updateError
+      }
+      
+      setOrders(prevOrders => 
+        prevOrders.map(order => 
+          order.id === orderId
+            ? { ...order, status: "canceled" }
+            : order
+        )
+      )
+      
+      if (selectedOrder?.id === orderId) {
+        setSelectedOrder(prev => prev ? { ...prev, status: "canceled" } : null)
+      }
+      
+      alert("Order canceled successfully")
+      
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Unknown error occurred"
+      alert("Failed to cancel order: " + errorMessage)
+    } finally {
+      setCancellingOrderId(null)
+    }
+  }
+
+  const loadPaymentRequests = async () => {
+    try {
+      const { data } = await supabase
+        .from('invoices')
+        .select('*')
+        .in('work_order_id', orders.map(o => parseInt(o.id)))
+      
+      if (data) {
+        const requestsMap: Record<string, { id: number; payment_status: string; total_amount: number }> = {}
+        data.forEach(invoice => {
+          requestsMap[invoice.work_order_id] = invoice
         })
-      default:
-        return sorted
+        setPaymentRequests(requestsMap)
+      }
+    } catch (err) {
+    }
+  }
+
+  const handleApprovePayment = async (workOrderId: string, invoiceId: number) => {
+    setIsApprovingPayment(workOrderId)
+    
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      if (!session) {
+        alert('Please login first')
+        return
+      }
+
+      const response = await fetch('/api/bill/create-invoice', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ invoiceId: invoiceId })
+      })
+
+      if (response.ok) {
+        alert('💰 Payment approved and sent to Bill.com!')
+        loadPaymentRequests() // Reload to update status
+      } else {
+        const error = await response.json()
+        alert(`Failed to approve payment: ${error.error}`)
+      }
+    } catch (error) {
+      alert('Failed to approve payment')
+    } finally {
+      setIsApprovingPayment(null)
     }
   }
 
@@ -117,10 +297,9 @@ function PastOrdersContent() {
           return
         }
 
-        // Get labs managed by user
         const labsRes = await supabase
           .from("labs")
-          .select("id, name")
+          .select("id, name, address, address2, city, state, zipcode")
           .eq("manager_id", userId)
         
         if (labsRes.error) throw labsRes.error
@@ -128,38 +307,19 @@ function PastOrdersContent() {
         const labIds = labRows.map((r) => r.id)
 
         if (labIds.length === 0) {
-          setOrders([])
+          if (mounted) setOrders([])
           return
         }
 
-        // Fetch work orders with urgency, status, and address_id fields
         const ordersRes = await supabase
           .from("work_orders")
-          .select("id, title, description, category_id, lab, created_at, urgency, status, address_id")
+          .select("id, title, description, category_id, lab, created_at, urgency, status")
           .in("lab", labIds)
           .order("created_at", { ascending: false })
 
         if (ordersRes.error) throw ordersRes.error
         const woRows = ordersRes.data || []
 
-        // Get all unique address IDs from work orders
-        const addressIds = Array.from(new Set(woRows.map(w => w.address_id).filter(Boolean)))
-        const addressMap: Record<number, string> = {}
-        if (addressIds.length) {
-          const addrRes = await supabase
-            .from("addresses")
-            .select("id, line1, line2, city, state, zipcode")
-            .in("id", addressIds)
-          
-          if (!addrRes.error) {
-            for (const addr of addrRes.data || []) {
-              const parts = [addr.line1, addr.line2, addr.city, addr.state, addr.zipcode].filter(Boolean)
-              addressMap[addr.id] = parts.length ? parts.join(", ") : "N/A"
-            }
-          }
-        }
-
-        // Get categories
         const catIds = Array.from(new Set(woRows.map(w => w.category_id).filter(Boolean)))
         const categoryMap: Record<number, string> = {}
         if (catIds.length) {
@@ -171,26 +331,29 @@ function PastOrdersContent() {
           }
         }
 
-        // Build display data
+        const labMap: Record<number, string> = {}
+        const labNameMap: Record<number, string> = {}
+        for (const l of labRows) {
+          const parts = [l.address, l.address2, l.city, l.state, l.zipcode].filter(Boolean)
+          labMap[l.id] = parts.length ? parts.join(", ") : "N/A"
+          labNameMap[l.id] = l.name || "Unknown Lab"
+        }
+
         const display: DisplayRow[] = woRows.map(r => ({
           id: String(r.id),
           title: r.title || "Untitled",
-          address: r.address_id ? (addressMap[r.address_id] || "N/A") : "N/A",
+          address: labMap[r.lab] || "N/A",
           category: categoryMap[r.category_id] || "N/A",
           description: r.description || "No description available",
           created_at: r.created_at || "",
-          urgency: r.urgency || "N/A",
-          status: r.status || "Open"
+          urgency: r.urgency || undefined,
+          status: r.status || "Open",
+          labName: labNameMap[r.lab] || "Unknown Lab"
         }))
 
         if (mounted) {
           setOrders(display)
-          
-          // Set selected order based on URL parameter or default to first
-          if (selectedOrderId) {
-            const targetOrder = display.find(o => o.id === selectedOrderId)
-            setSelectedOrder(targetOrder || (display.length > 0 ? display[0] : null))
-          } else if (display.length > 0) {
+          if (display.length > 0) {
             setSelectedOrder(display[0])
           }
         }
@@ -203,16 +366,24 @@ function PastOrdersContent() {
 
     load()
     return () => { mounted = false }
-  }, [selectedOrderId])
+  }, [])
 
-  // Filter and sort orders
   useEffect(() => {
+    if (!selectedOrderId || orders.length === 0) return
+    const target = orders.find(o => o.id === selectedOrderId)
+    if (target) {
+      setSelectedOrder(target)
+    }
+  }, [selectedOrderId, orders])
+
+  const filteredOrders = useMemo(() => {
     let filtered = orders
     
     if (searchTerm) {
+      const q = searchTerm.toLowerCase()
       filtered = filtered.filter(order => 
-        order.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        order.description.toLowerCase().includes(searchTerm.toLowerCase())
+        order.title.toLowerCase().includes(q) ||
+        order.description.toLowerCase().includes(q)
       )
     }
     
@@ -224,10 +395,14 @@ function PastOrdersContent() {
       filtered = filtered.filter(order => order.category === categoryFilter)
     }
     
-    // Apply sorting
-    const sorted = sortOrders(filtered)
-    setFilteredOrders(sorted)
+    return sortOrders(filtered, sortOrder)
   }, [orders, searchTerm, locationFilter, categoryFilter, sortOrder])
+
+  useEffect(() => {
+    if (orders.length > 0) {
+      loadPaymentRequests()
+    }
+  }, [orders])
 
   return (
     <div className="min-h-screen bg-gray-50 relative">
@@ -264,7 +439,6 @@ function PastOrdersContent() {
         </div>
 
         <div className="grid grid-cols-12 gap-6">
-          {/* Left Panel - Results List */}
           <div className="col-span-4">
             <div className="mb-4 flex items-center justify-between">
               <span className="text-gray-600">Results</span>
@@ -287,28 +461,53 @@ function PastOrdersContent() {
                 {filteredOrders.map((order) => (
                   <div
                     key={order.id}
-                    onClick={() => setSelectedOrder(order)}
                     className={`border rounded-lg p-3 cursor-pointer transition-colors relative ${
                       selectedOrder?.id === order.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
                     }`}
                   >
-                    {/* Status badge in top right */}
-                    <div className="absolute top-2 right-2">
-                      <span className={`px-2 py-1 text-xs rounded border font-medium ${getStatusBadgeStyle(order.status || '')}`}>
-                        {formatStatus(order.status || '')}
+                    <div className="absolute top-2 right-2 flex items-center gap-2">
+                      <span className={`px-2 py-1 text-xs rounded border font-medium ${getStatusBadgeStyle(order.status)}`}>
+                        {formatStatus(order.status)}
                       </span>
+                      {canCancelOrder(order.status) && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleCancelOrder(order.id, order.title)
+                          }}
+                          disabled={cancellingOrderId === order.id}
+                          className="px-2 py-1 text-xs bg-orange-600 text-white rounded hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Cancel Order"
+                        >
+                          {cancellingOrderId === order.id ? "..." : "Cancel"}
+                        </button>
+                      )}
                     </div>
 
-                    <div className="flex items-start gap-3 pr-16">
+                    <div 
+                      onClick={() => setSelectedOrder(order)}
+                      className="flex items-start gap-3 pr-24"
+                    >
                       <div className="w-8 h-8 bg-gray-200 rounded flex items-center justify-center flex-shrink-0">
                         <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
                       </div>
                       <div className="flex-1 min-w-0">
+                        <div className="text-xs text-gray-500 mb-1">{order.labName}</div>
                         <div className="font-medium text-sm mb-1">{order.title}</div>
                         <div className="text-xs text-gray-500 mb-1">{order.address}</div>
                         <div className="text-xs text-gray-400">{order.category}</div>
+                        {order.urgency && (
+                          <div className={`text-xs mt-1 px-2 py-1 rounded inline-block ${
+                            order.urgency?.toLowerCase() === "high" ? "bg-red-100 text-red-800" :
+                            order.urgency?.toLowerCase() === "medium" ? "bg-yellow-100 text-yellow-800" :
+                            order.urgency?.toLowerCase() === "low" ? "bg-green-100 text-green-800" :
+                            "bg-gray-100 text-gray-800"
+                          }`}>
+                            {order.urgency}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -323,29 +522,42 @@ function PastOrdersContent() {
             </div>
           </div>
 
-          {/* Right Panel - Order Details */}
           <div className="col-span-8">
             {selectedOrder ? (
-              <div className="border border-gray-200 rounded-lg p-6 bg-white">
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <h2 className="text-2xl font-bold mb-2">{selectedOrder.title}</h2>
-                    <div>
-                      <span className={`px-3 py-1 text-sm rounded-full border font-medium ${getStatusBadgeStyle(selectedOrder.status || '')}`}>
-                        {formatStatus(selectedOrder.status || '')}
+              <div className="border rounded-lg p-6 bg-white">
+                <div className="mb-4">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex-1">
+                      <div className="text-sm text-gray-500 mb-1">{selectedOrder.labName}</div>
+                      <h2 className="text-xl font-semibold">{selectedOrder.title}</h2>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className={`px-3 py-1 text-sm rounded-full border font-medium ${getStatusBadgeStyle(selectedOrder.status)}`}>
+                        {formatStatus(selectedOrder.status)}
                       </span>
+                      
+                      <div className="flex gap-2">
+                        {canCancelOrder(selectedOrder.status) && (
+                          <button
+                            onClick={() => handleCancelOrder(selectedOrder.id, selectedOrder.title)}
+                            disabled={cancellingOrderId === selectedOrder.id}
+                            className="px-3 py-1 text-sm bg-orange-600 text-white rounded hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {cancellingOrderId === selectedOrder.id ? "Canceling..." : "Cancel Order"}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-                
-                <div className="text-sm text-gray-500 mb-1">
-                  Submitted on {formatDateTime(selectedOrder.created_at)}
-                </div>
-                <div className="text-sm text-gray-500 mb-2">{selectedOrder.address}</div>
-                <div className="text-sm font-medium mb-2">Category: {selectedOrder.category}</div>
-                {selectedOrder.urgency && (
-                  <div className={`inline-block text-sm px-3 py-1 rounded-full mb-4 ${
-                    selectedOrder.urgency?.toLowerCase() === "critical" ? "bg-red-100 text-red-800" :
+                  
+                  <div className="text-sm text-gray-500 mb-1">
+                    Submitted on {formatDateTime(selectedOrder.created_at)}
+                  </div>
+                  <div className="text-sm text-gray-500 mb-2">{selectedOrder.address}</div>
+                  <div className="text-sm font-medium mb-2">Category: {selectedOrder.category}</div>
+                  {selectedOrder.urgency && (
+                    <div className={`inline-block text-sm px-3 py-1 rounded-full mb-4 ${
+                      selectedOrder.urgency?.toLowerCase() === "critical" ? "bg-red-100 text-red-800" :
                     selectedOrder.urgency?.toLowerCase() === "high" ? "bg-orange-100 text-orange-800" :
                     selectedOrder.urgency?.toLowerCase() === "normal" ? "bg-yellow-100 text-yellow-800" :
                     selectedOrder.urgency?.toLowerCase() === "low" ? "bg-green-100 text-green-800" :
@@ -368,6 +580,93 @@ function PastOrdersContent() {
                     currentStatus={selectedOrder.status || "open"}
                   />
                 </div>
+
+                {/* Payment Request Section - NEWLY ADDED */}
+                {selectedOrder.status === 'completed' && (
+                  <div className="mt-6 pt-6 border-t border-gray-200">
+                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                      <span>💰</span>
+                      <span>Payment Request</span>
+                    </h3>
+
+                    {paymentRequests[selectedOrder.id] ? (
+                      <div className="bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-300 rounded-lg p-6">
+                        {/* Payment Request Details */}
+                        <div className="grid grid-cols-2 gap-6 mb-6">
+                          <div>
+                            <p className="text-sm text-gray-600 mb-2">Requested Amount</p>
+                            <p className="text-4xl font-bold text-gray-900">
+                              ${paymentRequests[selectedOrder.id]?.total_amount 
+                                ? Number(paymentRequests[selectedOrder.id].total_amount).toFixed(2) 
+                                : '0.00'}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-600 mb-2">Status</p>
+                            <span className={`px-4 py-2 rounded-full text-sm font-medium inline-flex items-center gap-2 ${
+                              paymentRequests[selectedOrder.id]?.payment_status === 'unbilled' 
+                                ? 'bg-orange-100 text-orange-800'
+                                : paymentRequests[selectedOrder.id]?.payment_status === 'awaiting_payment'
+                                ? 'bg-yellow-100 text-yellow-800'
+                                : 'bg-green-100 text-green-800'
+                            }`}>
+                              {paymentRequests[selectedOrder.id]?.payment_status === 'unbilled' && '⏳ Payment Requested'}
+                              {paymentRequests[selectedOrder.id]?.payment_status === 'awaiting_payment' && '📤 Awaiting Payment'}
+                              {paymentRequests[selectedOrder.id]?.payment_status === 'paid' && '✓ Paid'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Action Buttons - Only show if unbilled */}
+                        {paymentRequests[selectedOrder.id]?.payment_status === 'unbilled' && (
+                          <button
+                            onClick={() => handleApprovePayment(selectedOrder.id, paymentRequests[selectedOrder.id].id)}
+                            disabled={isApprovingPayment === selectedOrder.id}
+                            className="w-full bg-green-600 text-white py-4 px-6 rounded-lg font-bold text-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          >
+                            {isApprovingPayment === selectedOrder.id 
+                              ? '⏳ Processing Payment...' 
+                              : '✓ Approve & Pay via Bill.com'}
+                          </button>
+                        )}
+
+                        {/* Awaiting Payment Message */}
+                        {paymentRequests[selectedOrder.id]?.payment_status === 'awaiting_payment' && (
+                          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                            <div className="flex items-center">
+                              <span className="text-2xl mr-3">📤</span>
+                              <div>
+                                <p className="font-semibold text-yellow-900">Payment in Progress</p>
+                                <p className="text-sm text-yellow-700">
+                                  Invoice sent to Bill.com. Payment is being processed.
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Paid Message */}
+                        {paymentRequests[selectedOrder.id]?.payment_status === 'paid' && (
+                          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                            <div className="flex items-center">
+                              <span className="text-2xl mr-3">✓</span>
+                              <div>
+                                <p className="font-semibold text-green-900">Payment Completed</p>
+                                <p className="text-sm text-green-700">
+                                  Payment has been successfully processed through Bill.com
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="bg-gray-50 border-2 border-gray-200 rounded-lg p-6 text-center">
+                        <p className="text-gray-500">No payment request for this work order</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="border rounded-lg p-6 bg-white text-center text-gray-500">
@@ -378,7 +677,6 @@ function PastOrdersContent() {
         </div>
       </div>
 
-      {/* Back to Dashboard Button - Fixed at bottom right */}
       <div className="fixed bottom-6 right-6">
         <Link 
           href="/manager" 

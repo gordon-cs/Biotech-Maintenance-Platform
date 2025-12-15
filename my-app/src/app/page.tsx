@@ -93,8 +93,8 @@ export default function Home() {
           return
         }
         
+        if (mounted) setCurrentUserId(session.user.id)
         const userId = session.user.id
-        if (mounted) setCurrentUserId(userId)
         
         const { data, error } = await supabase
           .from("profiles")
@@ -127,7 +127,6 @@ export default function Home() {
         
         if (mounted) setRoleLoaded(true)
       } catch (err) {
-        console.error("Error loading role:", err)
         if (mounted) setRoleLoaded(true)
       }
     }
@@ -224,25 +223,11 @@ export default function Home() {
     const addressIds = raw.map(wo => wo.address_id).filter(Boolean) as number[]
     const addressMap = new Map<number, string>()
     
-    console.log("Work orders:", raw.length)
-    console.log("Address IDs found:", addressIds)
-    
     if (addressIds.length > 0) {
-      // First check what we can see from addresses table
-      const { data: allAddresses, error: allError } = await supabase
-        .from("addresses")
-        .select("id, line1, line2, city, state, zipcode, lab_id")
-      
-      console.log("All addresses visible:", allAddresses)
-      console.log("All addresses error:", allError)
-      
-      const { data: addressData, error: addrError } = await supabase
+      const { data: addressData } = await supabase
         .from("addresses")
         .select("id, line1, line2, city, state, zipcode")
         .in("id", addressIds)
-      
-      console.log("Filtered address data:", addressData)
-      console.log("Filtered address error:", addrError)
       
       if (addressData) {
         addressData.forEach((addr) => {
@@ -251,8 +236,6 @@ export default function Home() {
         })
       }
     }
-    
-    console.log("Address map:", addressMap)
 
     const enriched = raw.map((wo) => {
       const categoryId = wo.category_id != null ? Number(wo.category_id) : null
@@ -314,14 +297,61 @@ export default function Home() {
       return
     }
 
-    // update local state
+    const { data: workOrder } = await supabase
+      .from('work_orders')
+      .select('lab, initial_fee')
+      .eq('id', woId)
+      .single()
+
+    if (workOrder && workOrder.lab) {
+      const initialFeeAmount = workOrder.initial_fee || 50.00
+      
+      const { data: newInvoice, error: invoiceError } = await supabase
+        .from('invoices')
+        .insert({
+          work_order_id: woId,
+          lab_id: workOrder.lab,
+          created_by: userId,
+          total_amount: initialFeeAmount,
+          payment_status: 'unbilled',
+          invoice_type: 'initial_fee'
+        })
+        .select()
+        .single()
+
+      if (invoiceError) {
+        setMessage('Work order accepted, but failed to create initial fee invoice.')
+      } else if (newInvoice) {
+        try {
+          const response = await fetch('/api/bill/create-invoice', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session.access_token}`
+            },
+            body: JSON.stringify({ invoiceId: newInvoice.id })
+          })
+
+          const result = await response.json()
+
+          if (response.ok) {
+            setSuccess('Work order accepted! Initial fee invoice sent and confirmation email delivered.')
+          } else {
+            setMessage(`Work order accepted, but failed to send initial fee invoice: ${result.error}`)
+          }
+        } catch (error) {
+          setMessage('Work order accepted, but failed to send initial fee invoice to Bill.com.')
+        }
+      }
+    } else {
+      setMessage('Work order accepted, but no lab assigned to create invoice.')
+    }
+
     setOrders((prev) =>
       prev.map((o) => (o.id === woId ? { ...o, status: "claimed", assigned_to: userId } : o))
     )
-    // if the selected item was the one accepted, update selection
+    
     if (selectedId === woId) {
-      // keep selectedId, but selectedOrder derived from orders will reflect change
-      // trigger a small state update if needed:
       setSelectedId(woId)
     }
 
@@ -361,82 +391,83 @@ export default function Home() {
     setLoading(false)
   }
 
-  const handlePaymentRequest = async (workOrderId: number) => {
-    if (!requestedAmount || parseFloat(requestedAmount) <= 0) {
-      alert("Please enter a valid amount")
-      return
+  const checkExistingPaymentRequest = async (woId: number) => {
+    // Check for SERVICE invoice only (not initial_fee invoice)
+    const { data } = await supabase
+      .from('invoices')
+      .select('id, payment_status, paid_at')
+      .eq('work_order_id', woId)
+      .eq('invoice_type', 'service')
+      .maybeSingle()
+    
+    if (data) {
+      setPaymentRequestStatus({
+        status: data.payment_status || null,
+        paidAt: data.paid_at
+      })
+      setHasExistingRequest(true)
+    } else {
+      setPaymentRequestStatus({ status: null, paidAt: null })
+      setHasExistingRequest(false)
     }
+  }
 
+  // Call checkExistingPaymentRequest whenever selectedId changes
+  useEffect(() => {
+    if (selectedId != null) {
+      checkExistingPaymentRequest(selectedId)
+    } else {
+      setPaymentRequestStatus({ status: null, paidAt: null })
+      setHasExistingRequest(false)
+    }
+  }, [selectedId])
+
+  // handle new payment request
+  const handlePaymentRequest = async (woId: number) => {
     setIsSubmittingPayment(true)
+
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.user?.id) {
-        alert("You must be signed in")
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        alert('Please login first')
         return
       }
 
-      const { data, error } = await supabase
-        .from("payment_requests")
+      const wo = orders.find(o => o.id === woId)
+      if (!wo) {
+        alert('Work order not found')
+        return
+      }
+
+      // Create SERVICE invoice (initial fee invoice was created when technician accepted the job)
+      const { error } = await supabase
+        .from('invoices')
         .insert({
-          work_order_id: workOrderId,
-          technician_id: session.user.id,
-          requested_amount: parseFloat(requestedAmount),
-          status: "pending"
+          work_order_id: woId,
+          lab_id: wo.lab,
+          created_by: user.id,
+          total_amount: parseFloat(requestedAmount),
+          payment_status: 'unbilled',
+          invoice_type: 'service'
         })
-        .select()
-        .single()
 
-      if (error) throw error
+      if (error) {
+        alert('Failed to submit payment request: ' + error.message)
+        return
+      }
 
-      setShowPaymentRequest(false)
-      setRequestedAmount("")
+      alert('💰 Payment request submitted successfully!')
       setHasExistingRequest(true)
-      setPaymentRequestStatus({ status: "pending", paidAt: null })
-      alert("Payment request submitted successfully!")
+      setShowPaymentRequest(false)
+      loadWorkOrders() // Refresh the list
+
     } catch (error) {
-      console.error("Error submitting payment request:", error)
-      alert("Failed to submit payment request")
+      alert('Failed to submit payment request')
     } finally {
       setIsSubmittingPayment(false)
     }
   }
 
-  // Check for existing payment request when selected order changes
-  useEffect(() => {
-    const checkPaymentRequest = async () => {
-      if (!selectedId || !currentUserId) {
-        setHasExistingRequest(false)
-        setPaymentRequestStatus({ status: null, paidAt: null })
-        return
-      }
-
-      try {
-        const { data, error } = await supabase
-          .from("payment_requests")
-          .select("*")
-          .eq("work_order_id", selectedId)
-          .eq("technician_id", currentUserId)
-          .maybeSingle()
-
-        if (error) throw error
-
-        if (data) {
-          setHasExistingRequest(true)
-          setPaymentRequestStatus({
-            status: data.status || "pending",
-            paidAt: data.paid_at
-          })
-        } else {
-          setHasExistingRequest(false)
-          setPaymentRequestStatus({ status: null, paidAt: null })
-        }
-      } catch (error) {
-        console.error("Error checking payment request:", error)
-      }
-    }
-
-    checkPaymentRequest()
-  }, [selectedId, currentUserId])
 
   // derived lists: first filter by active tab, then by search/filters
   const tabFiltered = orders.filter((o) => {

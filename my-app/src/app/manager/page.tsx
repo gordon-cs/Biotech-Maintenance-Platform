@@ -241,7 +241,7 @@ export default function ManagerDashboard() {
 
         {/* Work Orders Section */}
         <section className="bg-white rounded p-6 shadow">
-          <h2 className="text-xl font-semibold text-center mb-6">Work Orders</h2>
+          <h2 className="text-xl font-semibold text-center mb-6">Recent Work Orders</h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             {workOrders.length > 0 ? (
