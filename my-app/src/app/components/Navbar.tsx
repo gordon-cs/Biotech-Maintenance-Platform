@@ -94,9 +94,12 @@ export default function Navbar() {
     router.push("/")
   }
 
-  // Don't render navbar if user is not logged in or still loading
-  if (loading || !user) {
-    return null
+  const handleSignIn = () => {
+    router.push("/signin")
+  }
+
+  const handleSignUp = () => {
+    router.push("/signup")
   }
 
   return (
@@ -113,8 +116,9 @@ export default function Navbar() {
             </div>
           </div>
 
-          {/* User Dropdown */}
-          <div className="relative" ref={dropdownRef}>
+          {/* Right side - User Dropdown or Auth Buttons */}
+          {!loading && user ? (
+            <div className="relative" ref={dropdownRef}>
             <button
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
               className="flex items-center gap-2 px-4 py-2 rounded-md hover:bg-gray-100 transition-colors"
@@ -217,7 +221,23 @@ export default function Navbar() {
                 </button>
               </div>
             )}
-          </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleSignIn}
+                className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-md transition-colors"
+              >
+                Sign In
+              </button>
+              <button
+                onClick={handleSignUp}
+                className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md transition-colors"
+              >
+                Create Account
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </nav>
