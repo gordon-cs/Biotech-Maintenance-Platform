@@ -34,7 +34,7 @@ export default function Home() {
   const router = useRouter()
 
   // auth/role
-  const [role, setRole] = useState<"lab" | "technician" | null>(null)
+  const [role, setRole] = useState<"lab" | "technician" | "admin" | null>(null)
   const [roleLoaded, setRoleLoaded] = useState(false)
   const [isRedirecting, setIsRedirecting] = useState(false)
 
@@ -89,10 +89,18 @@ export default function Home() {
         
         if (!error && data) {
           const r = (data.role || "").toString().toLowerCase()
-          const userRole = r === "technician" ? "technician" : r === "lab" ? "lab" : null
+          const userRole =
+            r === "technician" ? "technician" :
+            r === "lab" ? "lab" :
+            r === "admin" ? "admin" : null
           setRole(userRole)
           
-          // Auto-redirect lab users to manager dashboard
+          // Auto-redirect admin and lab users
+          if (userRole === "admin") {
+            setIsRedirecting(true)
+            window.location.href = "/admin"
+            return
+          }
           if (userRole === "lab") {
             setIsRedirecting(true)
             window.location.href = "/manager"
