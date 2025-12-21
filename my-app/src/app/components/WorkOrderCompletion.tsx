@@ -8,13 +8,29 @@ interface WorkOrderCompletionProps {
   onComplete: () => void
 }
 
+const MIN_PAYMENT_AMOUNT = 0.01
+
 export default function WorkOrderCompletion({ workOrderId, onComplete }: WorkOrderCompletionProps) {
   const [isCompleting, setIsCompleting] = useState(false)
   const [requestPayment, setRequestPayment] = useState(false)
   const [requestedAmount, setRequestedAmount] = useState('150.00')
+  const [validationError, setValidationError] = useState('')
+
+  const isValidAmount = (amount: string): boolean => {
+    const parsed = parseFloat(amount)
+    return !isNaN(parsed) && parsed >= MIN_PAYMENT_AMOUNT
+  }
 
   const completeWorkOrder = async () => {
     setIsCompleting(true)
+    setValidationError('')
+    
+    // Validate payment amount if payment is requested
+    if (requestPayment && !isValidAmount(requestedAmount)) {
+      setValidationError(`Payment amount must be at least $${MIN_PAYMENT_AMOUNT.toFixed(2)}`)
+      setIsCompleting(false)
+      return
+    }
     
     try {
       // 1. Mark work order as completed
@@ -108,12 +124,16 @@ export default function WorkOrderCompletion({ workOrderId, onComplete }: WorkOrd
             <input
               type="number"
               step="0.01"
+              min={MIN_PAYMENT_AMOUNT}
               value={requestedAmount}
               onChange={(e) => setRequestedAmount(e.target.value)}
               className="pl-7 block w-full border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
               placeholder="0.00"
             />
           </div>
+          {validationError && (
+            <p className="mt-1 text-sm text-red-600">{validationError}</p>
+          )}
         </div>
       )}
 
