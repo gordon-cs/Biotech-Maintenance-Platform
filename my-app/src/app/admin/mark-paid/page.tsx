@@ -2,12 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabaseClient'
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
 
 interface Invoice {
   id: number
@@ -44,7 +38,7 @@ export default function MarkPaidPage() {
       }
 
       setInvoices(data || [])
-    } catch (err) {
+    } catch (_err) {
       alert('Failed to load invoices')
     } finally {
       setLoading(false)
@@ -73,7 +67,7 @@ export default function MarkPaidPage() {
 
       alert('✅ Invoice marked as PAID!\n\nNow go to /admin/payments to create vendor bill.')
       loadInvoices()
-    } catch (err) {
+    } catch (_err) {
       alert('Failed to update invoice')
     } finally {
       setUpdating(null)
@@ -93,9 +87,9 @@ export default function MarkPaidPage() {
         <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-4 mb-6">
           <p className="text-sm text-blue-900">
             <strong>ℹ️ Testing Flow:</strong><br/>
-            1. Mark a service invoice as "Paid" here<br/>
+            1. Mark a service invoice as &quot;Paid&quot; here<br/>
             2. Go to /admin/payments<br/>
-            3. Click "Create Vendor Bill" to pay the technician<br/>
+            3. Click &quot;Create Vendor Bill&quot; to pay the technician<br/>
             4. Check Bill.com for the created vendor bill
           </p>
         </div>
