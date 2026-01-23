@@ -446,6 +446,8 @@ class BillClient {
       console.log('Line Items (no initial fee):', invoiceLineItems)
     }
 
+    const url = `${this.apiUrl}/invoices`
+
     const payload = {
       // ✅ Bill.com v3 API: customer must be an object with id
       customer: {
@@ -456,14 +458,16 @@ class BillClient {
       
       invoiceNumber: data.invoiceNumber,
       dueDate: data.dueDate,                // "YYYY-MM-DD"
+      invoiceDate: data.invoiceDate,        // "YYYY-MM-DD"
       
-      // Optional: send email to customer automatically
+      // Send email to customer with invoice
+      sendEmail: true,
+      
+      // Optional: send email to customer automatically (alternative location)
       processingOptions: {
         sendEmail: true,
       },
     }
-
-    const url = `${this.apiUrl}/invoices`
 
     const response = await fetch(url, {
       method: 'POST',
