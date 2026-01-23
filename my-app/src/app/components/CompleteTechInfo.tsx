@@ -158,56 +158,69 @@ export default function CompleteTechInfo({ initialFull = "", initialPhone = "" }
   }
 
   return (
-    <div className="p-4 max-w-md mx-auto mt-10">
-      <h3 className="font-semibold mb-4 text-center">Complete Your Technician Profile</h3>
-      {message && <p className="text-red-600 text-center mb-4">{message}</p>}
-      <form onSubmit={handleSubmit}>
-        <input
-          value={company}
-          onChange={e => setCompany(e.target.value)}
-          placeholder="Company (optional)"
-          className="w-full mb-3 border px-2 py-1 rounded"
-        />
-        <textarea
-          value={experience}
-          onChange={e => setExperience(e.target.value)}
-          placeholder="Experience"
-          required
-          className="w-full mb-3 border px-2 py-1 rounded min-h-[100px]"
-        />
-        <textarea
-          value={bio}
-          onChange={e => setBio(e.target.value)}
-          placeholder="Bio"
-          required
-          className="w-full mb-3 border px-2 py-1 rounded min-h-[100px]"
-        />
-        
-        <div className="mb-4">
-          <label className="block mb-2 font-medium">Select your specialties:</label>
-          <div className="space-y-2 max-h-48 overflow-y-auto border rounded p-2">
-            {categories.map(category => (
-              <label key={category.id} className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  checked={selectedCategories.includes(category.id)}
-                  onChange={() => handleCategoryChange(category.id)}
-                  className="rounded border-gray-300"
-                />
-                <span>{category.name}</span>
-              </label>
-            ))}
+    <div className="min-h-screen bg-gray-50 p-8">
+      <div className="max-w-md mx-auto">
+        <h3 className="text-2xl font-bold mb-6 text-gray-900 text-center">Complete Your Technician Profile</h3>
+        {message && <p className="text-red-600 text-center mb-4">{message}</p>}
+        <form onSubmit={handleSubmit} className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="mb-6">
+            <label className="block mb-2 font-medium text-gray-700">Company (optional)</label>
+            <input
+              value={company}
+              onChange={e => setCompany(e.target.value)}
+              placeholder="Enter company name"
+              className="w-full border border-gray-300 rounded px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
           </div>
-        </div>
+          
+          <div className="mb-6">
+            <label className="block mb-2 font-medium text-gray-700">Experience</label>
+            <textarea
+              value={experience}
+              onChange={e => setExperience(e.target.value)}
+              placeholder="Describe your experience"
+              required
+              className="w-full border border-gray-300 rounded px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[100px]"
+            />
+          </div>
+          
+          <div className="mb-6">
+            <label className="block mb-2 font-medium text-gray-700">Bio</label>
+            <textarea
+              value={bio}
+              onChange={e => setBio(e.target.value)}
+              placeholder="Tell us about yourself"
+              required
+              className="w-full border border-gray-300 rounded px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[100px]"
+            />
+          </div>
+          
+          <div className="mb-6">
+            <label className="block mb-2 font-medium text-gray-700">Select your specialties (at least one required):</label>
+            <div className="border border-gray-300 rounded p-3 max-h-48 overflow-y-auto bg-white">
+              {categories.map(category => (
+                <label key={category.id} className="flex items-center mb-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectedCategories.includes(category.id)}
+                    onChange={() => handleCategoryChange(category.id)}
+                    className="mr-2"
+                  />
+                  <span className="text-gray-700">{category.name}</span>
+                </label>
+              ))}
+            </div>
+          </div>
 
-        <button
-          type="submit"
-          disabled={loading || selectedCategories.length === 0}
-          className="w-full py-2 bg-blue-600 text-white rounded disabled:opacity-60"
-        >
-          {loading ? "Saving..." : "Save Technician Info"}
-        </button>
-      </form>
+          <button
+            type="submit"
+            disabled={loading || selectedCategories.length === 0}
+            className="w-full py-2.5 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+          >
+            {loading ? "Saving..." : "Complete Profile"}
+          </button>
+        </form>
+      </div>
     </div>
   )
 }

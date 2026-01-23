@@ -115,22 +115,86 @@ export default function CompleteLabInfo({ initialFull = "", initialPhone = "" }:
   }
 
   return (
-    <div className="p-4 max-w-md mx-auto mt-10">
-      <h3 className="font-semibold mb-4 text-center">Enter Lab Information</h3>
-      {message && <p className="text-red-600 text-center mb-4">{message}</p>}
-      <form onSubmit={handleSubmit}>
-        <input value={labName} onChange={e => setLabName(e.target.value)} placeholder="Lab name" required className="w-full mb-3 border px-2 py-1 rounded" />
-        <input value={address1} onChange={e => setAddress1(e.target.value)} placeholder="Address 1" required className="w-full mb-3 border px-2 py-1 rounded" />
-        <input value={address2} onChange={e => setAddress2(e.target.value)} placeholder="Address 2" className="w-full mb-3 border px-2 py-1 rounded" />
-        <div className="grid grid-cols-2 gap-2">
-          <input value={city} onChange={e => setCity(e.target.value)} placeholder="City" required className="w-full mb-3 border px-2 py-1 rounded" />
-          <input value={stateVal} onChange={e => setStateVal(e.target.value)} placeholder="State" required className="w-full mb-3 border px-2 py-1 rounded" />
-        </div>
-        <input value={zipcode} onChange={e => setZipcode(e.target.value)} placeholder="Zipcode" required className="w-full mb-3 border px-2 py-1 rounded" />
-        <button type="submit" disabled={loading} className="w-full py-2 bg-blue-600 text-white rounded">
-          {loading ? "Saving..." : "Save Lab Info"}
-        </button>
-      </form>
+    <div className="min-h-screen bg-gray-50 p-8">
+      <div className="max-w-md mx-auto">
+        <h3 className="text-2xl font-bold mb-6 text-gray-900 text-center">Enter Lab Information</h3>
+        {message && <p className="text-red-600 text-center mb-4">{message}</p>}
+        <form onSubmit={handleSubmit} className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="mb-6">
+            <label className="block mb-2 font-medium text-gray-700">Lab Name</label>
+            <input 
+              value={labName} 
+              onChange={e => setLabName(e.target.value)} 
+              placeholder="Enter lab name" 
+              required 
+              className="w-full border border-gray-300 rounded px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" 
+            />
+          </div>
+          
+          <div className="mb-6">
+            <label className="block mb-2 font-medium text-gray-700">Address Line 1</label>
+            <input 
+              value={address1} 
+              onChange={e => setAddress1(e.target.value)} 
+              placeholder="Street address" 
+              required 
+              className="w-full border border-gray-300 rounded px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" 
+            />
+          </div>
+          
+          <div className="mb-6">
+            <label className="block mb-2 font-medium text-gray-700">Address Line 2 (optional)</label>
+            <input 
+              value={address2} 
+              onChange={e => setAddress2(e.target.value)} 
+              placeholder="Apartment, suite, etc." 
+              className="w-full border border-gray-300 rounded px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" 
+            />
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4 mb-6">
+            <div>
+              <label className="block mb-2 font-medium text-gray-700">City</label>
+              <input 
+                value={city} 
+                onChange={e => setCity(e.target.value)} 
+                placeholder="City" 
+                required 
+                className="w-full border border-gray-300 rounded px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" 
+              />
+            </div>
+            <div>
+              <label className="block mb-2 font-medium text-gray-700">State</label>
+              <input 
+                value={stateVal} 
+                onChange={e => setStateVal(e.target.value)} 
+                placeholder="State" 
+                required 
+                className="w-full border border-gray-300 rounded px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" 
+              />
+            </div>
+          </div>
+          
+          <div className="mb-6">
+            <label className="block mb-2 font-medium text-gray-700">Zipcode</label>
+            <input 
+              value={zipcode} 
+              onChange={e => setZipcode(e.target.value)} 
+              placeholder="Zipcode" 
+              required 
+              className="w-full border border-gray-300 rounded px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" 
+            />
+          </div>
+          
+          <button 
+            type="submit" 
+            disabled={loading} 
+            className="w-full py-2.5 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+          >
+            {loading ? "Saving..." : "Complete Profile"}
+          </button>
+        </form>
+      </div>
     </div>
   )
 }

@@ -140,76 +140,90 @@ export default function CompleteProfile() {
     }
   }
 
-  if (loading) return <div className="p-4">Loading...</div>
+  if (loading) return (
+    <div className="min-h-screen bg-gray-50 p-8">
+      <div className="max-w-md mx-auto text-center">
+        <p className="text-gray-700">Loading...</p>
+      </div>
+    </div>
+  )
 
   return (
-    <div className="p-4 border rounded bg-white w-full max-w-md mx-auto mt-10">
-      <h3 className="font-semibold mb-4 text-center">Complete Your Profile</h3>
-      {message && <p className="text-sm text-center mb-4">{message}</p>}
-
-      <form onSubmit={handleSave}>
-        <div className="mb-4">
-          <label className="block mb-2 font-medium">Select your role:</label>
-          <div className="flex gap-4">
-            <label>
-              <input
-                type="radio"
-                name="role"
-                value="lab"
-                checked={role === "lab"}
-                onChange={() => setRole("lab")}
-                required
-              />{" "}
-              Lab Manager
-            </label>
-            <label>
-              <input
-                type="radio"
-                name="role"
-                value="technician"
-                checked={role === "technician"}
-                onChange={() => setRole("technician")}
-                required
-              />{" "}
-              Technician
-            </label>
-          </div>
-        </div>
-
-        {role && (
-          <>
-            <div className="mb-4">
-              <label className="block mb-1">Full Name</label>
-              <input
-                type="text"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                className="w-full border px-2 py-1 rounded"
-                required
-              />
-            </div>
-
-            <div className="mb-4">
-              <label className="block mb-1">Phone Number</label>
-              <input
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="w-full border px-2 py-1 rounded"
-                required
-              />
-            </div>
-          </>
+    <div className="min-h-screen bg-gray-50 p-8">
+      <div className="max-w-md mx-auto">
+        <h3 className="text-2xl font-bold mb-6 text-gray-900 text-center">Complete Your Profile</h3>
+        {message && (
+          <p className={`text-center mb-4 ${message.includes("sign in") ? "text-red-600" : "text-gray-700"}`}>
+            {message}
+          </p>
         )}
 
-        <button
-          type="submit"
-          className="w-full py-2 bg-blue-600 text-white rounded font-semibold mt-4 disabled:opacity-60"
-          disabled={!role || saving}
-        >
-          {role === "lab" ? "Next" : saving ? "Saving..." : "Submit Profile"}
-        </button>
-      </form>
+        <form onSubmit={handleSave} className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="mb-6">
+            <label className="block mb-2 font-medium text-gray-700">Select your role:</label>
+            <div className="flex gap-6">
+              <label className="flex items-center cursor-pointer">
+                <input
+                  type="radio"
+                  name="role"
+                  value="lab"
+                  checked={role === "lab"}
+                  onChange={() => setRole("lab")}
+                  className="mr-2"
+                  required
+                />
+                <span className="text-gray-700">Lab Manager</span>
+              </label>
+              <label className="flex items-center cursor-pointer">
+                <input
+                  type="radio"
+                  name="role"
+                  value="technician"
+                  checked={role === "technician"}
+                  onChange={() => setRole("technician")}
+                  className="mr-2"
+                  required
+                />
+                <span className="text-gray-700">Technician</span>
+              </label>
+            </div>
+          </div>
+
+          {role && (
+            <>
+              <div className="mb-6">
+                <label className="block mb-2 font-medium text-gray-700">Full Name</label>
+                <input
+                  type="text"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  className="w-full border border-gray-300 rounded px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+
+              <div className="mb-6">
+                <label className="block mb-2 font-medium text-gray-700">Phone Number</label>
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="w-full border border-gray-300 rounded px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+            </>
+          )}
+
+          <button
+            type="submit"
+            className="w-full py-2.5 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors mt-2"
+            disabled={!role || saving}
+          >
+            {saving ? "Saving..." : "Next"}
+          </button>
+        </form>
+      </div>
     </div>
   )
 }
