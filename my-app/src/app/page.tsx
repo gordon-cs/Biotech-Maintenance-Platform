@@ -666,13 +666,24 @@ export default function Home() {
                       <p className="text-gray-700 leading-relaxed">{selectedOrder.description}</p>
                     </div>
 
-                      {/* Work Order Updates Section - Only show for claimed/in-progress work orders */}
+      {/* Work Order Updates Section - Only show for claimed/in-progress work orders */}
                       {selectedOrder.id && selectedOrder.status?.toLowerCase() !== "open" && (
                         <div className="mt-6 pt-6 border-t border-gray-200">
                           <AddWorkOrderUpdate 
                             workOrderId={selectedOrder.id} 
                             currentStatus={selectedOrder.status || "open"}
                             userRole={role}
+                            onStatusChange={(newStatus) => {
+                              // Update local state when status changes to "completed"
+                              if (newStatus === "completed") {
+                                // Update the orders list
+                                setOrders((prev) =>
+                                  prev.map((o) => (o.id === selectedOrder.id ? { ...o, status: "completed" } : o))
+                                )
+                                // Update selected order display
+                                // This will trigger the useEffect that checks for existing payment requests
+                              }
+                            }}
                           />
                         </div>
                       )}
