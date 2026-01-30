@@ -183,5 +183,5 @@ export default function useTechnician() {
     [loadWorkOrders]
   )
 
-  return { workOrders, loading, error, currentUserId, labs, categories, loadWorkOrders, acceptJob, cancelJob }
+  return { workOrders, setWorkOrders, loading, error, currentUserId, labs, categories, loadWorkOrders, acceptJob, cancelJob }
 }

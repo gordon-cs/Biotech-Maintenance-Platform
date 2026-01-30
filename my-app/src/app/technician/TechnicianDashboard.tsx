@@ -12,7 +12,7 @@ type Props = {
 }
 
 export default function TechnicianDashboard({ onSelectWorkOrder }: Props) {
-  const { workOrders, loading, error, currentUserId, categories, loadWorkOrders, acceptJob, cancelJob } =
+  const { workOrders, setWorkOrders, loading, error, currentUserId, categories, loadWorkOrders, acceptJob, cancelJob } =
     useTechnician()
 
   const [selectedId, setSelectedId] = useState<number | null>(null)
@@ -20,10 +20,19 @@ export default function TechnicianDashboard({ onSelectWorkOrder }: Props) {
   const [search, setSearch] = useState("")
   const [selectedCategory, setSelectedCategory] = useState<number | "">("")
 
+  const handleStatusChange = (newStatus: string) => {
+    if (selectedId) {
+      setWorkOrders((prev) =>
+        prev.map((wo) =>
+          wo.id === selectedId ? { ...wo, status: newStatus } : wo
+        )
+      )
+    }
+  }
+
   useEffect(() => {
     void loadWorkOrders()
   }, [loadWorkOrders])
-
   // notify parent when selection changes
   useEffect(() => {
     if (onSelectWorkOrder) onSelectWorkOrder(selectedId)
@@ -81,12 +90,14 @@ export default function TechnicianDashboard({ onSelectWorkOrder }: Props) {
               onAccept={(id) => void acceptJob(id)}
               onCancel={(id) => void cancelJob(id)}
               activeTab={activeTab}
+              onStatusChange={handleStatusChange}
             />
 
             {/* Payment panel (shows request UI for selected work order) */}
             <div className="mt-6">
               <PaymentRequestPanel
                 selectedId={selectedId}
+                currentOrderStatus={workOrders.find((w) => w.id === selectedId)?.status ?? null}
                 onSubmitted={() => {
                   // refresh list after creating a payment request
                   void loadWorkOrders()

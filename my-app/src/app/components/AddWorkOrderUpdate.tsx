@@ -8,9 +8,10 @@ type Props = {
   workOrderId: number
   currentStatus?: string
   userRole?: string | null
+  onStatusChange?: (newStatus: string) => void
 }
 
-export default function AddWorkOrderUpdate({ workOrderId, currentStatus = "open", userRole = null }: Props) {
+export default function AddWorkOrderUpdate({ workOrderId, currentStatus = "open", userRole = null, onStatusChange }: Props) {
   const [updateType, setUpdateType] = useState<"comment" | "status_change">("comment")
   const [body, setBody] = useState("")
   const [newStatus, setNewStatus] = useState("completed")
@@ -110,6 +111,11 @@ export default function AddWorkOrderUpdate({ workOrderId, currentStatus = "open"
       
       // Trigger refresh of updates list
       setRefreshKey(prev => prev + 1)
+      
+      // Notify parent of status change if applicable
+      if (updateType === "status_change" && onStatusChange) {
+        onStatusChange(newStatus)
+      }
       
       // Clear success message after 3 seconds
       setTimeout(() => setSuccess(null), 3000)
