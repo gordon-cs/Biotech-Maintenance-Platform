@@ -34,6 +34,7 @@ export default function TechnicianList({ items, selectedId, onSelect, loading }:
 
           <div className="font-medium text-lg mb-1">{wo.title ?? `#${wo.id}`}</div>
           {wo.address && <div className="text-sm text-gray-500 mb-1">{wo.address}</div>}
+          <div className="text-xs text-gray-500 mb-1">{wo.labName || "Unknown Lab"}</div>
           <div className="text-xs text-gray-400">{wo.categoryName ?? ""}</div>
         </button>
       ))}

@@ -2,22 +2,14 @@
 
 import React from "react"
 import AddWorkOrderUpdate from "../components/AddWorkOrderUpdate"
-import type { WorkOrder } from "./types"
-
-type Props = {
-  order: WorkOrder | null
-  currentUserId?: string | null
-  onAccept: (id: number) => void
-  onCancel: (id: number) => void
-  activeTab: "open" | "mine"
-}
+import type { WorkOrder, TechnicianDetailProps } from "./types"
 
 function formatSubmitted(date?: string | null) {
   if (!date) return ""
   try { return new Date(date).toLocaleString() } catch { return date }
 }
 
-export default function TechnicianDetail({ order, currentUserId, onAccept, onCancel, activeTab }: Props) {
+export default function TechnicianDetail({ order, currentUserId, onAccept, onCancel, activeTab }: TechnicianDetailProps) {
   if (!order) return <div className="text-center text-gray-500 py-8">Select an order</div>
 
   return (
@@ -28,6 +20,8 @@ export default function TechnicianDetail({ order, currentUserId, onAccept, onCan
       </div>
 
       <div className="text-sm text-gray-600 mb-4">Submitted on {formatSubmitted(order.created_at)}</div>
+
+      <div className="text-sm font-medium mb-2">Lab: {order.labName || "Unknown Lab"}</div>
 
       {order.address && <div className="text-lg text-gray-800 mb-4">{order.address}</div>}
 

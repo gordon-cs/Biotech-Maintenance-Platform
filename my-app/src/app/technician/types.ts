@@ -55,3 +55,11 @@ export type WorkOrder = {
   categoryName?: string | null
   updates?: WorkOrderUpdate[]
 }
+
+export type TechnicianDetailProps = {
+  order: WorkOrder | null
+  currentUserId?: string | null
+  onAccept: (id: number) => void
+  onCancel: (id: number) => void
+  activeTab: "open" | "mine"
+}
