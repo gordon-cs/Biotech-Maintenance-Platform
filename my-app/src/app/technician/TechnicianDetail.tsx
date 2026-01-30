@@ -9,7 +9,7 @@ function formatSubmitted(date?: string | null) {
   try { return new Date(date).toLocaleString() } catch { return date }
 }
 
-export default function TechnicianDetail({ order, currentUserId, onAccept, onCancel, activeTab }: TechnicianDetailProps) {
+export default function TechnicianDetail({ order, currentUserId, onAccept, onCancel, activeTab, onStatusChange }: TechnicianDetailProps) {
   if (!order) return <div className="text-center text-gray-500 py-8">Select an order</div>
 
   return (
@@ -56,7 +56,12 @@ export default function TechnicianDetail({ order, currentUserId, onAccept, onCan
 
       {/* always show updates component (comments/status changes) so AddWorkOrderUpdate is connected */}
       <div className="mt-8">
-        <AddWorkOrderUpdate workOrderId={order.id} currentStatus={order.status ?? "open"} userRole="technician" />
+        <AddWorkOrderUpdate 
+          workOrderId={order.id} 
+          currentStatus={order.status ?? "open"} 
+          userRole="technician"
+          onStatusChange={onStatusChange}
+        />
       </div>
     </div>
   )

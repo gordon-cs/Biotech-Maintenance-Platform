@@ -62,4 +62,5 @@ export type TechnicianDetailProps = {
   onAccept: (id: number) => void
   onCancel: (id: number) => void
   activeTab: "open" | "mine"
+  onStatusChange?: (newStatus: string) => void
 }

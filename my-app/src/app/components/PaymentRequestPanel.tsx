@@ -5,12 +5,13 @@ import { supabase } from "@/lib/supabaseClient"
 
 type Props = {
   selectedId: number | null
+  currentOrderStatus?: string | null
   onSubmitted?: (woId: number) => void
 }
 
-export default function PaymentRequestPanel({ selectedId, onSubmitted }: Props) {
+export default function PaymentRequestPanel({ selectedId, currentOrderStatus, onSubmitted }: Props) {
   const [loading, setLoading] = useState(false)
-  const [orderStatus, setOrderStatus] = useState<string | null>(null)
+  const [orderStatus, setOrderStatus] = useState<string | null>(currentOrderStatus ? currentOrderStatus.toLowerCase() : null)
   const [invoice, setInvoice] = useState<{ id: number; payment_status: string | null; paid_at: string | null } | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [amount, setAmount] = useState("")
@@ -20,7 +21,10 @@ export default function PaymentRequestPanel({ selectedId, onSubmitted }: Props) 
     setShowForm(false)
     setAmount("")
     setInvoice(null)
-    setOrderStatus(null)
+
+    if (currentOrderStatus) {
+      setOrderStatus(currentOrderStatus.toLowerCase())
+    }
 
     if (!selectedId) return
 
@@ -28,7 +32,6 @@ export default function PaymentRequestPanel({ selectedId, onSubmitted }: Props) 
     const load = async () => {
       setLoading(true)
       try {
-        // load work order status
         const { data: wo } = await supabase
           .from("work_orders")
           .select("status")
@@ -37,7 +40,6 @@ export default function PaymentRequestPanel({ selectedId, onSubmitted }: Props) 
         if (!mounted) return
         setOrderStatus((wo?.status || null)?.toString().toLowerCase() ?? null)
 
-        // load related service invoice (if any)
         const { data: inv } = await supabase
           .from("invoices")
           .select("id, payment_status, paid_at")
@@ -47,7 +49,6 @@ export default function PaymentRequestPanel({ selectedId, onSubmitted }: Props) 
         if (!mounted) return
         setInvoice(inv ?? null)
       } catch (e) {
-        // eslint-disable-next-line no-console
         console.error("PaymentRequestPanel load error", e)
       } finally {
         if (mounted) setLoading(false)
@@ -57,7 +58,7 @@ export default function PaymentRequestPanel({ selectedId, onSubmitted }: Props) 
     return () => {
       mounted = false
     }
-  }, [selectedId])
+  }, [selectedId, currentOrderStatus])
 
   // Only render if a work order is selected
   if (!selectedId) return null
