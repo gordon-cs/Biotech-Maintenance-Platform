@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { sendTechnicianVerificationEmail } from "@/lib/email"
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -164,6 +165,24 @@ export async function POST(req: NextRequest) {
           { onConflict: 'id' }
         )
       if (tErr) return NextResponse.json({ error: tErr.message }, { status: 500 })
+
+      // Send verification email to admin if this is a new technician (not an update)
+      if (!existingTech) {
+        try {
+          await sendTechnicianVerificationEmail({
+            technicianName: body.full_name || 'Unknown',
+            technicianEmail: user.email || 'No email provided',
+            technicianId: userId,
+            experience: body.tech?.experience || 'Not provided',
+            bio: body.tech?.bio || 'Not provided',
+            company: body.tech?.company || undefined,
+          })
+          console.log('Verification email sent to admin for technician:', userId)
+        } catch (emailError) {
+          console.error('Failed to send verification email:', emailError)
+          // Don't fail the request if email fails
+        }
+      }
     }
 
     return NextResponse.json({ ok: true })

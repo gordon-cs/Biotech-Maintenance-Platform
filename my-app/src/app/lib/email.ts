@@ -122,3 +122,131 @@ Please do not reply to this email.
     return { success: false, error }
   }
 }
+
+type TechnicianVerificationEmailData = {
+  technicianName: string
+  technicianEmail: string
+  technicianId: string
+  experience: string
+  bio: string
+  company?: string
+}
+
+export async function sendTechnicianVerificationEmail(
+  data: TechnicianVerificationEmailData
+) {
+  const adminEmail = 'calebchan6@gmail.com'
+  const subject = `New Technician Registration - ${data.technicianName}`
+
+  const emailHtml = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background-color: #2563eb; color: white; padding: 20px; border-radius: 5px 5px 0 0; }
+          .content { background-color: #f9fafb; padding: 20px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 5px 5px; }
+          .info-section { background-color: white; padding: 15px; margin: 15px 0; border-radius: 4px; border-left: 4px solid #2563eb; }
+          .info-label { font-weight: 600; color: #374151; margin-bottom: 5px; }
+          .info-value { color: #1f2937; white-space: pre-wrap; }
+          .footer { margin-top: 20px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 12px; color: #6b7280; }
+          .button { display: inline-block; padding: 12px 24px; background-color: #16a34a; color: white; text-decoration: none; border-radius: 5px; margin-top: 15px; }
+          .alert { background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 12px; margin: 15px 0; border-radius: 4px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h2 style="margin: 0;">New Technician Registration</h2>
+          </div>
+          <div class="content">
+            <div class="alert">
+              <strong>⚠️ Action Required:</strong> A new technician has registered and needs verification before they can accept work orders.
+            </div>
+            
+            <div class="info-section">
+              <div class="info-label">Technician Name:</div>
+              <div class="info-value">${data.technicianName}</div>
+            </div>
+            
+            <div class="info-section">
+              <div class="info-label">Email:</div>
+              <div class="info-value">${data.technicianEmail}</div>
+            </div>
+            
+            ${data.company ? `
+              <div class="info-section">
+                <div class="info-label">Company:</div>
+                <div class="info-value">${data.company}</div>
+              </div>
+            ` : ''}
+            
+            <div class="info-section">
+              <div class="info-label">Experience:</div>
+              <div class="info-value">${data.experience}</div>
+            </div>
+            
+            <div class="info-section">
+              <div class="info-label">Bio:</div>
+              <div class="info-value">${data.bio}</div>
+            </div>
+            
+            <p style="margin-top: 20px;">
+              Please review this technician's information and verify them in the admin panel to allow them to start accepting work orders.
+            </p>
+            
+            <a href="${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/admin/users" class="button">
+              Go to Admin Panel
+            </a>
+            
+            <div class="footer">
+              <p>This is an automated notification from the Biotech Maintenance Platform.</p>
+              <p><strong>Technician ID:</strong> ${data.technicianId}</p>
+            </div>
+          </div>
+        </div>
+      </body>
+    </html>
+  `
+
+  const emailText = `
+New Technician Registration
+
+⚠️ ACTION REQUIRED: A new technician has registered and needs verification.
+
+Technician Name: ${data.technicianName}
+Email: ${data.technicianEmail}
+${data.company ? `Company: ${data.company}\n` : ''}
+Experience:
+${data.experience}
+
+Bio:
+${data.bio}
+
+Please review this technician's information and verify them in the admin panel to allow them to start accepting work orders.
+
+Go to Admin Panel: ${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/admin/users
+
+Technician ID: ${data.technicianId}
+
+---
+This is an automated notification from the Biotech Maintenance Platform.
+  `.trim()
+
+  try {
+    const result = await resend.emails.send({
+      from: process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev',
+      to: adminEmail,
+      subject,
+      html: emailHtml,
+      text: emailText,
+    })
+
+    return { success: true, data: result }
+  } catch (error) {
+    console.error('Failed to send technician verification email:', error)
+    return { success: false, error }
+  }
+}

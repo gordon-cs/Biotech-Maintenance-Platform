@@ -19,6 +19,7 @@ export default function useTechnician() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [isVerified, setIsVerified] = useState<boolean | null>(null)
 
   const [labs, setLabs] = useState<Array<{ id: number; name: string }>>([])
   const [categories, setCategories] = useState<Array<{ id: number; name: string }>>([])
@@ -33,10 +34,24 @@ export default function useTechnician() {
       setError(null)
       try {
         // ensure we know the current user before filtering "mine"
+        let userId: string | null = null
         try {
           const sessionRes = await supabase.auth.getSession()
-          const userId = sessionRes.data?.session?.user?.id ?? null
+          userId = sessionRes.data?.session?.user?.id ?? null
           setCurrentUserId(userId)
+          
+          // Check if technician is verified
+          if (userId) {
+            const { data: techData, error: techError } = await supabase
+              .from('technicians')
+              .select('verified')
+              .eq('id', userId)
+              .single()
+            
+            if (!techError && techData) {
+              setIsVerified(techData.verified)
+            }
+          }
         } catch (err) {
           console.warn("Failed to load auth session:", err)
         }
@@ -146,6 +161,19 @@ export default function useTechnician() {
 
         setCurrentUserId(userId)
 
+        // Check if technician is verified before accepting jobs
+        const { data: techData, error: techError } = await supabase
+          .from('technicians')
+          .select('verified')
+          .eq('id', userId)
+          .single()
+        
+        if (techError) throw new Error("Failed to verify technician status")
+        
+        if (!techData.verified) {
+          throw new Error("Your account must be verified by an admin before you can accept work orders. Please wait for admin approval.")
+        }
+
         const { error } = await supabase
           .from("work_orders")
           .update({ status: "claimed", assigned_to: userId } as Partial<DBWorkOrderRow>)
@@ -183,5 +211,5 @@ export default function useTechnician() {
     [loadWorkOrders]
   )
 
-  return { workOrders, setWorkOrders, loading, error, currentUserId, labs, categories, loadWorkOrders, acceptJob, cancelJob }
+  return { workOrders, setWorkOrders, loading, error, currentUserId, labs, categories, isVerified, loadWorkOrders, acceptJob, cancelJob }
 }
