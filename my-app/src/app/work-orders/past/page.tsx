@@ -16,9 +16,10 @@ type DisplayRow = {
   urgency?: string
   status?: string
   labName?: string
+  date?: string | null
 }
 
-const formatDateTime = (dateString?: string) => {
+const formatDateTime = (dateString?: string | null) => {
   if (!dateString) return "N/A"
   const date = new Date(dateString)
   if (isNaN(date.getTime())) return "Invalid date"
@@ -261,7 +262,7 @@ function PastOrdersContent() {
 
         const ordersRes = await supabase
           .from("work_orders")
-          .select("id, title, description, category_id, lab, created_at, urgency, status")
+          .select("id, title, description, category_id, lab, created_at, urgency, status, date")
           .in("lab", labIds)
           .order("created_at", { ascending: false })
 
@@ -288,16 +289,17 @@ function PastOrdersContent() {
         }
 
         const display: DisplayRow[] = woRows.map(r => ({
-          id: String(r.id),
-          title: r.title || "Untitled",
-          address: labMap[r.lab] || "N/A",
-          category: categoryMap[r.category_id] || "N/A",
-          description: r.description || "No description available",
-          created_at: r.created_at || "",
-          urgency: r.urgency || undefined,
-          status: r.status || "Open",
-          labName: labNameMap[r.lab] || "Unknown Lab"
-        }))
+           id: String(r.id),
+           title: r.title || "Untitled",
+           address: labMap[r.lab] || "N/A",
+           category: categoryMap[r.category_id] || "N/A",
+           description: r.description || "No description available",
+           created_at: r.created_at || "",
+           urgency: r.urgency || undefined,
+           status: r.status || "Open",
+           labName: labNameMap[r.lab] || "Unknown Lab"
+          , date: r.date ?? null
+         }))
 
         if (mounted) {
           setOrders(display)
@@ -501,6 +503,7 @@ function PastOrdersContent() {
                   <div className="text-sm text-gray-500 mb-1">
                     Submitted on {formatDateTime(selectedOrder.created_at)}
                   </div>
+                  <div className="text-sm text-gray-500 mb-2">Due Date: {formatDateTime(selectedOrder.date)}</div>
                   <div className="text-sm text-gray-500 mb-2">{selectedOrder.address}</div>
                   <div className="text-sm font-medium mb-2">Category: {selectedOrder.category}</div>
                   {selectedOrder.urgency && (
