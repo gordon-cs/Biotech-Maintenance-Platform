@@ -1,286 +1,455 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { NextRequest } from 'next/server'
 
-describe('Work Order Updates', () => {
-  describe('Update Type Validation', () => {
-    it('should validate comment update structure', () => {
-      const update = {
-        work_order_id: 123,
-        update_type: 'comment',
-        body: 'Started working on the repair',
-        author_id: 'user-123',
-      }
-      
-      expect(update.update_type).toBe('comment')
-      expect(update.body).toBeTruthy()
-      expect(update.work_order_id).toBeGreaterThan(0)
-    })
+// Mock Supabase client
+const mockSupabaseClient = {
+  from: vi.fn(),
+  auth: {
+    getUser: vi.fn(),
+  },
+}
 
-    it('should validate status change update structure', () => {
-      const update = {
-        work_order_id: 456,
-        update_type: 'status_change',
-        new_status: 'completed',
-        body: 'Repair completed successfully',
-        author_id: 'tech-user-id',
-      }
-      
-      expect(update.update_type).toBe('status_change')
-      expect(update.new_status).toBe('completed')
-      expect(update.body).toBeTruthy()
-    })
+vi.mock('@supabase/supabase-js', () => ({
+  createClient: vi.fn(() => mockSupabaseClient),
+}))
 
-    it('should require body field for all updates', () => {
-      const commentUpdate = {
-        work_order_id: 789,
-        update_type: 'comment',
-        body: 'Ordering replacement parts',
-      }
-      
-      const statusUpdate = {
-        work_order_id: 789,
-        update_type: 'status_change',
-        new_status: 'completed',
-        body: 'Work finished',
-      }
-      
-      expect(commentUpdate.body.trim()).not.toBe('')
-      expect(statusUpdate.body.trim()).not.toBe('')
-    })
+// Mock email service
+vi.mock('@/lib/email', () => ({
+  sendWorkOrderUpdateEmail: vi.fn().mockResolvedValue({ success: true }),
+}))
+
+// Import after mocks are set up
+const { GET, POST } = await import('@/api/work-order-updates/route')
+
+describe('Work Order Updates API', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
   })
 
-  describe('Status Change Validation', () => {
-    it('should only allow technicians to change status', () => {
-      const userRole = 'technician'
-      const allowedRoles = ['technician']
+  describe('GET /api/work-order-updates', () => {
+    it('should return 400 if work_order_id is missing', async () => {
+      const request = new NextRequest('http://localhost/api/work-order-updates')
       
-      expect(allowedRoles).toContain(userRole)
+      const response = await GET(request)
+      const data = await response.json()
+      
+      expect(response.status).toBe(400)
+      expect(data.error).toBe('work_order_id parameter is required')
     })
 
-    it('should not allow non-technicians to change status', () => {
-      const userRoles = ['lab_manager', 'admin']
-      const allowedRoles = ['technician']
-      
-      userRoles.forEach(role => {
-        if (role !== 'technician') {
-          expect(allowedRoles).not.toContain(role)
-        }
-      })
-    })
-
-    it('should only allow changing status to completed', () => {
-      const newStatus = 'completed'
-      const allowedStatuses = ['completed']
-      
-      expect(allowedStatuses).toContain(newStatus)
-    })
-
-    it('should reject invalid status changes', () => {
-      const invalidStatuses = ['pending', 'in_progress', 'cancelled']
-      const allowedStatuses = ['completed']
-      
-      invalidStatuses.forEach(status => {
-        expect(allowedStatuses).not.toContain(status)
-      })
-    })
-
-    it('should prevent status change on already completed work orders', () => {
-      const currentStatus: string = 'completed'
-      const canChange = currentStatus !== 'completed'
-      
-      expect(canChange).toBe(false)
-    })
-
-    it('should allow status change on claimed work orders', () => {
-      const currentStatus: string = 'claimed'
-      const canChange = currentStatus !== 'completed'
-      
-      expect(canChange).toBe(true)
-    })
-  })
-
-  describe('Assignment Validation', () => {
-    it('should require technician to be assigned to change status', () => {
-      const workOrder = {
-        id: 123,
-        assigned_to: 'tech-user-id',
-        status: 'claimed',
-      }
-      
-      const userId = 'tech-user-id'
-      const isAssigned = workOrder.assigned_to === userId
-      
-      expect(isAssigned).toBe(true)
-    })
-
-    it('should reject status change from unassigned technician', () => {
-      const workOrder = {
-        id: 123,
-        assigned_to: 'tech-user-id-1',
-        status: 'claimed',
-      }
-      
-      const userId = 'tech-user-id-2'
-      const isAssigned = workOrder.assigned_to === userId
-      
-      expect(isAssigned).toBe(false)
-    })
-
-    it('should allow comments from any user on the work order', () => {
-      // Comments don't require assignment
-      const update = {
-        update_type: 'comment',
-        body: 'Question about the equipment location',
-      }
-      
-      expect(update.update_type).toBe('comment')
-    })
-  })
-
-  describe('Update Body Validation', () => {
-    it('should reject empty update body', () => {
-      const emptyBodies = ['', '   ', '\t\n']
-      
-      emptyBodies.forEach(body => {
-        expect(body.trim()).toBe('')
-      })
-    })
-
-    it('should accept valid update body text', () => {
-      const validBodies = [
-        'Repair completed',
-        'Parts ordered, ETA 2 days',
-        'Equipment is functioning normally',
+    it('should fetch updates for a work order', async () => {
+      const mockUpdates = [
+        {
+          id: 1,
+          work_order_id: 123,
+          update_type: 'comment',
+          body: 'Test update',
+          created_at: '2026-02-05T10:00:00Z',
+        },
       ]
-      
-      validBodies.forEach(body => {
-        expect(body.trim()).not.toBe('')
-        expect(body.length).toBeGreaterThan(0)
+
+      mockSupabaseClient.from.mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            order: vi.fn().mockResolvedValue({
+              data: mockUpdates,
+              error: null,
+            }),
+          }),
+        }),
       })
+
+      const request = new NextRequest('http://localhost/api/work-order-updates?work_order_id=123')
+      
+      const response = await GET(request)
+      const responseData = await response.json()
+      
+      expect(response.status).toBe(200)
+      expect(responseData.data).toEqual(mockUpdates)
+      expect(mockSupabaseClient.from).toHaveBeenCalledWith('work_order_updates')
     })
 
-    it('should trim whitespace from update body', () => {
-      const body = '  Fixed the cooling system  '
-      const trimmed = body.trim()
+    it('should return 500 on database error', async () => {
+      mockSupabaseClient.from.mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            order: vi.fn().mockResolvedValue({
+              data: null,
+              error: { message: 'Database error' },
+            }),
+          }),
+        }),
+      })
+
+      const request = new NextRequest('http://localhost/api/work-order-updates?work_order_id=123')
       
-      expect(trimmed).toBe('Fixed the cooling system')
-      expect(trimmed).not.toContain('  ')
+      const response = await GET(request)
+      const data = await response.json()
+      
+      expect(response.status).toBe(500)
+      expect(data.error).toBe('Database error')
     })
   })
 
-  describe('Update Response Structure', () => {
-    it('should include author information in update response', () => {
-      const updateResponse = {
+  describe('POST /api/work-order-updates - Authentication', () => {
+    it('should return 401 if authorization header is missing', async () => {
+      const request = new NextRequest('http://localhost/api/work-order-updates', {
+        method: 'POST',
+        body: JSON.stringify({
+          work_order_id: 123,
+          update_type: 'comment',
+          body: 'Test',
+        }),
+      })
+      
+      const response = await POST(request)
+      const data = await response.json()
+      
+      expect(response.status).toBe(401)
+      expect(data.error).toBe('Missing token')
+    })
+
+    it('should return 401 if token is invalid', async () => {
+      mockSupabaseClient.auth.getUser.mockResolvedValue({
+        data: { user: null },
+        error: { message: 'Invalid token' },
+      })
+
+      const request = new NextRequest('http://localhost/api/work-order-updates', {
+        method: 'POST',
+        headers: { 'authorization': 'Bearer invalid-token' },
+        body: JSON.stringify({
+          work_order_id: 123,
+          update_type: 'comment',
+          body: 'Test',
+        }),
+      })
+      
+      const response = await POST(request)
+      
+      expect(response.status).toBe(401)
+    })
+  })
+
+  describe('POST /api/work-order-updates - Validation', () => {
+    beforeEach(() => {
+      // Setup valid user authentication
+      mockSupabaseClient.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-123' } },
+        error: null,
+      })
+    })
+
+    it('should return 400 if work_order_id is missing', async () => {
+      const request = new NextRequest('http://localhost/api/work-order-updates', {
+        method: 'POST',
+        headers: { 'authorization': 'Bearer test-token' },
+        body: JSON.stringify({
+          update_type: 'comment',
+          body: 'Test comment',
+        }),
+      })
+      
+      const response = await POST(request)
+      const data = await response.json()
+      
+      expect(response.status).toBe(400)
+      expect(data.error).toContain('work_order_id')
+    })
+
+    it('should return 400 if update_type is missing', async () => {
+      const request = new NextRequest('http://localhost/api/work-order-updates', {
+        method: 'POST',
+        headers: { 'authorization': 'Bearer test-token' },
+        body: JSON.stringify({
+          work_order_id: 123,
+          body: 'Test comment',
+        }),
+      })
+      
+      const response = await POST(request)
+      const data = await response.json()
+      
+      expect(response.status).toBe(400)
+      expect(data.error).toContain('update_type')
+    })
+
+    it('should return 400 if body is missing', async () => {
+      const request = new NextRequest('http://localhost/api/work-order-updates', {
+        method: 'POST',
+        headers: { 'authorization': 'Bearer test-token' },
+        body: JSON.stringify({
+          work_order_id: 123,
+          update_type: 'comment',
+        }),
+      })
+      
+      const response = await POST(request)
+      const data = await response.json()
+      
+      expect(response.status).toBe(400)
+      expect(data.error).toContain('body')
+    })
+
+    it('should return 400 if body is only whitespace', async () => {
+      const request = new NextRequest('http://localhost/api/work-order-updates', {
+        method: 'POST',
+        headers: { 'authorization': 'Bearer test-token' },
+        body: JSON.stringify({
+          work_order_id: 123,
+          update_type: 'comment',
+          body: '   ',
+        }),
+      })
+      
+      const response = await POST(request)
+      const data = await response.json()
+      
+      expect(response.status).toBe(400)
+    })
+
+    it('should return 400 if update_type is invalid', async () => {
+      const request = new NextRequest('http://localhost/api/work-order-updates', {
+        method: 'POST',
+        headers: { 'authorization': 'Bearer test-token' },
+        body: JSON.stringify({
+          work_order_id: 123,
+          update_type: 'invalid_type',
+          body: 'Test',
+        }),
+      })
+      
+      const response = await POST(request)
+      const data = await response.json()
+      
+      expect(response.status).toBe(400)
+      expect(data.error).toContain("must be 'comment' or 'status_change'")
+    })
+
+    it('should return 400 if new_status is missing for status_change', async () => {
+      const request = new NextRequest('http://localhost/api/work-order-updates', {
+        method: 'POST',
+        headers: { 'authorization': 'Bearer test-token' },
+        body: JSON.stringify({
+          work_order_id: 123,
+          update_type: 'status_change',
+          body: 'Completing work order',
+        }),
+      })
+      
+      const response = await POST(request)
+      const data = await response.json()
+      
+      expect(response.status).toBe(400)
+      expect(data.error).toContain('new_status is required')
+    })
+  })
+
+  describe('POST /api/work-order-updates - Status Change Authorization', () => {
+    beforeEach(() => {
+      mockSupabaseClient.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-123' } },
+        error: null,
+      })
+    })
+
+    it('should return 403 if non-technician tries to change status', async () => {
+      // Mock user profile check - user is NOT a technician
+      mockSupabaseClient.from.mockReturnValueOnce({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({
+              data: { role: 'lab' },
+              error: null,
+            }),
+          }),
+        }),
+      })
+
+      const request = new NextRequest('http://localhost/api/work-order-updates', {
+        method: 'POST',
+        headers: { 'authorization': 'Bearer test-token' },
+        body: JSON.stringify({
+          work_order_id: 123,
+          update_type: 'status_change',
+          new_status: 'completed',
+          body: 'Trying to complete',
+        }),
+      })
+      
+      const response = await POST(request)
+      const data = await response.json()
+      
+      expect(response.status).toBe(403)
+      expect(data.error).toContain('Only technicians can change work order status')
+    })
+
+    it('should return 400 if trying to change status to non-completed value', async () => {
+      // Mock user as technician
+      mockSupabaseClient.from.mockReturnValueOnce({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({
+              data: { role: 'technician' },
+              error: null,
+            }),
+          }),
+        }),
+      })
+
+      const request = new NextRequest('http://localhost/api/work-order-updates', {
+        method: 'POST',
+        headers: { 'authorization': 'Bearer test-token' },
+        body: JSON.stringify({
+          work_order_id: 123,
+          update_type: 'status_change',
+          new_status: 'in_progress',
+          body: 'Test',
+        }),
+      })
+      
+      const response = await POST(request)
+      const data = await response.json()
+      
+      expect(response.status).toBe(400)
+      expect(data.error).toContain("Status can only be changed to 'completed'")
+    })
+
+    it('should return 400 if work order is already completed', async () => {
+      // Mock user as technician
+      mockSupabaseClient.from.mockReturnValueOnce({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({
+              data: { role: 'technician' },
+              error: null,
+            }),
+          }),
+        }),
+      })
+
+      // Mock work order fetch - status is already completed
+      mockSupabaseClient.from.mockReturnValueOnce({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({
+              data: { assigned_to: 'user-123', status: 'completed' },
+              error: null,
+            }),
+          }),
+        }),
+      })
+
+      const request = new NextRequest('http://localhost/api/work-order-updates', {
+        method: 'POST',
+        headers: { 'authorization': 'Bearer test-token' },
+        body: JSON.stringify({
+          work_order_id: 123,
+          update_type: 'status_change',
+          new_status: 'completed',
+          body: 'Test',
+        }),
+      })
+      
+      const response = await POST(request)
+      const data = await response.json()
+      
+      expect(response.status).toBe(400)
+      expect(data.error).toContain('already completed')
+    })
+
+    it('should return 403 if technician is not assigned to work order', async () => {
+      // Mock user as technician
+      mockSupabaseClient.from.mockReturnValueOnce({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({
+              data: { role: 'technician' },
+              error: null,
+            }),
+          }),
+        }),
+      })
+
+      // Mock work order - assigned to different user
+      mockSupabaseClient.from.mockReturnValueOnce({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({
+              data: { assigned_to: 'other-tech-id', status: 'claimed' },
+              error: null,
+            }),
+          }),
+        }),
+      })
+
+      const request = new NextRequest('http://localhost/api/work-order-updates', {
+        method: 'POST',
+        headers: { 'authorization': 'Bearer test-token' },
+        body: JSON.stringify({
+          work_order_id: 123,
+          update_type: 'status_change',
+          new_status: 'completed',
+          body: 'Test',
+        }),
+      })
+      
+      const response = await POST(request)
+      const data = await response.json()
+      
+      expect(response.status).toBe(403)
+      expect(data.error).toContain('must be assigned')
+    })
+  })
+
+  describe('POST /api/work-order-updates - Success Cases', () => {
+    beforeEach(() => {
+      mockSupabaseClient.auth.getUser.mockResolvedValue({
+        data: { user: { id: 'user-123' } },
+        error: null,
+      })
+    })
+
+    it('should successfully create a comment', async () => {
+      const mockUpdate = {
         id: 1,
         work_order_id: 123,
-        author_id: 'user-123',
         update_type: 'comment',
-        body: 'Test update',
-        created_at: '2026-02-05T10:00:00Z',
+        body: 'Test comment',
         author: {
           id: 'user-123',
-          full_name: 'John Tech',
-          email: 'john@example.com',
-          role: 'technician',
+          full_name: 'Test User',
+          role: 'lab',
         },
       }
-      
-      expect(updateResponse.author).toBeDefined()
-      expect(updateResponse.author.full_name).toBe('John Tech')
-      expect(updateResponse.author.role).toBe('technician')
-    })
 
-    it('should include timestamp for updates', () => {
-      const timestamp = '2026-02-05T10:00:00Z'
-      
-      expect(() => new Date(timestamp)).not.toThrow()
-      expect(timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/)
-    })
+      mockSupabaseClient.from.mockReturnValue({
+        insert: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({
+              data: mockUpdate,
+              error: null,
+            }),
+          }),
+        }),
+      })
 
-    it('should include work_order_id in update', () => {
-      const update = {
-        id: 1,
-        work_order_id: 123,
-        body: 'Test',
-      }
+      const request = new NextRequest('http://localhost/api/work-order-updates', {
+        method: 'POST',
+        headers: { 'authorization': 'Bearer test-token' },
+        body: JSON.stringify({
+          work_order_id: 123,
+          update_type: 'comment',
+          body: 'Test comment',
+        }),
+      })
       
-      expect(update.work_order_id).toBeDefined()
-      expect(typeof update.work_order_id).toBe('number')
-    })
-  })
-
-  describe('Update Ordering', () => {
-    it('should order updates by creation time ascending', () => {
-      const updates = [
-        { id: 3, created_at: '2026-02-05T12:00:00Z' },
-        { id: 1, created_at: '2026-02-05T10:00:00Z' },
-        { id: 2, created_at: '2026-02-05T11:00:00Z' },
-      ]
+      const response = await POST(request)
+      const data = await response.json()
       
-      const sorted = [...updates].sort((a, b) => 
-        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-      )
-      
-      expect(sorted[0].id).toBe(1)
-      expect(sorted[1].id).toBe(2)
-      expect(sorted[2].id).toBe(3)
-    })
-  })
-
-  describe('Error Messages', () => {
-    it('should provide helpful error for missing work_order_id', () => {
-      const errorMessage = 'work_order_id parameter is required'
-      
-      expect(errorMessage).toContain('work_order_id')
-      expect(errorMessage).toContain('required')
-    })
-
-    it('should provide helpful error for missing required fields', () => {
-      const errorMessage = 'Missing required fields: work_order_id, update_type, and body are required'
-      
-      expect(errorMessage).toContain('work_order_id')
-      expect(errorMessage).toContain('update_type')
-      expect(errorMessage).toContain('body')
-    })
-
-    it('should provide helpful error for invalid update_type', () => {
-      const errorMessage = "update_type must be 'comment' or 'status_change'"
-      
-      expect(errorMessage).toContain('comment')
-      expect(errorMessage).toContain('status_change')
-    })
-
-    it('should provide helpful error for missing new_status', () => {
-      const errorMessage = 'new_status is required when update_type is status_change'
-      
-      expect(errorMessage).toContain('new_status')
-      expect(errorMessage).toContain('status_change')
-    })
-
-    it('should provide helpful error for non-technician status change', () => {
-      const errorMessage = 'Only technicians can change work order status'
-      
-      expect(errorMessage).toContain('technician')
-      expect(errorMessage).toContain('status')
-    })
-
-    it('should provide helpful error for invalid status', () => {
-      const errorMessage = "Status can only be changed to 'completed'"
-      
-      expect(errorMessage).toContain('completed')
-    })
-
-    it('should provide helpful error for unassigned technician', () => {
-      const errorMessage = 'You must be assigned to this work order to mark it as completed'
-      
-      expect(errorMessage).toContain('assigned')
-      expect(errorMessage).toContain('completed')
-    })
-
-    it('should provide helpful error for already completed work order', () => {
-      const errorMessage = 'This work order is already completed and cannot be modified'
-      
-      expect(errorMessage).toContain('already completed')
-      expect(errorMessage).toContain('cannot be modified')
+      expect(response.status).toBe(201)
+      expect(data.data.update_type).toBe('comment')
+      expect(data.data.body).toBe('Test comment')
     })
   })
 })
