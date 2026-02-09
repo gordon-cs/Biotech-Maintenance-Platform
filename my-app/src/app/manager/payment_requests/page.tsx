@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 
 interface PaymentRequest {
@@ -31,10 +31,70 @@ export default function PaymentRequests() {
   const [selectedRequest, setSelectedRequest] = useState<PaymentRequest | null>(null)
   const [isApproving, setIsApproving] = useState(false)
   const [isSyncing, setIsSyncing] = useState(false)
+  const subscriptionsRef = useRef<Map<string, ReturnType<typeof supabase.channel>>>(new Map())
+  const userIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     loadPaymentRequests()
   }, [])
+
+  // Set up real-time subscriptions for pending invoices
+  const setupRealtimeSubscriptions = (labIds: number[]) => {
+    console.log(`[Manager] Setting up real-time subscriptions for labs:`, labIds)
+
+    // Clear old subscriptions
+    subscriptionsRef.current.forEach((channel) => {
+      supabase.removeChannel(channel)
+    })
+    subscriptionsRef.current.clear()
+
+    if (labIds.length === 0) return
+
+    // Subscribe to all invoice changes for these labs
+    labIds.forEach((labId) => {
+      const channel = supabase
+        .channel(`invoices:lab:${labId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'invoices',
+            filter: `lab_id=eq.${labId}`
+          },
+          (payload) => {
+            console.log(`[Manager] Invoice update for lab ${labId}:`, payload)
+            const updated = payload.new as PaymentRequest
+
+            setRequests((prev) => {
+              // If deleted or marked as paid, remove from list
+              if (payload.eventType === 'DELETE' || updated.payment_status === 'paid') {
+                return prev.filter((r) => r.id !== updated.id)
+              }
+
+              // If new unbilled/awaiting_payment invoice, add it
+              if (['unbilled', 'awaiting_payment'].includes(updated.payment_status)) {
+                const exists = prev.find((r) => r.id === updated.id)
+                if (exists) {
+                  // Update existing
+                  return prev.map((r) =>
+                    r.id === updated.id ? { ...r, ...updated } : r
+                  )
+                } else {
+                  // Add new
+                  return [{ ...updated } as PaymentRequest, ...prev]
+                }
+              }
+
+              return prev
+            })
+          }
+        )
+        .subscribe()
+
+      subscriptionsRef.current.set(`lab:${labId}`, channel)
+    })
+  }
 
   const loadPaymentRequests = async () => {
     try {
@@ -46,6 +106,8 @@ export default function PaymentRequests() {
         setLoading(false)
         return
       }
+
+      userIdRef.current = user.id
 
       const { data: labs } = await supabase
         .from('labs')
@@ -92,11 +154,25 @@ export default function PaymentRequests() {
       if (data && data.length > 0) {
         setSelectedRequest(data[0])
       }
+
+      // Set up real-time subscriptions
+      setupRealtimeSubscriptions(labIds)
     } catch (err) {
     } finally {
       setLoading(false)
     }
   }
+
+  // Cleanup subscriptions on unmount
+  useEffect(() => {
+    return () => {
+      console.log('[Manager] Cleaning up real-time subscriptions')
+      subscriptionsRef.current.forEach((channel) => {
+        supabase.removeChannel(channel)
+      })
+      subscriptionsRef.current.clear()
+    }
+  }, [])
 
   const handleApprovePayment = async (request: PaymentRequest) => {
     if (!confirm(`Approve payment of $${Number(request.total_amount).toFixed(2)}?`)) {
@@ -199,11 +275,17 @@ export default function PaymentRequests() {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Payment Requests</h1>
-          <p className="text-gray-600 mt-2">
-            Review and approve payment requests from completed work orders
-          </p>
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Payment Requests</h1>
+            <p className="text-gray-600 mt-2">
+              Review and approve payment requests from completed work orders
+            </p>
+          </div>
+          <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-lg border border-green-200">
+            <span className="inline-block w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+            <span className="text-sm text-green-700 font-medium">Real-time Sync Active</span>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
