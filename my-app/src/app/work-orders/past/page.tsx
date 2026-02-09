@@ -17,6 +17,28 @@ type DisplayRow = {
   status?: string
   labName?: string
   date?: string | null
+  claimedBy?: string
+}
+
+// shape returned by the server-side manager-work-orders route
+type AssignedProfile = {
+  id: string
+  full_name?: string | null
+  email?: string | null
+}
+
+type WorkOrderRow = {
+  id: number
+  title?: string | null
+  description?: string | null
+  category_id?: number | null
+  lab: number
+  created_at?: string | null
+  urgency?: string | null
+  status?: string | null
+  date?: string | null
+  assigned_to?: string | null
+  assigned?: AssignedProfile[]
 }
 
 const formatDateTime = (dateString?: string | null) => {
@@ -260,25 +282,35 @@ function PastOrdersContent() {
           return
         }
 
-        const ordersRes = await supabase
-          .from("work_orders")
-          .select("id, title, description, category_id, lab, created_at, urgency, status, date")
-          .in("lab", labIds)
-          .order("created_at", { ascending: false })
-
-        if (ordersRes.error) throw ordersRes.error
-        const woRows = ordersRes.data || []
-
-        const catIds = Array.from(new Set(woRows.map(w => w.category_id).filter(Boolean)))
-        const categoryMap: Record<number, string> = {}
-        if (catIds.length) {
-          const catRes = await supabase.from("categories").select("id, name").in("id", catIds)
-          if (!catRes.error) {
-            for (const c of catRes.data || []) {
-              categoryMap[c.id] = c.name || "N/A"
-            }
-          }
+        // ask server route that uses service role to join assigned profile
+        const mgrResp = await fetch("/api/manager-work-orders", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ labIds })
+        })
+        // debug: log status and body when non-ok
+        if (!mgrResp.ok) {
+          const text = await mgrResp.text().catch(() => "<no body>")
+          // eslint-disable-next-line no-console
+          console.error("manager-work-orders failed", mgrResp.status, mgrResp.statusText, text)
+          throw new Error(`Failed fetching manager work orders: ${mgrResp.status} ${mgrResp.statusText} - ${text}`)
         }
+        const mgrJson = await mgrResp.json()
+        const woRows = (mgrJson.data || []) as WorkOrderRow[]
+
+        // collect numeric category ids (type guard removes null/undefined)
+        const catIds = Array.from(
+          new Set(woRows.map(w => w.category_id).filter((v): v is number => v !== null && v !== undefined))
+        )
+         const categoryMap: Record<number, string> = {}
+         if (catIds.length) {
+           const catRes = await supabase.from("categories").select("id, name").in("id", catIds)
+           if (!catRes.error) {
+             for (const c of catRes.data || []) {
+               categoryMap[c.id] = c.name || "N/A"
+             }
+           }
+         }
 
         const labMap: Record<number, string> = {}
         const labNameMap: Record<number, string> = {}
@@ -288,18 +320,23 @@ function PastOrdersContent() {
           labNameMap[l.id] = l.name || "Unknown Lab"
         }
 
-        const display: DisplayRow[] = woRows.map(r => ({
+        const display: DisplayRow[] = woRows.map((r: WorkOrderRow) => ({
            id: String(r.id),
            title: r.title || "Untitled",
            address: labMap[r.lab] || "N/A",
-           category: categoryMap[r.category_id] || "N/A",
+           category: (r.category_id !== null && r.category_id !== undefined)
+            ? (categoryMap[r.category_id] ?? "N/A")
+            : "N/A",
            description: r.description || "No description available",
            created_at: r.created_at || "",
            urgency: r.urgency || undefined,
            status: r.status || "Open",
-           labName: labNameMap[r.lab] || "Unknown Lab"
-          , date: r.date ?? null
-         }))
+           labName: labNameMap[r.lab] || "Unknown Lab",
+           date: r.date ?? null,
+           claimedBy: r.assigned && r.assigned.length
+             ? (r.assigned[0].full_name || r.assigned[0].email || String(r.assigned[0].id))
+             : undefined
+          }))
 
         if (mounted) {
           setOrders(display)
@@ -504,6 +541,11 @@ function PastOrdersContent() {
                     Submitted on {formatDateTime(selectedOrder.created_at)}
                   </div>
                   <div className="text-sm text-gray-500 mb-2">Due Date: {formatDateTime(selectedOrder.date)}</div>
+                  {(selectedOrder.status?.toLowerCase() === "claimed" || selectedOrder.status?.toLowerCase() === "completed") && selectedOrder.claimedBy && (
+                    <div className="text-sm text-gray-700 mb-2">
+                      Claimed by Technician: <span className="font-medium">{selectedOrder.claimedBy}</span>
+                    </div>
+                  )}
                   <div className="text-sm text-gray-500 mb-2">{selectedOrder.address}</div>
                   <div className="text-sm font-medium mb-2">Category: {selectedOrder.category}</div>
                   {selectedOrder.urgency && (
