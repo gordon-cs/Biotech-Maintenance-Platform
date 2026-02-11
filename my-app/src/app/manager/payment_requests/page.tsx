@@ -40,8 +40,6 @@ export default function PaymentRequests() {
 
   // Set up real-time subscriptions for pending invoices
   const setupRealtimeSubscriptions = (labIds: number[]) => {
-    console.log(`[Manager] Setting up real-time subscriptions for labs:`, labIds)
-
     // Clear old subscriptions
     subscriptionsRef.current.forEach((channel) => {
       supabase.removeChannel(channel)
@@ -63,7 +61,6 @@ export default function PaymentRequests() {
             filter: `lab_id=eq.${labId}`
           },
           (payload) => {
-            console.log(`[Manager] Invoice update for lab ${labId}:`, payload)
             const updated = payload.new as PaymentRequest
 
             setRequests((prev) => {
@@ -166,7 +163,6 @@ export default function PaymentRequests() {
   // Cleanup subscriptions on unmount
   useEffect(() => {
     return () => {
-      console.log('[Manager] Cleaning up real-time subscriptions')
       subscriptionsRef.current.forEach((channel) => {
         supabase.removeChannel(channel)
       })
@@ -229,7 +225,7 @@ export default function PaymentRequests() {
 
       if (response.ok) {
         if (result.status === 'paid') {
-          alert('✅ Payment confirmed! Status updated to Paid.')
+          alert('Payment confirmed! Status updated to Paid.')
         } else {
           alert('Payment is still pending in Bill.com')
         }
@@ -319,7 +315,7 @@ export default function PaymentRequests() {
                             ? 'bg-purple-100 text-purple-800'
                             : 'bg-blue-100 text-blue-800'
                         }`}>
-                          {request.invoice_type === 'initial_fee' ? '🏢 Platform Fee' : '🔧 Service'}
+                          {request.invoice_type === 'initial_fee' ? 'Platform Fee' : 'Service'}
                         </span>
                       </div>
                       <p className="text-sm text-gray-600 truncate mt-1">
@@ -381,7 +377,7 @@ export default function PaymentRequests() {
                         <p className="text-sm font-semibold mb-1 ${
                           selectedRequest.invoice_type === 'initial_fee' ? 'text-purple-900' : 'text-blue-900'
                         }">
-                          {selectedRequest.invoice_type === 'initial_fee' ? '🏢 Platform Initial Fee' : '🔧 Technician Service Fee'}
+                          {selectedRequest.invoice_type === 'initial_fee' ? 'Platform Initial Fee' : 'Technician Service Fee'}
                         </p>
                         <p className="text-xs ${
                           selectedRequest.invoice_type === 'initial_fee' ? 'text-purple-700' : 'text-blue-700'
@@ -407,14 +403,14 @@ export default function PaymentRequests() {
                     </p>
                     {selectedRequest.labs?.bill_customer_id && (
                       <p className="text-xs text-blue-600 mt-1">
-                        ✅ Bill.com configured
+                        Bill.com configured
                       </p>
                     )}
                   </div>
 
                   {/* Work Order Details */}
                   <div className="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200">
-                    <p className="text-sm font-semibold text-gray-700 mb-2">📋 Work Order Details</p>
+                    <p className="text-sm font-semibold text-gray-700 mb-2">Work Order Details</p>
                     <p className="font-semibold text-gray-900">
                       {selectedRequest.work_orders?.title || 'No title'}
                     </p>
@@ -428,7 +424,7 @@ export default function PaymentRequests() {
                   {/* Request Date */}
                   <div className="text-sm text-gray-500 mb-6">
                     <p>
-                      🕐 Requested on: {new Date(selectedRequest.created_at).toLocaleDateString('en-US', {
+                      Requested on: {new Date(selectedRequest.created_at).toLocaleDateString('en-US', {
                         year: 'numeric',
                         month: 'long',
                         day: 'numeric',

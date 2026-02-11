@@ -24,8 +24,6 @@ export default function PaymentRequestPanel({ selectedId, currentOrderStatus, on
   useEffect(() => {
     if (!selectedId || !invoice) return
 
-    console.log(`[PaymentRequestPanel] Setting up real-time subscription for invoice ${invoice.id}`)
-
     // Subscribe to changes on this specific invoice
     const channel = supabase
       .channel(`invoice:${invoice.id}`)
@@ -38,7 +36,6 @@ export default function PaymentRequestPanel({ selectedId, currentOrderStatus, on
           filter: `id=eq.${invoice.id}`
         },
         (payload) => {
-          console.log(`[PaymentRequestPanel] Invoice update received:`, payload)
           const updated = payload.new as InvoiceData
           if (updated.payment_status) {
             setInvoice((prev) =>
@@ -52,7 +49,6 @@ export default function PaymentRequestPanel({ selectedId, currentOrderStatus, on
     subscriptionRef.current = channel
 
     return () => {
-      console.log(`[PaymentRequestPanel] Unsubscribing from invoice ${invoice.id}`)
       supabase.removeChannel(channel)
       subscriptionRef.current = null
     }
@@ -91,7 +87,7 @@ export default function PaymentRequestPanel({ selectedId, currentOrderStatus, on
         if (!mounted) return
         setInvoice(inv ?? null)
       } catch (e) {
-        console.error("PaymentRequestPanel load error", e)
+        // Silently fail to keep UX smooth
       } finally {
         if (mounted) setLoading(false)
       }
@@ -153,7 +149,7 @@ export default function PaymentRequestPanel({ selectedId, currentOrderStatus, on
         return
       }
 
-      alert("💰 Payment request submitted successfully!")
+      alert("Payment request submitted successfully!")
       setShowForm(false)
       // reload invoice state
       const { data: inv } = await supabase
@@ -177,7 +173,6 @@ export default function PaymentRequestPanel({ selectedId, currentOrderStatus, on
     <div className="mt-6 rounded-lg border bg-white p-4">
       <div className="flex items-start justify-between">
         <h3 className="text-lg font-semibold flex items-center gap-2">
-          <span className="text-2xl">💰</span>
           Payment Request
         </h3>
 
@@ -200,7 +195,7 @@ export default function PaymentRequestPanel({ selectedId, currentOrderStatus, on
               </svg>
             </div>
             <div>
-              <div className="font-semibold text-green-800">✅ Payment Completed</div>
+              <div className="font-semibold text-green-800">Payment Completed</div>
               {invoice?.paid_at && (
                 <div className="text-sm text-green-700">Paid on {new Date(invoice.paid_at).toLocaleDateString()}</div>
               )}

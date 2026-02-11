@@ -217,7 +217,7 @@ function PastOrdersContent() {
       })
 
       if (response.ok) {
-        alert('💰 Payment approved and sent to Bill.com!')
+        alert('Payment approved and sent to Bill.com!')
         loadPaymentRequests() // Reload to update status
       } else {
         const error = await response.json()
@@ -534,7 +534,6 @@ function PastOrdersContent() {
                 {selectedOrder.status === 'completed' && (
                   <div className="mt-6 pt-6 border-t border-gray-200">
                     <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                      <span>💰</span>
                       <span>Payment Request</span>
                     </h3>
 

@@ -7,14 +7,9 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
 )
 
-console.log('[SyncStatus] Route file loaded - POST exported')
-
 export async function POST(request: NextRequest) {
-  console.log('[SyncStatus] POST HANDLER CALLED!!!')
   try {
-    console.log('[SyncStatus] POST request received')
     const { invoiceId } = await request.json()
-    console.log('[SyncStatus] invoiceId:', invoiceId)
 
     if (!invoiceId) {
       return NextResponse.json({ error: 'Invoice ID is required' }, { status: 400 })
@@ -26,10 +21,7 @@ export async function POST(request: NextRequest) {
       .eq('id', invoiceId)
       .single()
 
-    console.log('[SyncStatus] Invoice query result:', { invoice, error: invoiceError })
-
     if (invoiceError || !invoice) {
-      console.log('[SyncStatus] Invoice not found, returning 404')
       return NextResponse.json({ error: 'Invoice not found' }, { status: 404 })
     }
 
@@ -42,7 +34,6 @@ export async function POST(request: NextRequest) {
       const lastSync = new Date(invoice.updated_at).getTime()
       const now = Date.now()
       if (now - lastSync < 60000) {
-        console.log(`[SyncStatus] Using cached status for invoice ${invoiceId}`)
         return NextResponse.json({ 
           status: invoice.payment_status, 
           cached: true,
@@ -52,14 +43,9 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      console.log(`[SyncStatus] Checking invoice status for ${invoiceId}`)
-      
       // For now, just return current status from database
       // The webhook is the primary way payments are synced
       // This endpoint serves as a status check
-      
-      console.log(`[SyncStatus] Current status: ${invoice.payment_status}`)
-      
       return NextResponse.json({ 
         success: true,
         status: invoice.payment_status,
@@ -67,7 +53,6 @@ export async function POST(request: NextRequest) {
         note: 'Payment updates come from Bill.com webhooks'
       })
     } catch (error) {
-      console.error('[SyncStatus] Error:', error instanceof Error ? error.message : 'Unknown error')
       return NextResponse.json(
         { error: 'Failed to check status' },
         { status: 500 }
