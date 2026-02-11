@@ -134,8 +134,34 @@ export default function WorkOrderSubmission() {
     setResult(null)
     setLoading(true)
 
-    if (!form.title.trim()) {
+    // client-side validation: require all fields except equipment
+    if (!form.title || !form.title.trim()) {
       setResult({ message: "Title is required." })
+      setLoading(false)
+      return
+    }
+    if (!form.description || !form.description.trim()) {
+      setResult({ message: "Description is required." })
+      setLoading(false)
+      return
+    }
+    if (!form.urgency || !String(form.urgency).trim()) {
+      setResult({ message: "Please select an urgency." })
+      setLoading(false)
+      return
+    }
+    if (!form.category_id || !String(form.category_id).trim()) {
+      setResult({ message: "Please select a category." })
+      setLoading(false)
+      return
+    }
+    if (!form.date || !String(form.date).trim()) {
+      setResult({ message: "Please select a date." })
+      setLoading(false)
+      return
+    }
+    if (!form.address_id || !String(form.address_id).trim()) {
+      setResult({ message: "Please select a service area (address)." })
       setLoading(false)
       return
     }
@@ -227,8 +253,8 @@ export default function WorkOrderSubmission() {
         </label>
 
         <label className="block mb-3">
-          <div className="text-sm mb-1">Description</div>
-          <textarea name="description" value={form.description} onChange={handleChange} className="w-full border px-2 py-2 rounded" />
+          <div className="text-sm mb-1">Description *</div>
+          <textarea name="description" value={form.description} onChange={handleChange} required className="w-full border px-2 py-2 rounded" />
         </label>
 
         <label className="block mb-3">
@@ -237,11 +263,12 @@ export default function WorkOrderSubmission() {
         </label>
 
         <label className="block mb-3">
-          <div className="text-sm mb-1">Urgency</div>
+          <div className="text-sm mb-1">Urgency *</div>
           <select
             name="urgency"
             value={form.urgency}
             onChange={handleChange}
+            required
             className="w-full border px-2 py-1 rounded"
           >
             <option value="">Select…</option>
@@ -253,11 +280,12 @@ export default function WorkOrderSubmission() {
         </label>
 
         <label className="block mb-3">
-          <div className="text-sm mb-1">Category</div>
+          <div className="text-sm mb-1">Category *</div>
           <select
             name="category_id"
             value={form.category_id}
             onChange={handleChange}
+            required
             className="w-full border px-2 py-1 rounded"
           >
             <option value="">{categories.length ? "Select category…" : "Loading categories…"}</option>
@@ -300,8 +328,8 @@ export default function WorkOrderSubmission() {
         )}
 
         <label className="block mb-4">
-          <div className="text-sm mb-1">Date</div>
-          <input type="date" name="date" value={form.date} onChange={handleChange} className="w-full border px-2 py-1 rounded" />
+          <div className="text-sm mb-1">Date *</div>
+          <input type="date" name="date" value={form.date} onChange={handleChange} required className="w-full border px-2 py-1 rounded" />
         </label>
 
         <div className="flex items-center gap-2">
