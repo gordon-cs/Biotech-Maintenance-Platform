@@ -195,7 +195,30 @@ export default function WorkOrderSubmission() {
         setResult({ message: `Insert error: ${error.message}` })
       } else {
         const inserted = data as InsertIdRow | null
-        setResult({ id: inserted?.id, message: "Work order submitted successfully." })
+        const workOrderId = inserted?.id
+
+        if (workOrderId) {
+          try {
+            const { data: { session } } = await supabase.auth.getSession()
+            const response = await fetch('/api/invoices/create-initial-fee', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session?.access_token || ''}`
+              },
+              body: JSON.stringify({ workOrderId })
+            })
+
+            if (response.ok) {
+              setResult({ id: workOrderId, message: "Work order submitted successfully. Initial fee invoice sent to lab manager." })
+            } else {
+              const err = await response.json()
+              setResult({ id: workOrderId, message: `Work order submitted, but failed to create initial fee invoice: ${err.error}` })
+            }
+          } catch (invoiceError) {
+            setResult({ id: workOrderId, message: "Work order submitted, but failed to send initial fee invoice." })
+          }
+        }
         setForm({ title: "", description: "", equipment: "", urgency: "", category_id: "", date: "", address_id: "" })
       }
     } catch (err: unknown) {

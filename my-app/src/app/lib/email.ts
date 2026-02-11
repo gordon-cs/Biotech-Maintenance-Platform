@@ -241,8 +241,8 @@ export async function sendWorkOrderUpdateEmail(
             </a>
             
             <div class="footer">
-              <p>This is an automated notification from the Biotech Maintenance Platform.</p>
-              <p>Please do not reply to this email.</p>
+              <p>This is an automated notification from Boston Biotech Management.</p>
+              <p>Please do not reply to this email. If you need assistance, please contact your facility manager.</p>
             </div>
           </div>
         </div>
@@ -264,13 +264,13 @@ ${data.updateBody}
 View the full work order at: ${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/work-orders/past?selected=${data.workOrderId}
 
 ---
-This is an automated notification from the Biotech Maintenance Platform.
-Please do not reply to this email.
+This is an automated notification from Boston Biotech Management.
+Please do not reply to this email. If you need assistance, please contact your facility manager.
   `.trim()
 
   try {
     const result = await resend.emails.send({
-      from: process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev',
+      from: 'Boston Biotech Management <no-reply@bostonbiotechmanagement.com>',
       to: recipient.email,
       subject,
       html: emailHtml,
