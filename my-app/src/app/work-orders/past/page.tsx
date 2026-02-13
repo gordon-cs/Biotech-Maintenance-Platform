@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { supabase } from "@/lib/supabaseClient"
 import AddWorkOrderUpdate from "../../components/AddWorkOrderUpdate"
+import ConfirmationModal from "../../components/ConfirmationModal"
 
 type DisplayRow = {
   id: string
@@ -95,6 +96,15 @@ function PastOrdersContent() {
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null)
   const [paymentRequests, setPaymentRequests] = useState<Record<string, { id: number; payment_status: string; total_amount: number }>>({})
   const [isApprovingPayment, setIsApprovingPayment] = useState<string | null>(null)
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean
+    orderId: string | null
+    orderTitle: string
+  }>({
+    isOpen: false,
+    orderId: null,
+    orderTitle: "",
+  })
   
   const searchParams = useSearchParams()
   const selectedOrderId = searchParams.get("selected")
@@ -105,12 +115,19 @@ function PastOrdersContent() {
   }, [])
 
   const handleCancelOrder = async (orderId: string, orderTitle: string) => {
-    const confirmed = window.confirm(
-      `Are you sure you want to cancel "${orderTitle}"? This will mark it as canceled but preserve the record.`
-    )
-    
-    if (!confirmed) return
-    
+    setConfirmModal({
+      isOpen: true,
+      orderId,
+      orderTitle,
+    })
+  }
+
+  const handleConfirmCancel = async () => {
+    const orderId = confirmModal.orderId
+    const orderTitle = confirmModal.orderTitle
+
+    if (!orderId) return
+
     setCancellingOrderId(orderId)
     
     try {
@@ -175,7 +192,12 @@ function PastOrdersContent() {
       alert("Failed to cancel order: " + errorMessage)
     } finally {
       setCancellingOrderId(null)
+      setConfirmModal({ isOpen: false, orderId: null, orderTitle: "" })
     }
+  }
+
+  const handleCloseModal = () => {
+    setConfirmModal({ isOpen: false, orderId: null, orderTitle: "" })
   }
 
   const loadPaymentRequests = async () => {
@@ -636,6 +658,18 @@ function PastOrdersContent() {
           Back to Dashboard
         </Link>
       </div>
+
+      {/* Confirmation Modal for Canceling Work Order */}
+      <ConfirmationModal
+        isOpen={confirmModal.isOpen}
+        title="Cancel this work order?"
+        message={`Are you sure you want to cancel "${confirmModal.orderTitle}"? This will mark it as canceled but preserve the record.`}
+        confirmText="Cancel Order"
+        backText="Keep Order"
+        onConfirm={handleConfirmCancel}
+        onClose={handleCloseModal}
+        isDangerous={true}
+      />
     </div>
   )
 }
