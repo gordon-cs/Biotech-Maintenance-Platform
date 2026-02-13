@@ -49,6 +49,12 @@ export async function POST(req: NextRequest) {
   const raw: unknown = await req.json()
   const body = raw as CreateProfileBody // (Optional) replace with Zod validation later
 
+  console.log('CREATE PROFILE REQUEST:', { 
+    userId: user.id, 
+    role: body.role,
+    hasTechData: !!body.tech 
+  })
+
   const userId = user.id
 
     // First get existing profile to preserve any fields not being updated
@@ -149,11 +155,18 @@ export async function POST(req: NextRequest) {
       }
 
       // First check if technician already exists
-      const { data: existingTech } = await serviceClient
+      const { data: existingTech, error: techCheckError } = await serviceClient
         .from("technicians")
-        .select("id")
+        .select("id, experience, bio")
         .eq("id", userId)
         .single()
+
+      console.log('Technician check:', { 
+        userId, 
+        existingTech, 
+        techCheckError, 
+        willSendEmail: !existingTech || (!existingTech.experience && !existingTech.bio)
+      })
 
       // Use upsert to handle both insert and update cases
       const { error: tErr } = await serviceClient
@@ -166,8 +179,12 @@ export async function POST(req: NextRequest) {
         )
       if (tErr) return NextResponse.json({ error: tErr.message }, { status: 500 })
 
-      // Send verification email to admin if this is a new technician (not an update)
-      if (!existingTech) {
+      // Send verification email if this is a new technician OR if they're completing their profile for the first time
+      // (i.e., they didn't have experience/bio before but do now)
+      const isFirstTimeCompletion = !existingTech || (!existingTech.experience && !existingTech.bio)
+      const hasNewTechData = body.tech?.experience || body.tech?.bio
+      
+      if (isFirstTimeCompletion && hasNewTechData) {
         try {
           await sendTechnicianVerificationEmail({
             technicianName: body.full_name || 'Unknown',
