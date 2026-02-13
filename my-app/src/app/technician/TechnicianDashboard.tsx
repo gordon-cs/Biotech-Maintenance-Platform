@@ -4,7 +4,6 @@ import React, { useEffect, useMemo, useState } from "react"
 import useTechnician from "./hooks/useTechnician"
 import TechnicianList from "./TechnicianList"
 import TechnicianDetail from "./TechnicianDetail"
-import PaymentRequestPanel from "../components/PaymentRequestPanel"
 import type { WorkOrder } from "./types"
 
 type Props = {
@@ -92,18 +91,6 @@ export default function TechnicianDashboard({ onSelectWorkOrder }: Props) {
               activeTab={activeTab}
               onStatusChange={handleStatusChange}
             />
-
-            {/* Payment panel (shows request UI for selected work order) */}
-            <div className="mt-6">
-              <PaymentRequestPanel
-                selectedId={selectedId}
-                currentOrderStatus={workOrders.find((w) => w.id === selectedId)?.status ?? null}
-                onSubmitted={() => {
-                  // refresh list after creating a payment request
-                  void loadWorkOrders()
-                }}
-              />
-            </div>
           </div>
         </div>
       </main>
