@@ -282,10 +282,22 @@ function PastOrdersContent() {
           return
         }
 
+        // get the current session to authorize the manager-work-orders request
+        const {
+          data: { session },
+        } = await supabase.auth.getSession()
+        if (!session?.access_token) {
+          setError("Not authenticated")
+          return
+        }
+
         // ask server route that uses service role to join assigned profile
         const mgrResp = await fetch("/api/manager-work-orders", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
           body: JSON.stringify({ labIds })
         })
         // debug: log status and body when non-ok
@@ -293,7 +305,8 @@ function PastOrdersContent() {
           const text = await mgrResp.text().catch(() => "<no body>")
           // eslint-disable-next-line no-console
           console.error("manager-work-orders failed", mgrResp.status, mgrResp.statusText, text)
-          throw new Error(`Failed fetching manager work orders: ${mgrResp.status} ${mgrResp.statusText} - ${text}`)
+          // Throw a generic error to avoid leaking internal response details to the UI
+          throw new Error(`Failed fetching manager work orders: ${mgrResp.status} ${mgrResp.statusText}`)
         }
         const mgrJson = await mgrResp.json()
         const woRows = (mgrJson.data || []) as WorkOrderRow[]
