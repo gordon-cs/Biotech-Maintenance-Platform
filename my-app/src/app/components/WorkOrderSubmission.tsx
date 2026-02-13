@@ -165,6 +165,13 @@ export default function WorkOrderSubmission() {
       setLoading(false)
       return
     }
+    // Ensure address_id is a finite number (protect against tampered or non-numeric input)
+    const addressIdNum = Number(form.address_id)
+    if (!Number.isFinite(addressIdNum)) {
+      setResult({ message: "Please select a valid service area (address)." })
+      setLoading(false)
+      return
+    }
 
     try {
       const { data: authData, error: userErr } = await supabase.auth.getUser()
@@ -197,6 +204,15 @@ export default function WorkOrderSubmission() {
         }
       }
 
+      // Category is required in the form, but resolvedCategoryId
+      // can still be null (e.g. an unrecognized slug). Don't proceed with the insert
+      // if we couldn't resolve a valid numeric category id — surface a user-friendly error.
+      if (catVal && resolvedCategoryId === null) {
+        setResult({ message: "Please select a valid category." })
+        setLoading(false)
+        return
+      }
+      
       const payload: WorkOrderPayload = {
         title: form.title || null,
         description: form.description || null,
@@ -207,7 +223,7 @@ export default function WorkOrderSubmission() {
         category_id: resolvedCategoryId,
         date: form.date || null,
         created_by: user.id,
-        address_id: form.address_id ? Number(form.address_id) : null,
+        address_id: addressIdNum,
         initial_fee: labInitialFee,
       }
 
