@@ -25,6 +25,21 @@ interface PaymentRequest {
   }
 }
 
+const INVOICE_SELECT = `
+  *,
+  work_orders (
+    id,
+    title,
+    description,
+    initial_fee
+  ),
+  labs (
+    id,
+    name,
+    bill_customer_id
+  )
+`
+
 export default function PaymentRequests() {
   const [requests, setRequests] = useState<PaymentRequest[]>([])
   const [loading, setLoading] = useState(true)
@@ -60,31 +75,50 @@ export default function PaymentRequests() {
             table: 'invoices',
             filter: `lab_id=eq.${labId}`
           },
-          (payload) => {
+          async (payload) => {
+            // For DELETE events, payload.new is null — read id from payload.old
+            if (payload.eventType === 'DELETE') {
+              const deletedId = (payload.old as PaymentRequest).id
+              setRequests((prev) => prev.filter((r) => r.id !== deletedId))
+              return
+            }
+
             const updated = payload.new as PaymentRequest
 
-            setRequests((prev) => {
-              // If deleted or marked as paid, remove from list
-              if (payload.eventType === 'DELETE' || updated.payment_status === 'paid') {
-                return prev.filter((r) => r.id !== updated.id)
-              }
+            // If marked as paid, remove from list
+            if (updated.payment_status === 'paid') {
+              setRequests((prev) => prev.filter((r) => r.id !== updated.id))
+              return
+            }
 
-              // If new unbilled/awaiting_payment invoice, add it
-              if (['unbilled', 'awaiting_payment'].includes(updated.payment_status)) {
+            if (['unbilled', 'awaiting_payment'].includes(updated.payment_status)) {
+              setRequests((prev) => {
                 const exists = prev.find((r) => r.id === updated.id)
                 if (exists) {
-                  // Update existing
+                  // UPDATE: only apply scalar changes to preserve existing joined data
                   return prev.map((r) =>
-                    r.id === updated.id ? { ...r, ...updated } : r
+                    r.id === updated.id ? { ...r, payment_status: updated.payment_status } : r
                   )
-                } else {
-                  // Add new
-                  return [{ ...updated } as PaymentRequest, ...prev]
+                }
+                return prev
+              })
+
+              // INSERT: refetch with full join so labs/work_orders are populated
+              if (payload.eventType === 'INSERT') {
+                const { data } = await supabase
+                  .from('invoices')
+                  .select(INVOICE_SELECT)
+                  .eq('id', updated.id)
+                  .single()
+
+                if (data) {
+                  setRequests((prev) => {
+                    if (prev.find((r) => r.id === data.id)) return prev
+                    return [data as PaymentRequest, ...prev]
+                  })
                 }
               }
-
-              return prev
-            })
+            }
           }
         )
         .subscribe()
@@ -122,20 +156,7 @@ export default function PaymentRequests() {
       // Fetch unbilled and awaiting_payment invoices (both initial_fee and service types)
       const { data, error } = await supabase
         .from('invoices')
-        .select(`
-          *,
-          work_orders (
-            id,
-            title,
-            description,
-            initial_fee
-          ),
-          labs (
-            id,
-            name,
-            bill_customer_id
-          )
-        `)
+        .select(INVOICE_SELECT)
         .in('payment_status', ['unbilled', 'awaiting_payment'])
         .in('lab_id', labIds)
         .order('work_order_id', { ascending: false })
