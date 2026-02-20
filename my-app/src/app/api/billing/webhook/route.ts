@@ -10,30 +10,43 @@ export async function POST(req: NextRequest) {
   try {
     const payload = await req.json()
 
-    const billInvoiceId = payload?.data?.invoiceId || payload?.invoiceId || payload?.id
-    const eventType = payload?.eventType || payload?.type
-    const status = payload?.data?.status || payload?.status
+    // Bill.com v3 webhook format: metadata contains eventType, invoice contains the data
+    const metadata = payload?.metadata || {}
+    const invoice_data = payload?.invoice || {}
+    
+    const eventType = metadata?.eventType
+    const billInvoiceId = invoice_data?.id
+    const billStatus = invoice_data?.status
+    const dueAmount = invoice_data?.dueAmount
 
     if (!billInvoiceId) {
       return NextResponse.json({ error: 'Missing invoice id' }, { status: 400 })
     }
 
-    const { data: invoice, error } = await supabaseAdmin
+    // Find invoice by bill_ar_invoice_id
+    const { data: dbInvoice, error: invoiceError } = await supabaseAdmin
       .from('invoices')
-      .select('id, payment_status')
+      .select('id, payment_status, bill_ar_invoice_id')
       .eq('bill_ar_invoice_id', billInvoiceId)
       .single()
 
-    if (error || !invoice) {
+    if (invoiceError || !dbInvoice) {
       return NextResponse.json({ error: 'Invoice not found' }, { status: 404 })
     }
 
-    if (
-      eventType === 'invoice.paid' ||
-      status === 'paid' ||
-      status === 'Paid' ||
-      eventType === 'payment.completed'
-    ) {
+    // Check if payment is confirmed
+    // Bill.com status can be: DRAFT, SENT, VIEWED, PARTIALLY_PAID, PAID_IN_FULL, OVERDUE, etc.
+    const isPaymentConfirmed =
+      billStatus === 'PAID_IN_FULL' ||
+      (dueAmount !== undefined && dueAmount === 0)
+
+    if (isPaymentConfirmed) {
+      // Skip if already paid
+      if (dbInvoice.payment_status === 'paid') {
+        return NextResponse.json({ ok: true, message: 'Invoice already paid' }, { status: 200 })
+      }
+
+      // Update invoice status to paid
       const { error: updateError } = await supabaseAdmin
         .from('invoices')
         .update({
@@ -41,25 +54,48 @@ export async function POST(req: NextRequest) {
           paid_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
-        .eq('id', invoice.id)
+        .eq('id', dbInvoice.id)
 
       if (updateError) {
-        return NextResponse.json({ error: 'Update failed' }, { status: 500 })
+        return NextResponse.json({ error: 'Update failed: ' + updateError.message }, { status: 500 })
       }
-
-      return NextResponse.json({ ok: true, message: 'Invoice marked as paid' }, { status: 200 })
+      return NextResponse.json({
+        ok: true,
+        message: 'Invoice marked as paid',
+        invoiceId: dbInvoice.id,
+        timestamp: new Date().toISOString(),
+      })
     }
 
-    return NextResponse.json({ ok: true, message: 'Webhook received' }, { status: 200 })
+    // Handle other invoice events
+    if (eventType === 'invoice.updated') {
+      // Update status to awaiting_payment if it was unbilled and now sent
+      if (dbInvoice.payment_status === 'unbilled' && (billStatus === 'SENT' || billStatus === 'VIEWED')) {
+        try {
+          await supabaseAdmin
+            .from('invoices')
+            .update({ payment_status: 'awaiting_payment', updated_at: new Date().toISOString() })
+            .eq('id', dbInvoice.id)
+        } catch (err) {
+        }
+      }
+    }
 
+    if (eventType === 'payment.updated') {
+      // Payment updated event handled
+    }
+
+    return NextResponse.json({ ok: true, message: 'Webhook processed', eventType })
   } catch (e: unknown) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : 'Webhook error' }, { status: 500 })
+    const errorMsg = e instanceof Error ? e.message : 'Unknown error'
+    return NextResponse.json({ error: errorMsg }, { status: 500 })
   }
 }
 
 export async function GET() {
   return NextResponse.json({
-    message: 'Bill.com webhook endpoint is ready',
+    message: 'Bill.com webhook endpoint is operational',
     timestamp: new Date().toISOString(),
+    status: 'active',
   })
 }

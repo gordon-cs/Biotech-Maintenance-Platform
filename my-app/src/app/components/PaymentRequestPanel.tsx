@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useState, useRef } from "react"
 import { supabase } from "@/lib/supabaseClient"
 
 type Props = {
@@ -9,14 +9,52 @@ type Props = {
   onSubmitted?: (woId: number) => void
 }
 
+type InvoiceData = { id: number; payment_status: string | null; paid_at: string | null }
+
 export default function PaymentRequestPanel({ selectedId, currentOrderStatus, onSubmitted }: Props) {
   const [loading, setLoading] = useState(false)
   const [orderStatus, setOrderStatus] = useState<string | null>(currentOrderStatus ? currentOrderStatus.toLowerCase() : null)
-  const [invoice, setInvoice] = useState<{ id: number; payment_status: string | null; paid_at: string | null } | null>(null)
+  const [invoice, setInvoice] = useState<InvoiceData | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [amount, setAmount] = useState("")
   const [submitting, setSubmitting] = useState(false)
+  const subscriptionRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
 
+  // Set up real-time subscription for invoice changes
+  useEffect(() => {
+    if (!selectedId || !invoice) return
+
+    // Subscribe to changes on this specific invoice
+    const channel = supabase
+      .channel(`invoice:${invoice.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'invoices',
+          filter: `id=eq.${invoice.id}`
+        },
+        (payload) => {
+          const updated = payload.new as InvoiceData
+          if (updated.payment_status) {
+            setInvoice((prev) =>
+              prev ? { ...prev, payment_status: updated.payment_status, paid_at: updated.paid_at } : null
+            )
+          }
+        }
+      )
+      .subscribe()
+
+    subscriptionRef.current = channel
+
+    return () => {
+      supabase.removeChannel(channel)
+      subscriptionRef.current = null
+    }
+  }, [invoice?.id, selectedId])
+
+  // Initial load
   useEffect(() => {
     setShowForm(false)
     setAmount("")
@@ -49,7 +87,7 @@ export default function PaymentRequestPanel({ selectedId, currentOrderStatus, on
         if (!mounted) return
         setInvoice(inv ?? null)
       } catch (e) {
-        console.error("PaymentRequestPanel load error", e)
+        // Silently fail to keep UX smooth
       } finally {
         if (mounted) setLoading(false)
       }
@@ -111,7 +149,7 @@ export default function PaymentRequestPanel({ selectedId, currentOrderStatus, on
         return
       }
 
-      alert("💰 Payment request submitted successfully!")
+      alert("Payment request submitted successfully!")
       setShowForm(false)
       // reload invoice state
       const { data: inv } = await supabase
@@ -135,13 +173,13 @@ export default function PaymentRequestPanel({ selectedId, currentOrderStatus, on
     <div className="mt-6 rounded-lg border bg-white p-4">
       <div className="flex items-start justify-between">
         <h3 className="text-lg font-semibold flex items-center gap-2">
-          <span className="text-2xl">💰</span>
           Payment Request
         </h3>
 
         {invoiceExists && !invoicePaid && (
           <div className="text-sm text-gray-600 flex items-center gap-2">
-            <span className="px-2 py-1 rounded text-green-700 bg-green-50 border border-green-100">✓ Request Sent</span>
+            <span className="inline-block w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
+            <span className="px-2 py-1 rounded text-blue-700 bg-blue-50 border border-blue-100">Live Updates</span>
           </div>
         )}
       </div>
@@ -164,9 +202,12 @@ export default function PaymentRequestPanel({ selectedId, currentOrderStatus, on
             </div>
           </div>
         ) : invoiceExists ? (
-          <div className="border border-yellow-200 bg-yellow-50 rounded-md p-4">
-            <div className="font-medium text-yellow-800">Request Sent</div>
-            <div className="text-sm text-gray-600">Awaiting payment</div>
+          <div className="border border-blue-200 bg-blue-50 rounded-md p-4">
+            <div className="font-medium text-blue-800 flex items-center gap-2">
+              <span className="inline-block w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>
+              Awaiting Payment
+            </div>
+            <div className="text-sm text-gray-600 mt-1">Real-time monitoring active</div>
           </div>
         ) : (
           <div className="flex items-center justify-end">

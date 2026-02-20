@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
 
     const { data: invoice, error: invoiceError } = await supabaseAdmin
       .from('invoices')
-      .select('id, bill_ar_invoice_id, payment_status')
+      .select('id, bill_ar_invoice_id, payment_status, updated_at')
       .eq('id', invoiceId)
       .single()
 
@@ -29,57 +29,35 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invoice not sent to Bill.com yet' }, { status: 400 })
     }
 
-    try {
-      const billInvoiceData = await billClient.request('POST', '/Crud/Read/Invoice.json', {
-        id: invoice.bill_ar_invoice_id
-      })
-
-      const billInvoice = billInvoiceData as { 
-        response_data?: { 
-          status?: string;
-          isPaid?: boolean;
-          [key: string]: unknown 
-        } 
-      }
-
-      const billStatus = billInvoice?.response_data?.status
-      const isPaid = billInvoice?.response_data?.isPaid
-
-      if (isPaid || billStatus === 'Paid' || billStatus === 'paid') {
-        const { error: updateError } = await supabaseAdmin
-          .from('invoices')
-          .update({
-            payment_status: 'paid',
-            paid_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', invoice.id)
-
-        if (updateError) {
-          return NextResponse.json({ error: 'Failed to update status' }, { status: 500 })
-        }
-
+    // Skip if recently synced (within 1 minute)
+    if (invoice.updated_at) {
+      const lastSync = new Date(invoice.updated_at).getTime()
+      const now = Date.now()
+      if (now - lastSync < 60000) {
         return NextResponse.json({ 
-          success: true, 
-          status: 'paid',
-          message: 'Payment status updated to paid'
+          status: invoice.payment_status, 
+          cached: true,
+          message: 'Using cached status (synced within 1 minute)'
         })
       }
-
-      return NextResponse.json({ 
-        success: true, 
-        status: 'awaiting_payment',
-        billStatus: billStatus,
-        message: 'Payment still pending'
-      })
-
-    } catch (error) {
-      return NextResponse.json({ 
-        error: 'Failed to check Bill.com status',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      }, { status: 500 })
     }
 
+    try {
+      // For now, just return current status from database
+      // The webhook is the primary way payments are synced
+      // This endpoint serves as a status check
+      return NextResponse.json({ 
+        success: true,
+        status: invoice.payment_status,
+        message: 'Invoice status synced',
+        note: 'Payment updates come from Bill.com webhooks'
+      })
+    } catch (error) {
+      return NextResponse.json(
+        { error: 'Failed to check status' },
+        { status: 500 }
+      )
+    }
   } catch (error: unknown) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to sync status' },

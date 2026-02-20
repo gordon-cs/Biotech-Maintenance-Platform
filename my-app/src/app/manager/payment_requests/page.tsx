@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 
 interface PaymentRequest {
@@ -25,16 +25,107 @@ interface PaymentRequest {
   }
 }
 
+const INVOICE_SELECT = `
+  *,
+  work_orders (
+    id,
+    title,
+    description,
+    initial_fee
+  ),
+  labs (
+    id,
+    name,
+    bill_customer_id
+  )
+`
+
 export default function PaymentRequests() {
   const [requests, setRequests] = useState<PaymentRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedRequest, setSelectedRequest] = useState<PaymentRequest | null>(null)
   const [isApproving, setIsApproving] = useState(false)
   const [isSyncing, setIsSyncing] = useState(false)
+  const subscriptionsRef = useRef<Map<string, ReturnType<typeof supabase.channel>>>(new Map())
+  const userIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     loadPaymentRequests()
   }, [])
+
+  // Set up real-time subscriptions for pending invoices
+  const setupRealtimeSubscriptions = (labIds: number[]) => {
+    // Clear old subscriptions
+    subscriptionsRef.current.forEach((channel) => {
+      supabase.removeChannel(channel)
+    })
+    subscriptionsRef.current.clear()
+
+    if (labIds.length === 0) return
+
+    // Subscribe to all invoice changes for these labs
+    labIds.forEach((labId) => {
+      const channel = supabase
+        .channel(`invoices:lab:${labId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'invoices',
+            filter: `lab_id=eq.${labId}`
+          },
+          async (payload) => {
+            // For DELETE events, payload.new is null — read id from payload.old
+            if (payload.eventType === 'DELETE') {
+              const deletedId = (payload.old as PaymentRequest).id
+              setRequests((prev) => prev.filter((r) => r.id !== deletedId))
+              return
+            }
+
+            const updated = payload.new as PaymentRequest
+
+            // If marked as paid, remove from list
+            if (updated.payment_status === 'paid') {
+              setRequests((prev) => prev.filter((r) => r.id !== updated.id))
+              return
+            }
+
+            if (['unbilled', 'awaiting_payment'].includes(updated.payment_status)) {
+              setRequests((prev) => {
+                const exists = prev.find((r) => r.id === updated.id)
+                if (exists) {
+                  // UPDATE: only apply scalar changes to preserve existing joined data
+                  return prev.map((r) =>
+                    r.id === updated.id ? { ...r, payment_status: updated.payment_status } : r
+                  )
+                }
+                return prev
+              })
+
+              // INSERT: refetch with full join so labs/work_orders are populated
+              if (payload.eventType === 'INSERT') {
+                const { data } = await supabase
+                  .from('invoices')
+                  .select(INVOICE_SELECT)
+                  .eq('id', updated.id)
+                  .single()
+
+                if (data) {
+                  setRequests((prev) => {
+                    if (prev.find((r) => r.id === data.id)) return prev
+                    return [data as PaymentRequest, ...prev]
+                  })
+                }
+              }
+            }
+          }
+        )
+        .subscribe()
+
+      subscriptionsRef.current.set(`lab:${labId}`, channel)
+    })
+  }
 
   const loadPaymentRequests = async () => {
     try {
@@ -46,6 +137,8 @@ export default function PaymentRequests() {
         setLoading(false)
         return
       }
+
+      userIdRef.current = user.id
 
       const { data: labs } = await supabase
         .from('labs')
@@ -63,20 +156,7 @@ export default function PaymentRequests() {
       // Fetch unbilled and awaiting_payment invoices (both initial_fee and service types)
       const { data, error } = await supabase
         .from('invoices')
-        .select(`
-          *,
-          work_orders (
-            id,
-            title,
-            description,
-            initial_fee
-          ),
-          labs (
-            id,
-            name,
-            bill_customer_id
-          )
-        `)
+        .select(INVOICE_SELECT)
         .in('payment_status', ['unbilled', 'awaiting_payment'])
         .in('lab_id', labIds)
         .order('work_order_id', { ascending: false })
@@ -92,11 +172,24 @@ export default function PaymentRequests() {
       if (data && data.length > 0) {
         setSelectedRequest(data[0])
       }
+
+      // Set up real-time subscriptions
+      setupRealtimeSubscriptions(labIds)
     } catch (err) {
     } finally {
       setLoading(false)
     }
   }
+
+  // Cleanup subscriptions on unmount
+  useEffect(() => {
+    return () => {
+      subscriptionsRef.current.forEach((channel) => {
+        supabase.removeChannel(channel)
+      })
+      subscriptionsRef.current.clear()
+    }
+  }, [])
 
   const handleApprovePayment = async (request: PaymentRequest) => {
     if (!confirm(`Approve payment of $${Number(request.total_amount).toFixed(2)}?`)) {
@@ -153,7 +246,7 @@ export default function PaymentRequests() {
 
       if (response.ok) {
         if (result.status === 'paid') {
-          alert('✅ Payment confirmed! Status updated to Paid.')
+          alert('Payment confirmed! Status updated to Paid.')
         } else {
           alert('Payment is still pending in Bill.com')
         }
@@ -199,11 +292,17 @@ export default function PaymentRequests() {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Payment Requests</h1>
-          <p className="text-gray-600 mt-2">
-            Review and approve payment requests from completed work orders
-          </p>
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Payment Requests</h1>
+            <p className="text-gray-600 mt-2">
+              Review and approve payment requests from completed work orders
+            </p>
+          </div>
+          <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-lg border border-green-200">
+            <span className="inline-block w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+            <span className="text-sm text-green-700 font-medium">Real-time Sync Active</span>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -237,7 +336,7 @@ export default function PaymentRequests() {
                             ? 'bg-purple-100 text-purple-800'
                             : 'bg-blue-100 text-blue-800'
                         }`}>
-                          {request.invoice_type === 'initial_fee' ? '🏢 Platform Fee' : '🔧 Service'}
+                          {request.invoice_type === 'initial_fee' ? 'Platform Fee' : 'Service'}
                         </span>
                       </div>
                       <p className="text-sm text-gray-600 truncate mt-1">
@@ -299,7 +398,7 @@ export default function PaymentRequests() {
                         <p className="text-sm font-semibold mb-1 ${
                           selectedRequest.invoice_type === 'initial_fee' ? 'text-purple-900' : 'text-blue-900'
                         }">
-                          {selectedRequest.invoice_type === 'initial_fee' ? '🏢 Platform Initial Fee' : '🔧 Technician Service Fee'}
+                          {selectedRequest.invoice_type === 'initial_fee' ? 'Platform Initial Fee' : 'Technician Service Fee'}
                         </p>
                         <p className="text-xs ${
                           selectedRequest.invoice_type === 'initial_fee' ? 'text-purple-700' : 'text-blue-700'
@@ -325,14 +424,14 @@ export default function PaymentRequests() {
                     </p>
                     {selectedRequest.labs?.bill_customer_id && (
                       <p className="text-xs text-blue-600 mt-1">
-                        ✅ Bill.com configured
+                        Bill.com configured
                       </p>
                     )}
                   </div>
 
                   {/* Work Order Details */}
                   <div className="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200">
-                    <p className="text-sm font-semibold text-gray-700 mb-2">📋 Work Order Details</p>
+                    <p className="text-sm font-semibold text-gray-700 mb-2">Work Order Details</p>
                     <p className="font-semibold text-gray-900">
                       {selectedRequest.work_orders?.title || 'No title'}
                     </p>
@@ -346,7 +445,7 @@ export default function PaymentRequests() {
                   {/* Request Date */}
                   <div className="text-sm text-gray-500 mb-6">
                     <p>
-                      🕐 Requested on: {new Date(selectedRequest.created_at).toLocaleDateString('en-US', {
+                      Requested on: {new Date(selectedRequest.created_at).toLocaleDateString('en-US', {
                         year: 'numeric',
                         month: 'long',
                         day: 'numeric',
