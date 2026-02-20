@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { sendTechnicianVerificationEmail } from "@/lib/email"
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -148,9 +149,9 @@ export async function POST(req: NextRequest) {
       }
 
       // First check if technician already exists
-      const { data: existingTech } = await serviceClient
+      const { data: existingTech, error: techCheckError } = await serviceClient
         .from("technicians")
-        .select("id")
+        .select("id, experience, bio")
         .eq("id", userId)
         .single()
 
@@ -164,6 +165,28 @@ export async function POST(req: NextRequest) {
           { onConflict: 'id' }
         )
       if (tErr) return NextResponse.json({ error: tErr.message }, { status: 500 })
+
+      // Send verification email if this is a new technician OR if they're completing their profile for the first time
+      // (i.e., they didn't have experience/bio before but do now)
+      const isFirstTimeCompletion = !existingTech || (!existingTech.experience && !existingTech.bio)
+      const hasNewTechData = body.tech?.experience || body.tech?.bio
+      
+      if (isFirstTimeCompletion && hasNewTechData) {
+        try {
+          await sendTechnicianVerificationEmail({
+            technicianName: body.full_name || 'Unknown',
+            technicianEmail: user.email || 'No email provided',
+            technicianId: userId,
+            experience: body.tech?.experience || 'Not provided',
+            bio: body.tech?.bio || 'Not provided',
+            company: body.tech?.company || undefined,
+          })
+          console.log('Verification email sent to admin for technician:', userId)
+        } catch (emailError) {
+          console.error('Failed to send verification email:', emailError)
+          // Don't fail the request if email fails
+        }
+      }
     }
 
     return NextResponse.json({ ok: true })

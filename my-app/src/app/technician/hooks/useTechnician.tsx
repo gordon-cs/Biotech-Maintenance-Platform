@@ -19,6 +19,7 @@ export default function useTechnician() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [isVerified, setIsVerified] = useState<boolean | null>(null)
 
   const [labs, setLabs] = useState<Array<{ id: number; name: string }>>([])
   const [categories, setCategories] = useState<Array<{ id: number; name: string }>>([])
@@ -33,10 +34,27 @@ export default function useTechnician() {
       setError(null)
       try {
         // ensure we know the current user before filtering "mine"
+        let userId: string | null = null
         try {
           const sessionRes = await supabase.auth.getSession()
-          const userId = sessionRes.data?.session?.user?.id ?? null
+          userId = sessionRes.data?.session?.user?.id ?? null
           setCurrentUserId(userId)
+          
+          // Check if technician is verified
+          if (userId) {
+            const { data: techData, error: techError } = await supabase
+              .from('technicians')
+              .select('verified')
+              .eq('id', userId)
+              .single()
+
+            if (!techError && techData) {
+              setIsVerified(techData.verified)
+            } else if (techError) {
+              console.warn("Failed to load technician verification status:", techError)
+              setError(prev => prev ?? "Failed to load technician verification status")
+            }
+          }
         } catch (err) {
           console.warn("Failed to load auth session:", err)
         }
@@ -146,6 +164,35 @@ export default function useTechnician() {
 
         setCurrentUserId(userId)
 
+        // Check if technician is verified before accepting jobs
+        const { data: techData, error: techError } = await supabase
+          .from('technicians')
+          .select('verified')
+          .eq('id', userId)
+          .single()
+        
+        if (techError) throw new Error("Failed to verify technician status")
+
+        // Update the verification state to keep UI synchronized
+        if (techData) {
+          setIsVerified(techData.verified)
+        }
+
+        // techData.verified semantics:
+        //   true  => verified technician, can accept jobs
+        //   null  => pending verification
+        //   false => verification rejected
+        if (!techData || typeof techData.verified === "undefined") {
+          throw new Error("Unable to determine your verification status. Please contact an administrator.")
+        }
+
+        if (techData.verified === null) {
+          throw new Error("Your account is pending verification by an admin. You will be able to accept work orders once it has been approved.")
+        }
+
+        if (techData.verified === false) {
+          throw new Error("Your account verification request has been rejected. Please contact an admin if you believe this is an error.")
+        }
         const { error } = await supabase
           .from("work_orders")
           .update({ status: "claimed", assigned_to: userId } as Partial<DBWorkOrderRow>)
@@ -183,5 +230,5 @@ export default function useTechnician() {
     [loadWorkOrders]
   )
 
-  return { workOrders, setWorkOrders, loading, error, currentUserId, labs, categories, loadWorkOrders, acceptJob, cancelJob }
+  return { workOrders, setWorkOrders, loading, error, currentUserId, labs, categories, isVerified, loadWorkOrders, acceptJob, cancelJob }
 }
