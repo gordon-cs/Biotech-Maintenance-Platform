@@ -8,6 +8,7 @@ export type DBWorkOrderRow = {
   urgency?: string | null
   status?: string | null
   date?: string | null
+  due_date?: string | null
   assigned_to?: string | null
   created_at?: string | null
   updated_at?: string | null
@@ -45,6 +46,7 @@ export type WorkOrder = {
   urgency?: string | null
   status?: string | null
   date?: string | null
+  due_date?: string | null
   assigned_to?: string | null
   created_at?: string | null
   updated_at?: string | null
