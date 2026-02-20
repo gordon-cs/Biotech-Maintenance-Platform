@@ -52,7 +52,7 @@ export default function PaymentRequestPanel({ selectedId, currentOrderStatus, on
       supabase.removeChannel(channel)
       subscriptionRef.current = null
     }
-  }, [invoice?.id])
+  }, [invoice?.id, selectedId])
 
   // Initial load
   useEffect(() => {
