@@ -47,9 +47,12 @@ export default function useTechnician() {
               .select('verified')
               .eq('id', userId)
               .single()
-            
+
             if (!techError && techData) {
               setIsVerified(techData.verified)
+            } else if (techError) {
+              console.warn("Failed to load technician verification status:", techError)
+              setError(prev => prev ?? "Failed to load technician verification status")
             }
           }
         } catch (err) {
