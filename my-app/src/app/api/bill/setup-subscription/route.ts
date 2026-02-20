@@ -66,16 +66,8 @@ export async function POST(req: NextRequest) {
     // Step 2: Create subscription
     const notificationUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://yourdomain.com'}/api/billing/webhook`
     
-    // Generate proper UUID format for idempotent key
-    const generateUUID = () => {
-      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-        const r = (Math.random() * 16) | 0
-        const v = c === 'x' ? r : (r & 0x3) | 0x8
-        return v.toString(16)
-      })
-    }
-    const idempotentKey = generateUUID()
-
+    // Generate idempotent key using cryptographically strong UUID
+    const idempotentKey = crypto.randomUUID()
     console.log('[SetupSubscription] Creating subscription with idempotent key:', idempotentKey)
 
     const subscriptionRes = await fetch(
