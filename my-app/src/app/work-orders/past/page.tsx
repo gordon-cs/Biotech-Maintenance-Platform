@@ -724,7 +724,7 @@ function PastOrdersContent() {
            description: selectedOrder?.description ?? "",
            date: selectedOrder?.date ?? null,
            urgency: selectedOrder?.urgency ?? null,
-           equipment: (selectedOrder as any)?.equipment ?? null
+           equipment: selectedOrder?.equipment ?? null
          }}
          onSaved={(updated) => {
           // normalize incoming values to match DisplayRow types
