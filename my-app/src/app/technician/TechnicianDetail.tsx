@@ -21,6 +21,8 @@ export default function TechnicianDetail({ order, currentUserId, onAccept, onCan
 
       <div className="text-sm text-gray-600 mb-4">Submitted on {formatSubmitted(order.created_at)}</div>
 
+      <div className="text-sm text-gray-600 mb-2">Due Date: {formatSubmitted(order.date ?? null)}</div>
+
       <div className="text-sm font-medium mb-2">Lab: {order.labName || "Unknown Lab"}</div>
 
       {order.address && <div className="text-lg text-gray-800 mb-4">{order.address}</div>}

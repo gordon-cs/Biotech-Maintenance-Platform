@@ -134,8 +134,41 @@ export default function WorkOrderSubmission() {
     setResult(null)
     setLoading(true)
 
-    if (!form.title.trim()) {
+    // client-side validation: require all fields except equipment
+    if (!form.title || !form.title.trim()) {
       setResult({ message: "Title is required." })
+      setLoading(false)
+      return
+    }
+    if (!form.description || !form.description.trim()) {
+      setResult({ message: "Description is required." })
+      setLoading(false)
+      return
+    }
+    if (!form.urgency || !String(form.urgency).trim()) {
+      setResult({ message: "Please select an urgency." })
+      setLoading(false)
+      return
+    }
+    if (!form.category_id || !String(form.category_id).trim()) {
+      setResult({ message: "Please select a category." })
+      setLoading(false)
+      return
+    }
+    if (!form.date || !String(form.date).trim()) {
+      setResult({ message: "Please select a date." })
+      setLoading(false)
+      return
+    }
+    if (!form.address_id || !String(form.address_id).trim()) {
+      setResult({ message: "Please select a service area (address)." })
+      setLoading(false)
+      return
+    }
+    // Ensure address_id is a finite number (protect against tampered or non-numeric input)
+    const addressIdNum = Number(form.address_id)
+    if (!Number.isFinite(addressIdNum)) {
+      setResult({ message: "Please select a valid service area (address)." })
       setLoading(false)
       return
     }
@@ -171,6 +204,15 @@ export default function WorkOrderSubmission() {
         }
       }
 
+      // Category is required in the form, but resolvedCategoryId
+      // can still be null (e.g. an unrecognized slug). Don't proceed with the insert
+      // if we couldn't resolve a valid numeric category id — surface a user-friendly error.
+      if (catVal && resolvedCategoryId === null) {
+        setResult({ message: "Please select a valid category." })
+        setLoading(false)
+        return
+      }
+      
       const payload: WorkOrderPayload = {
         title: form.title || null,
         description: form.description || null,
@@ -181,7 +223,7 @@ export default function WorkOrderSubmission() {
         category_id: resolvedCategoryId,
         date: form.date || null,
         created_by: user.id,
-        address_id: form.address_id ? Number(form.address_id) : null,
+        address_id: addressIdNum,
         initial_fee: labInitialFee,
       }
 
@@ -195,7 +237,30 @@ export default function WorkOrderSubmission() {
         setResult({ message: `Insert error: ${error.message}` })
       } else {
         const inserted = data as InsertIdRow | null
-        setResult({ id: inserted?.id, message: "Work order submitted successfully." })
+        const workOrderId = inserted?.id
+
+        if (workOrderId) {
+          try {
+            const { data: { session } } = await supabase.auth.getSession()
+            const response = await fetch('/api/invoices/create-initial-fee', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session?.access_token || ''}`
+              },
+              body: JSON.stringify({ workOrderId })
+            })
+
+            if (response.ok) {
+              setResult({ id: workOrderId, message: "Work order submitted successfully. Initial fee invoice sent to lab manager." })
+            } else {
+              const err = await response.json()
+              setResult({ id: workOrderId, message: `Work order submitted, but failed to create initial fee invoice: ${err.error}` })
+            }
+          } catch (invoiceError) {
+            setResult({ id: workOrderId, message: "Work order submitted, but failed to send initial fee invoice." })
+          }
+        }
         setForm({ title: "", description: "", equipment: "", urgency: "", category_id: "", date: "", address_id: "" })
       }
     } catch (err: unknown) {
@@ -227,8 +292,8 @@ export default function WorkOrderSubmission() {
         </label>
 
         <label className="block mb-3">
-          <div className="text-sm mb-1">Description</div>
-          <textarea name="description" value={form.description} onChange={handleChange} className="w-full border px-2 py-2 rounded" />
+          <div className="text-sm mb-1">Description *</div>
+          <textarea name="description" value={form.description} onChange={handleChange} required className="w-full border px-2 py-2 rounded" />
         </label>
 
         <label className="block mb-3">
@@ -237,11 +302,12 @@ export default function WorkOrderSubmission() {
         </label>
 
         <label className="block mb-3">
-          <div className="text-sm mb-1">Urgency</div>
+          <div className="text-sm mb-1">Urgency *</div>
           <select
             name="urgency"
             value={form.urgency}
             onChange={handleChange}
+            required
             className="w-full border px-2 py-1 rounded"
           >
             <option value="">Select…</option>
@@ -253,11 +319,12 @@ export default function WorkOrderSubmission() {
         </label>
 
         <label className="block mb-3">
-          <div className="text-sm mb-1">Category</div>
+          <div className="text-sm mb-1">Category *</div>
           <select
             name="category_id"
             value={form.category_id}
             onChange={handleChange}
+            required
             className="w-full border px-2 py-1 rounded"
           >
             <option value="">{categories.length ? "Select category…" : "Loading categories…"}</option>
@@ -300,8 +367,8 @@ export default function WorkOrderSubmission() {
         )}
 
         <label className="block mb-4">
-          <div className="text-sm mb-1">Date</div>
-          <input type="date" name="date" value={form.date} onChange={handleChange} className="w-full border px-2 py-1 rounded" />
+          <div className="text-sm mb-1">Date *</div>
+          <input type="date" name="date" value={form.date} onChange={handleChange} required className="w-full border px-2 py-1 rounded" />
         </label>
 
         <div className="flex items-center gap-2">
