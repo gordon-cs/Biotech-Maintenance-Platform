@@ -49,12 +49,6 @@ export async function POST(req: NextRequest) {
   const raw: unknown = await req.json()
   const body = raw as CreateProfileBody // (Optional) replace with Zod validation later
 
-  console.log('CREATE PROFILE REQUEST:', { 
-    userId: user.id, 
-    role: body.role,
-    hasTechData: !!body.tech 
-  })
-
   const userId = user.id
 
     // First get existing profile to preserve any fields not being updated
