@@ -169,11 +169,22 @@ export default function useTechnician() {
           .single()
         
         if (techError) throw new Error("Failed to verify technician status")
-        
-        if (!techData.verified) {
-          throw new Error("Your account must be verified by an admin before you can accept work orders. Please wait for admin approval.")
+
+        // techData.verified semantics:
+        //   true  => verified technician, can accept jobs
+        //   null  => pending verification
+        //   false => verification rejected
+        if (!techData || typeof techData.verified === "undefined") {
+          throw new Error("Unable to determine your verification status. Please contact an administrator.")
         }
 
+        if (techData.verified === null) {
+          throw new Error("Your account is pending verification by an admin. You will be able to accept work orders once it has been approved.")
+        }
+
+        if (techData.verified === false) {
+          throw new Error("Your account verification request has been rejected. Please contact an admin if you believe this is an error.")
+        }
         const { error } = await supabase
           .from("work_orders")
           .update({ status: "claimed", assigned_to: userId } as Partial<DBWorkOrderRow>)
