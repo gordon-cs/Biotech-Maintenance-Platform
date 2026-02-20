@@ -2,6 +2,16 @@ import { Resend } from 'resend'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
+function escapeHtml(value: string | null | undefined): string {
+  if (value == null) return ''
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 type EmailRecipient = {
   email: string
   name?: string
@@ -69,7 +79,7 @@ export async function sendInvoiceNotificationEmail(
             <p style="margin: 10px 0 0 0; font-size: 14px; opacity: 0.95;">Boston Biotech Management Platform</p>
           </div>
           <div class="content">
-            <p>Hello ${recipient.name || 'there'},</p>
+            <p>Hello ${escapeHtml(recipient.name || 'there')},</p>
             
             <p>A new invoice has been generated and is ready for payment. Please review the details below:</p>
             
@@ -77,7 +87,7 @@ export async function sendInvoiceNotificationEmail(
               <div class="invoice-header">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                   <div>
-                    <h3 style="margin: 0 0 5px 0; color: #0f766e;">Invoice #${data.invoiceNumber}</h3>
+                    <h3 style="margin: 0 0 5px 0; color: #0f766e;">Invoice #${escapeHtml(data.invoiceNumber)}</h3>
                     <span class="label-badge">${invoiceTypeLabel}</span>
                   </div>
                   <div style="text-align: right;">
@@ -89,7 +99,7 @@ export async function sendInvoiceNotificationEmail(
               
               <div class="invoice-row">
                 <span class="invoice-label">Work Order</span>
-                <span class="invoice-value">#${data.workOrderId}: ${data.workOrderTitle}</span>
+                <span class="invoice-value">#${data.workOrderId}: ${escapeHtml(data.workOrderTitle)}</span>
               </div>
               
               <div class="invoice-row">
@@ -210,28 +220,28 @@ export async function sendWorkOrderUpdateEmail(
             <h2 style="margin: 0;">Work Order Update</h2>
           </div>
           <div class="content">
-            <p>Hello${recipient.name ? ` ${recipient.name}` : ''},</p>
+            <p>Hello${recipient.name ? ` ${escapeHtml(recipient.name)}` : ''},</p>
             
             <p>
-              <strong>${data.authorName}</strong> (${data.authorRole}) has posted a 
+              <strong>${escapeHtml(data.authorName)}</strong> (${escapeHtml(data.authorRole)}) has posted a 
               <span class="badge ${data.updateType === 'status_change' ? 'badge-status' : 'badge-comment'}">
                 ${data.updateType === 'status_change' ? 'Status Update' : 'Comment'}
               </span>
-              on work order <strong>#${data.workOrderId}: ${data.workOrderTitle}</strong>
+              on work order <strong>#${data.workOrderId}: ${escapeHtml(data.workOrderTitle)}</strong>
             </p>
             
             ${data.updateType === 'status_change' && data.newStatus ? `
               <p>
                 <strong>New Status:</strong> 
                 <span style="text-transform: capitalize; font-weight: 600; color: #059669;">
-                  ${data.newStatus}
+                  ${escapeHtml(data.newStatus)}
                 </span>
               </p>
             ` : ''}
             
             <div class="update-body">
               <strong>${data.updateType === 'status_change' ? 'Reason:' : 'Message:'}</strong>
-              <p style="margin: 10px 0 0 0; white-space: pre-wrap;">${data.updateBody}</p>
+              <p style="margin: 10px 0 0 0; white-space: pre-wrap;">${escapeHtml(data.updateBody)}</p>
             </div>
             
             <p>You can view the full work order details and respond by clicking the button below:</p>
