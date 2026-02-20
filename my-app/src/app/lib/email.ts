@@ -135,7 +135,11 @@ type TechnicianVerificationEmailData = {
 export async function sendTechnicianVerificationEmail(
   data: TechnicianVerificationEmailData
 ) {
-  const adminEmail = 'calebchan6@gmail.com'
+  const adminEmail = process.env.ADMIN_EMAIL
+  if (!adminEmail) {
+    console.error('ADMIN_EMAIL environment variable is not configured')
+    throw new Error('ADMIN_EMAIL environment variable is required to send technician verification emails')
+  }
   const subject = `New Technician Registration - ${data.technicianName}`
 
   const emailHtml = `
