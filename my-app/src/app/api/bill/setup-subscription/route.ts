@@ -13,7 +13,8 @@ export async function POST(req: NextRequest) {
     // Get credentials
     const devKey = process.env.BILL_DEVELOPER_KEY
     const orgId = process.env.BILL_ORGANIZATION_ID
-    const baseUrl = process.env.BILL_BASE_URL || 'https://gateway.stage.bill.com/connect/v3'
+    const baseUrl = process.env.BILL_BASE_URL ?? 'https://gateway.stage.bill.com/connect/v3'
+    const eventsBaseUrl = baseUrl.replace('/connect/v3', '/connect-events/v3')
     const username = process.env.BILL_USERNAME
     const password = process.env.BILL_PASSWORD
 
@@ -71,7 +72,7 @@ export async function POST(req: NextRequest) {
     console.log('[SetupSubscription] Creating subscription with idempotent key:', idempotentKey)
 
     const subscriptionRes = await fetch(
-      'https://gateway.stage.bill.com/connect-events/v3/subscriptions',
+      `${eventsBaseUrl}/subscriptions`,
       {
         method: 'POST',
         headers: {
