@@ -2,14 +2,14 @@ import { Resend } from 'resend'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
-function escapeHtml(value: string | null | undefined): string {
-  if (value == null) return ''
-  return value
+function escapeHtml(unsafe: string | null | undefined): string {
+  if (unsafe == null) return ''
+  return String(unsafe)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
+    .replace(/'/g, '&#039;')
 }
 
 type EmailRecipient = {
