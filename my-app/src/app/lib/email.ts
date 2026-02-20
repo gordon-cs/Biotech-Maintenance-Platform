@@ -2,6 +2,16 @@ import { Resend } from 'resend'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
+// Helper function to escape HTML entities to prevent XSS
+function escapeHtml(unsafe: string): string {
+  return unsafe
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;")
+}
+
 type EmailRecipient = {
   email: string
   name?: string
@@ -24,6 +34,14 @@ export async function sendWorkOrderUpdateEmail(
   const subject = data.updateType === 'status_change'
     ? `Work Order #${data.workOrderId} Status Updated to ${data.newStatus}`
     : `New Comment on Work Order #${data.workOrderId}`
+
+  // Escape all user-provided data for HTML to prevent XSS
+  const escapedRecipientName = recipient.name ? escapeHtml(recipient.name) : ''
+  const escapedAuthorName = escapeHtml(data.authorName)
+  const escapedAuthorRole = escapeHtml(data.authorRole)
+  const escapedWorkOrderTitle = escapeHtml(data.workOrderTitle)
+  const escapedUpdateBody = escapeHtml(data.updateBody)
+  const escapedNewStatus = data.newStatus ? escapeHtml(data.newStatus) : undefined
 
   const emailHtml = `
     <!DOCTYPE html>
@@ -49,28 +67,28 @@ export async function sendWorkOrderUpdateEmail(
             <h2 style="margin: 0;">Work Order Update</h2>
           </div>
           <div class="content">
-            <p>Hello${recipient.name ? ` ${recipient.name}` : ''},</p>
+            <p>Hello${escapedRecipientName ? ` ${escapedRecipientName}` : ''},</p>
             
             <p>
-              <strong>${data.authorName}</strong> (${data.authorRole}) has posted a 
+              <strong>${escapedAuthorName}</strong> (${escapedAuthorRole}) has posted a 
               <span class="badge ${data.updateType === 'status_change' ? 'badge-status' : 'badge-comment'}">
                 ${data.updateType === 'status_change' ? 'Status Update' : 'Comment'}
               </span>
-              on work order <strong>#${data.workOrderId}: ${data.workOrderTitle}</strong>
+              on work order <strong>#${data.workOrderId}: ${escapedWorkOrderTitle}</strong>
             </p>
             
-            ${data.updateType === 'status_change' && data.newStatus ? `
+            ${data.updateType === 'status_change' && escapedNewStatus ? `
               <p>
                 <strong>New Status:</strong> 
                 <span style="text-transform: capitalize; font-weight: 600; color: #059669;">
-                  ${data.newStatus}
+                  ${escapedNewStatus}
                 </span>
               </p>
             ` : ''}
             
             <div class="update-body">
               <strong>${data.updateType === 'status_change' ? 'Reason:' : 'Message:'}</strong>
-              <p style="margin: 10px 0 0 0; white-space: pre-wrap;">${data.updateBody}</p>
+              <p style="margin: 10px 0 0 0; white-space: pre-wrap;">${escapedUpdateBody}</p>
             </div>
             
             <p>You can view the full work order details and respond by clicking the button below:</p>
@@ -142,6 +160,14 @@ export async function sendTechnicianVerificationEmail(
   }
   const subject = `New Technician Registration - ${data.technicianName}`
 
+  // Escape all user-provided data for HTML to prevent XSS
+  const escapedName = escapeHtml(data.technicianName)
+  const escapedEmail = escapeHtml(data.technicianEmail)
+  const escapedExperience = escapeHtml(data.experience)
+  const escapedBio = escapeHtml(data.bio)
+  const escapedCompany = data.company ? escapeHtml(data.company) : undefined
+  const escapedTechId = escapeHtml(data.technicianId)
+
   const emailHtml = `
     <!DOCTYPE html>
     <html>
@@ -172,29 +198,29 @@ export async function sendTechnicianVerificationEmail(
             
             <div class="info-section">
               <div class="info-label">Technician Name:</div>
-              <div class="info-value">${data.technicianName}</div>
+              <div class="info-value">${escapedName}</div>
             </div>
             
             <div class="info-section">
               <div class="info-label">Email:</div>
-              <div class="info-value">${data.technicianEmail}</div>
+              <div class="info-value">${escapedEmail}</div>
             </div>
             
-            ${data.company ? `
+            ${escapedCompany ? `
               <div class="info-section">
                 <div class="info-label">Company:</div>
-                <div class="info-value">${data.company}</div>
+                <div class="info-value">${escapedCompany}</div>
               </div>
             ` : ''}
             
             <div class="info-section">
               <div class="info-label">Experience:</div>
-              <div class="info-value">${data.experience}</div>
+              <div class="info-value">${escapedExperience}</div>
             </div>
             
             <div class="info-section">
               <div class="info-label">Bio:</div>
-              <div class="info-value">${data.bio}</div>
+              <div class="info-value">${escapedBio}</div>
             </div>
             
             <p style="margin-top: 20px;">
@@ -207,7 +233,7 @@ export async function sendTechnicianVerificationEmail(
             
             <div class="footer">
               <p>This is an automated notification from the Biotech Maintenance Platform.</p>
-              <p><strong>Technician ID:</strong> ${data.technicianId}</p>
+              <p><strong>Technician ID:</strong> ${escapedTechId}</p>
             </div>
           </div>
         </div>

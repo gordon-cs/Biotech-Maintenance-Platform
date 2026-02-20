@@ -170,6 +170,11 @@ export default function useTechnician() {
         
         if (techError) throw new Error("Failed to verify technician status")
 
+        // Update the verification state to keep UI synchronized
+        if (techData) {
+          setIsVerified(techData.verified)
+        }
+
         // techData.verified semantics:
         //   true  => verified technician, can accept jobs
         //   null  => pending verification

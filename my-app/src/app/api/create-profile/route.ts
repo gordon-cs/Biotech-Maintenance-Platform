@@ -161,13 +161,6 @@ export async function POST(req: NextRequest) {
         .eq("id", userId)
         .single()
 
-      console.log('Technician check:', { 
-        userId, 
-        existingTech, 
-        techCheckError, 
-        willSendEmail: !existingTech || (!existingTech.experience && !existingTech.bio)
-      })
-
       // Use upsert to handle both insert and update cases
       const { error: tErr } = await serviceClient
         .from("technicians")
