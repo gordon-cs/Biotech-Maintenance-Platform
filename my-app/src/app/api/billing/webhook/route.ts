@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     // Bill.com status can be: DRAFT, SENT, VIEWED, PARTIALLY_PAID, PAID_IN_FULL, OVERDUE, etc.
     const isPaymentConfirmed =
       billStatus === 'PAID_IN_FULL' ||
-      (dueAmount !== undefined && dueAmount === 0)
+      (dueAmount !== undefined && Number(dueAmount) === 0)
 
     if (isPaymentConfirmed) {
       // Skip if already paid
