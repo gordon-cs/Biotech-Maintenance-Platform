@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabaseClient"
 import Link from "next/link"
+import { useRouter, useSearchParams } from "next/navigation"
 
 type Address = {
   id: number
@@ -16,6 +17,10 @@ type Address = {
 }
 
 export default function AddressManagement() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const returnTo = searchParams?.get("returnTo") || null
+  
   const [addresses, setAddresses] = useState<Address[]>([])
   const [labId, setLabId] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
@@ -162,7 +167,27 @@ export default function AddressManagement() {
           throw new Error(error.message || "Failed to add address")
         }
         console.log("Address created:", data)
+        const newAddressId = data?.[0]?.id
         setMessage("Address added successfully!")
+        
+        // Reload addresses and redirect back if needed
+        await loadAddresses()
+        if (returnTo && newAddressId) {
+          const redirectUrl = new URL(returnTo, window.location.origin)
+          redirectUrl.searchParams.set("address_id", String(newAddressId))
+          const allParams = new URLSearchParams(searchParams?.toString() || "")
+          allParams.forEach((value, key) => {
+            if (key !== "returnTo" && key !== "address_id") {
+              redirectUrl.searchParams.set(key, value)
+            }
+          })
+          setTimeout(() => {
+            router.push(redirectUrl.pathname + redirectUrl.search)
+          }, 500)
+        } else {
+          handleCancel()
+        }
+        return
       }
 
       // Reload addresses
@@ -389,7 +414,25 @@ export default function AddressManagement() {
         )}
       </div>
 
-      <div className="mt-8 text-center">
+      <div className="mt-8 text-center space-x-4">
+        {returnTo && (
+          <button
+            onClick={() => {
+              const returnUrl = new URL(returnTo, window.location.origin)
+              // Preserve form parameters
+              const allParams = new URLSearchParams(searchParams?.toString() || "")
+              allParams.forEach((value, key) => {
+                if (key !== "returnTo") {
+                  returnUrl.searchParams.set(key, value)
+                }
+              })
+              router.push(returnUrl.pathname + returnUrl.search)
+            }}
+            className="inline-flex items-center px-4 py-2.5 bg-gray-600 text-white rounded font-semibold hover:bg-gray-700 transition-colors"
+          >
+            Back to Form
+          </button>
+        )}
         <Link
           href="/"
           className="inline-flex items-center px-4 py-2.5 bg-gray-200 text-gray-800 rounded font-semibold hover:bg-gray-300 transition-colors"

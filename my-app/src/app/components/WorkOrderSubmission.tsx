@@ -34,11 +34,15 @@ export default function WorkOrderSubmission() {
   const initialTitle = searchParams?.get("title") ?? ""
   const initialAddressId = searchParams?.get("address_id") ?? ""
 
+  const initialDescription = searchParams?.get("description") ?? ""
+  const initialEquipment = searchParams?.get("equipment") ?? ""
+  const initialUrgency = searchParams?.get("urgency") ?? ""
+
   const [form, setForm] = useState({
     title: initialTitle,
-    description: "",
-    equipment: "",
-    urgency: "", // display "Select..." by default
+    description: initialDescription,
+    equipment: initialEquipment,
+    urgency: initialUrgency, // display "Select..." by default
     category_id: initialCategory, // can be slug or id
     date: initialDate,
     address_id: initialAddressId, // new field for address selection
@@ -92,6 +96,40 @@ export default function WorkOrderSubmission() {
     }
   }, [])
 
+  // Reload addresses when returning from manage-addresses page with new address_id
+  useEffect(() => {
+    const addressIdParam = searchParams?.get("address_id")
+    if (!addressIdParam) return
+
+    const reloadAddresses = async () => {
+      try {
+        const { data: authData } = await supabase.auth.getUser()
+        if (authData?.user?.id) {
+          const { data: labData } = await supabase
+            .from("labs")
+            .select("id")
+            .eq("manager_id", authData.user.id)
+            .maybeSingle()
+          
+          if (labData?.id) {
+            const { data: addrData, error: addrError } = await supabase
+              .from("addresses")
+              .select("id, line1, line2, city, state, zipcode")
+              .eq("lab_id", labData.id)
+            
+            if (!addrError && addrData) {
+              setAddresses(addrData as AddressRow[])
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error reloading addresses:", err)
+      }
+    }
+
+    reloadAddresses()
+  }, [searchParams?.get("address_id")])
+
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
@@ -99,7 +137,14 @@ export default function WorkOrderSubmission() {
     
     // Handle "add_new" address option
     if (name === "address_id" && value === "add_new") {
-      router.push("/manage-addresses")
+      const returnParams = new URLSearchParams()
+      returnParams.set("title", form.title)
+      returnParams.set("description", form.description)
+      returnParams.set("equipment", form.equipment)
+      returnParams.set("urgency", form.urgency)
+      returnParams.set("category_id", form.category_id)
+      returnParams.set("date", form.date)
+      router.push(`/manage-addresses?returnTo=/work-orders/submission&${returnParams.toString()}`)
       return
     }
     

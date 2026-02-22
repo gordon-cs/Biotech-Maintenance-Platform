@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { supabase } from "@/lib/supabaseClient"
 
@@ -25,10 +25,12 @@ type WorkOrder = {
 
 export default function ManagerDashboard() {
   const router = useRouter()
-  const [serviceArea, setServiceArea] = useState("")
-  const [date, setDate] = useState<string>("")
-  const [category, setCategory] = useState("")
-  const [selectedAddressId, setSelectedAddressId] = useState<string>("")
+  const searchParams = useSearchParams()
+  
+  const [serviceArea, setServiceArea] = useState(searchParams?.get("serviceArea") ?? "")
+  const [date, setDate] = useState<string>(searchParams?.get("date") ?? "")
+  const [category, setCategory] = useState(searchParams?.get("category") ?? "")
+  const [selectedAddressId, setSelectedAddressId] = useState<string>(searchParams?.get("address_id") ?? "")
   const [categories, setCategories] = useState<Category[]>([])
   const [addresses, setAddresses] = useState<Address[]>([])
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([])
@@ -36,12 +38,50 @@ export default function ManagerDashboard() {
   const [message, setMessage] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
-  // Set page title
   useEffect(() => {
     document.title = "Lab Manager Dashboard | Biotech Maintenance"
   }, [])
 
-  // Function to get status badge styling
+  useEffect(() => {
+    setServiceArea(searchParams?.get("serviceArea") ?? "")
+    setDate(searchParams?.get("date") ?? "")
+    setCategory(searchParams?.get("category") ?? "")
+    setSelectedAddressId(searchParams?.get("address_id") ?? "")
+  }, [searchParams])
+
+  useEffect(() => {
+    if (!searchParams?.get("address_id")) return
+    
+    const reloadAddresses = async () => {
+      try {
+        const { data: authData } = await supabase.auth.getUser()
+        if (!authData?.user?.id) return
+
+        const { data: labData } = await supabase
+          .from("labs")
+          .select("id")
+          .eq("manager_id", authData.user.id)
+          .single()
+        
+        if (!labData?.id) return
+
+        const { data: addressData, error: addressError } = await supabase
+          .from("addresses")
+          .select("*")
+          .eq("lab_id", labData.id)
+          .order("is_default", { ascending: false })
+        
+        if (!addressError && addressData) {
+          setAddresses(addressData)
+        }
+      } catch (error) {
+        console.error("Error reloading addresses:", error)
+      }
+    }
+
+    reloadAddresses()
+  }, [searchParams?.get("address_id")])
+
   const getStatusBadgeStyle = (status: string) => {
     switch (status?.toLowerCase()) {
       case 'completed':
@@ -100,10 +140,14 @@ export default function ManagerDashboard() {
           
           if (!addressError && addressData) {
             setAddresses(addressData)
-            // Auto-select the default address if available
-            const defaultAddr = addressData.find(a => a.is_default)
-            if (defaultAddr) {
-              setSelectedAddressId(String(defaultAddr.id))
+            const urlAddressId = searchParams?.get("address_id")
+            if (urlAddressId) {
+              setSelectedAddressId(urlAddressId)
+            } else {
+              const defaultAddr = addressData.find(a => a.is_default)
+              if (defaultAddr) {
+                setSelectedAddressId(String(defaultAddr.id))
+              }
             }
           }
         }
@@ -145,15 +189,22 @@ export default function ManagerDashboard() {
     return () => { mounted = false }
   }, [])
 
-  // navigate to the dedicated submission page with pre-filled query params
+  const handleAddressChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value
+    
+    if (value === "add_new") {
+      const returnParams = new URLSearchParams()
+      returnParams.set("serviceArea", serviceArea)
+      returnParams.set("date", date)
+      returnParams.set("category", category)
+      router.push(`/manage-addresses?returnTo=/manager&${returnParams.toString()}`)
+    } else {
+      setSelectedAddressId(value)
+    }
+  }
+
   const handleNavigateToSubmission = (e?: React.FormEvent) => {
     e?.preventDefault()
-    
-    // Handle "add_new" option by redirecting to manage addresses first
-    if (selectedAddressId === "add_new") {
-      router.push("/manage-addresses")
-      return
-    }
     
     const params = new URLSearchParams()
     if (category) params.set("category", category)
@@ -195,7 +246,7 @@ export default function ManagerDashboard() {
               <label className="block text-sm mb-1">Service Area (Address) *</label>
               <select
                 value={selectedAddressId}
-                onChange={(e) => setSelectedAddressId(e.target.value)}
+                onChange={handleAddressChange}
                 className="w-full border px-3 py-2 rounded"
                 required
               >
