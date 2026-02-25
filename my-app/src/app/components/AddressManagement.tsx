@@ -172,18 +172,29 @@ export default function AddressManagement() {
         
         // Reload addresses and redirect back if needed
         await loadAddresses()
-        if (returnTo && newAddressId) {
-          const redirectUrl = new URL(returnTo, window.location.origin)
-          redirectUrl.searchParams.set("address_id", String(newAddressId))
-          const allParams = new URLSearchParams(searchParams?.toString() || "")
-          allParams.forEach((value, key) => {
-            if (key !== "returnTo" && key !== "address_id") {
-              redirectUrl.searchParams.set(key, value)
-            }
-          })
-          setTimeout(() => {
-            router.push(redirectUrl.pathname + redirectUrl.search)
-          }, 500)
+        if (newAddressId) {
+          const safeReturnTo =
+            typeof returnTo === "string" &&
+            returnTo.startsWith("/") &&
+            !returnTo.startsWith("//")
+              ? returnTo
+              : null
+
+          if (safeReturnTo) {
+            const redirectUrl = new URL(safeReturnTo, window.location.origin)
+            redirectUrl.searchParams.set("address_id", String(newAddressId))
+            const allParams = new URLSearchParams(searchParams?.toString() || "")
+            allParams.forEach((value, key) => {
+              if (key !== "returnTo" && key !== "address_id") {
+                redirectUrl.searchParams.set(key, value)
+              }
+            })
+            setTimeout(() => {
+              router.push(redirectUrl.pathname + redirectUrl.search)
+            }, 500)
+          } else {
+            handleCancel()
+          }
         } else {
           handleCancel()
         }
