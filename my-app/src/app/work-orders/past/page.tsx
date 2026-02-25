@@ -726,8 +726,8 @@ function PastOrdersContent() {
            urgency: selectedOrder?.urgency ?? null,
            equipment: selectedOrder?.equipment ?? null
          }}
-         onSaved={(updated) => {
-          // normalize incoming values to match DisplayRow types
+         onSaved={async (updated) => {
+          // normalize incoming values
           const updatedId = String(updated.id)
           const normalizedTitle = updated.title ?? ""
           const normalizedDescription = updated.description ?? ""
@@ -735,18 +735,69 @@ function PastOrdersContent() {
           const normalizedUrgency = typeof updated.urgency === "string" ? updated.urgency : undefined
           const normalizedEquipment = updated.equipment ?? null
 
+          // resolve category name if category_id was returned
+          let normalizedCategory = selectedOrder?.category ?? "N/A"
+          if (typeof updated.category_id === "number") {
+            const { data: catData, error: catErr } = await supabase
+              .from("categories")
+              .select("name")
+              .eq("id", updated.category_id)
+              .maybeSingle()
+            if (!catErr && catData && typeof catData.name === "string") {
+              normalizedCategory = catData.name
+            } else {
+              normalizedCategory = "N/A"
+            }
+          }
+
+          // resolve address string if address_id was returned
+          let normalizedAddress = selectedOrder?.address ?? "N/A"
+          if (typeof updated.address_id === "number") {
+            const { data: addrData, error: addrErr } = await supabase
+              .from("addresses")
+              .select("line1, city, state, zipcode")
+              .eq("id", updated.address_id)
+              .maybeSingle()
+            if (!addrErr && addrData) {
+              const parts = [addrData.line1, addrData.city, addrData.state, addrData.zipcode].filter(Boolean)
+              normalizedAddress = parts.length ? parts.join(", ") : "N/A"
+            } else {
+              normalizedAddress = "N/A"
+            }
+          }
+
+          // update orders list
           setOrders(prev =>
             prev.map(o =>
               o.id === updatedId
-                ? { ...o, title: normalizedTitle, description: normalizedDescription, date: normalizedDate, urgency: normalizedUrgency, equipment: normalizedEquipment }
+                ? {
+                    ...o,
+                    title: normalizedTitle,
+                    description: normalizedDescription,
+                    date: normalizedDate,
+                    urgency: normalizedUrgency,
+                    equipment: normalizedEquipment,
+                    category: normalizedCategory,
+                    address: normalizedAddress,
+                  }
                 : o
             )
           )
 
+          // update selectedOrder detail if it matches
           if (selectedOrder?.id === updatedId) {
             setSelectedOrder(prev =>
               prev
-                ? { ...prev, title: normalizedTitle, description: normalizedDescription, date: normalizedDate, urgency: normalizedUrgency, equipment: normalizedEquipment }
+                ? {
+                    ...prev,
+                    title: normalizedTitle,
+                    description: normalizedDescription,
+                    date: normalizedDate,
+                    urgency: normalizedUrgency,
+                    equipment: normalizedEquipment,
+                    category: normalizedCategory,
+                    address: normalizedAddress,
+                  }
                 : prev
             )
           }
