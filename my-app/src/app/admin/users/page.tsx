@@ -16,6 +16,7 @@ type Technician = {
   experience?: string | null
   bio?: string | null
   company?: string | null
+  resume_url?: string | null
 }
 
 type TechnicianWithProfile = Technician & {
@@ -46,7 +47,8 @@ export default function AdminUsersPage() {
           verified,
           experience,
           bio,
-          company
+          company,
+          resume_url
         `)
       
       if (techError) {
@@ -119,6 +121,28 @@ export default function AdminUsersPage() {
       alert("An unexpected error occurred")
     } finally {
       setUpdating((s) => ({ ...s, [techId]: false }))
+    }
+  }
+
+  const viewResume = async (resumePath: string) => {
+    try {
+      // Generate a signed URL that expires in 1 hour
+      const { data, error } = await supabase.storage
+        .from('resume')
+        .createSignedUrl(resumePath, 3600)
+      
+      if (error) {
+        console.error('Error creating signed URL:', error)
+        alert('Failed to load resume: ' + error.message)
+        return
+      }
+
+      if (data?.signedUrl) {
+        window.open(data.signedUrl, '_blank')
+      }
+    } catch (err) {
+      console.error('Error viewing resume:', err)
+      alert('Failed to load resume')
     }
   }
 
@@ -217,6 +241,7 @@ export default function AdminUsersPage() {
                 <th className="px-4 py-3 font-semibold">Email</th>
                 <th className="px-4 py-3 font-semibold">Company</th>
                 <th className="px-4 py-3 font-semibold">Experience</th>
+                <th className="px-4 py-3 font-semibold">Resume</th>
                 <th className="px-4 py-3 font-semibold">Status</th>
                 <th className="px-4 py-3 font-semibold">Action</th>
               </tr>
@@ -224,7 +249,7 @@ export default function AdminUsersPage() {
             <tbody className="divide-y divide-gray-200">
               {technicians.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
                     No technicians found
                   </td>
                 </tr>
@@ -246,6 +271,18 @@ export default function AdminUsersPage() {
                           <p className="whitespace-pre-wrap">{tech.bio || 'N/A'}</p>
                         </div>
                       </details>
+                    </td>
+                    <td className="px-4 py-3">
+                      {tech.resume_url ? (
+                        <button
+                          onClick={() => viewResume(tech.resume_url!)}
+                          className="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
+                        >
+                          View Resume
+                        </button>
+                      ) : (
+                        <span className="text-gray-400 text-xs">No resume</span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       {tech.verified === null ? (
