@@ -36,6 +36,7 @@ type WorkOrderRow = {
   equipment?: string | null
   description?: string | null
   category_id?: number | null
+  address_id?: number | null
   lab: number
   created_at?: string | null
   urgency?: string | null
@@ -335,7 +336,9 @@ function PastOrdersContent() {
           throw new Error(`Failed fetching manager work orders: ${mgrResp.status} ${mgrResp.statusText}`)
         }
         const mgrJson = await mgrResp.json()
+        // debug: inspect server payload
         const woRows = (mgrJson.data || []) as WorkOrderRow[]
+        // console.log("woRows:", woRows)
 
         // collect numeric category ids (type guard removes null/undefined)
         const catIds = Array.from(
@@ -343,26 +346,115 @@ function PastOrdersContent() {
         )
          const categoryMap: Record<number, string> = {}
          if (catIds.length) {
-           const catRes = await supabase.from("categories").select("id, name").in("id", catIds)
-           if (!catRes.error) {
-             for (const c of catRes.data || []) {
-               categoryMap[c.id] = c.name || "N/A"
-             }
-           }
-         }
-
-        const labMap: Record<number, string> = {}
-        const labNameMap: Record<number, string> = {}
-        for (const l of labRows) {
-          const parts = [l.address, l.address2, l.city, l.state, l.zipcode].filter(Boolean)
-          labMap[l.id] = parts.length ? parts.join(", ") : "N/A"
-          labNameMap[l.id] = l.name || "Unknown Lab"
+          const catRes = await supabase.from("categories").select("id, name").in("id", catIds)
+          if (!catRes.error) {
+            for (const c of catRes.data || []) {
+              categoryMap[c.id] = c.name || "N/A"
+            }
+          }
         }
 
-        const display: DisplayRow[] = woRows.map((r: WorkOrderRow) => ({
+        // resolve per-work-order addresses from addresses table (typed)
+        type AddressRow = {
+          id: number
+          label?: string | null
+          line1?: string | null
+          line2?: string | null
+          city?: string | null
+          state?: string | null
+          zipcode?: string | null
+        }
+        
+        const addrIds = Array.from(
+          new Set(woRows.map(w => w.address_id).filter((v): v is number => v !== null && v !== undefined))
+        )
+        console.log("addrIds:", addrIds)
+         const addressMap: Record<number, string> = {}
+         if (addrIds.length) {
+           const addrRes = await supabase
+             .from("addresses")
+             .select("id, label, line1, line2, city, state, zipcode")
+             .in("id", addrIds)
+          console.log("addrRes:", addrRes)
+  
+            if (!addrRes.error) {
+             const addrRows = (addrRes.data || []) as AddressRow[]
+             for (const a of addrRows) {
+               // build a full address from line1/line2/city/state/zipcode
+               const lines = [a.line1, a.line2].filter(Boolean)
+               const cityStateZip = [a.city, a.state, a.zipcode].filter(Boolean).join(", ")
+               const fullAddrParts = [...lines, cityStateZip].filter(Boolean)
+               const fullAddr = fullAddrParts.join(", ")
+ 
+               // include label only when it's meaningful (not generic "Primary")
+               let display = fullAddr || (a.label ?? "N/A")
+               if (a.label && a.label.trim() !== "" && a.label.toLowerCase() !== "primary") {
+                 // show label plus full address when label is descriptive
+                 display = fullAddr ? `${a.label} — ${fullAddr}` : a.label
+               }
+ 
+               addressMap[a.id] = display || "N/A"
+             }
+            }
+          }
+
+         // fetch lab default addresses (fallback when work_order.address_id is null)
+         const labDefaultMap: Record<number, string> = {}
+         const labIdsNum = labRows.map(l => l.id).filter(Boolean)
+         if (labIdsNum.length) {
+           const defaultRes = await supabase
+             .from("addresses")
+             .select("id, lab_id, label, line1, line2, city, state, zipcode, is_default")
+             .in("lab_id", labIdsNum)
+             .eq("is_default", true)
+ 
+         if (!defaultRes.error) {
+           const defaultRows = (defaultRes.data || []) as Array<{
+             id: number
+             lab_id?: number | string | null
+             label?: string | null
+             line1?: string | null
+             line2?: string | null
+             city?: string | null
+             state?: string | null
+             zipcode?: string | null
+           }>
+ 
+           for (const a of defaultRows) {
+             const labIdNum = typeof a.lab_id === "number" ? a.lab_id : (typeof a.lab_id === "string" && a.lab_id !== "" ? Number(a.lab_id) : NaN)
+             if (!Number.isFinite(labIdNum)) continue
+            const lines = [a.line1, a.line2].filter(Boolean)
+            const cityStateZip = [a.city, a.state, a.zipcode].filter(Boolean).join(", ")
+            const fullAddrParts = [...lines, cityStateZip].filter(Boolean)
+            const fullAddr = fullAddrParts.join(", ")
+            let display = fullAddr || (a.label ?? "N/A")
+            if (a.label && a.label.trim() !== "" && a.label.toLowerCase() !== "primary") {
+              display = fullAddr ? `${a.label} — ${fullAddr}` : a.label
+            }
+            labDefaultMap[labIdNum] = display || "N/A"
+           }
+         }
+       }
+ 
+        const labNameMap: Record<number, string> = {}
+        for (const l of labRows) {
+          labNameMap[l.id] = l.name || "Unknown Lab"
+        }
+ 
+        const display: DisplayRow[] = woRows.map((r: WorkOrderRow) => {
+          // normalize address id (handle bigint strings)
+          const aid = typeof r.address_id === "number"
+            ? r.address_id
+            : (typeof r.address_id === "string" && r.address_id !== "" ? Number(r.address_id) : null)
+
+          const resolvedAddress = aid !== null && aid !== undefined && addressMap[aid]
+            ? addressMap[aid]
+            : labDefaultMap[r.lab] ?? "N/A"
+
+          return ({
             id: String(r.id),
             title: r.title || "Untitled",
-            address: labMap[r.lab] || "N/A",
+            address: resolvedAddress,
             category: (r.category_id !== null && r.category_id !== undefined)
              ? (categoryMap[r.category_id] ?? "N/A")
              : "N/A",
@@ -376,7 +468,8 @@ function PastOrdersContent() {
               ? (r.assigned[0].full_name || r.assigned[0].email || String(r.assigned[0].id))
               : undefined,
            equipment: r.equipment ?? null
-           }))
+           })
+         })
 
         if (mounted) {
           setOrders(display)
