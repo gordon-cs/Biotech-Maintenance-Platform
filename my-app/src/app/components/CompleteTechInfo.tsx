@@ -22,6 +22,8 @@ export default function CompleteTechInfo({ initialFull = "", initialPhone = "" }
   const [phone, setPhone] = useState(initialPhone)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const [resumeFile, setResumeFile] = useState<File | null>(null)
+  const [uploadingResume, setUploadingResume] = useState(false)
 
   // Load available categories
   useEffect(() => {
@@ -71,10 +73,75 @@ export default function CompleteTechInfo({ initialFull = "", initialPhone = "" }
     })
   }
 
+  const handleResumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      // Validate file type (PDF only)
+      const isPdfByMime = file.type === 'application/pdf'
+      const isPdfByExtension = file.name.toLowerCase().endsWith('.pdf')
+      if (!isPdfByMime && !isPdfByExtension) {
+        setMessage("Please upload a PDF file only")
+        setResumeFile(null)
+        e.target.value = ""
+        return
+      }
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setMessage("Resume file must be less than 5MB")
+        setResumeFile(null)
+        e.target.value = ""
+        return
+      }
+      setResumeFile(file)
+      setMessage(null)
+    } else {
+      // No file selected; clear any previously stored resume
+      setResumeFile(null)
+    }
+  }
+
+  const uploadResume = async (userId: string): Promise<string | null> => {
+    if (!resumeFile) return null
+
+    setUploadingResume(true)
+    try {
+      // Create a unique filename
+      const fileExt = 'pdf'
+      const fileName = `${userId}-${Date.now()}.${fileExt}`
+      // Don't include bucket name in path, just the filename
+      const filePath = fileName
+
+      // Upload file to Supabase Storage
+      const { error } = await supabase.storage
+        .from('resume') // Your bucket name
+        .upload(filePath, resumeFile, {
+          cacheControl: '3600',
+          upsert: false
+        })
+
+      if (error) {
+        console.error('Storage upload error:', error)
+        throw error
+      }
+
+      // Return just the file path (not URL) to store in database
+      // URLs will be generated on-demand when viewing
+      return filePath
+    } catch (error) {
+      console.error('Error uploading resume:', error)
+      throw error
+    } finally {
+      setUploadingResume(false)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setMessage(null)
     setLoading(true)
+
+    let resumePath: string | null = null
+    let profileCreated = false
 
     try {
       const { data: { session } } = await supabase.auth.getSession()
@@ -86,6 +153,19 @@ export default function CompleteTechInfo({ initialFull = "", initialPhone = "" }
 
       if (!session.access_token) {
         throw new Error("No access token found")
+      }
+
+      // Upload resume first if provided
+      if (resumeFile) {
+        try {
+          resumePath = await uploadResume(session.user.id)
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : String(error)
+          console.error('Resume upload error:', error)
+          setMessage(`Failed to upload resume: ${errorMsg}`)
+          setLoading(false)
+          return
+        }
       }
 
       // Create/update profile and technician info via API route
@@ -102,15 +182,32 @@ export default function CompleteTechInfo({ initialFull = "", initialPhone = "" }
           tech: {
             experience,
             bio,
-            company: company || null
+            company: company || null,
+            resume_url: resumePath
           }
         })
       })
 
       if (!response.ok) {
         const error = await response.json()
+        
+        // Clean up uploaded resume if profile creation failed
+        if (resumePath) {
+          try {
+            await supabase.storage
+              .from('resume')
+              .remove([resumePath])
+            console.log('Cleaned up orphaned resume file:', resumePath)
+          } catch (cleanupError) {
+            console.error('Failed to clean up resume file:', cleanupError)
+          }
+        }
+        
         throw new Error(error.error || "Failed to save technician info")
       }
+
+      // Mark profile as successfully created
+      profileCreated = true
 
       // Now insert the technician categories
       const { error: categoryError } = await supabase
@@ -152,6 +249,19 @@ export default function CompleteTechInfo({ initialFull = "", initialPhone = "" }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       console.error("CompleteTechInfo error:", err)
+      
+      // Clean up orphaned resume if profile creation failed
+      if (resumePath && !profileCreated) {
+        try {
+          await supabase.storage
+            .from('resume')
+            .remove([resumePath])
+          console.log('Cleaned up orphaned resume file after error:', resumePath)
+        } catch (cleanupError) {
+          console.error('Failed to clean up resume file:', cleanupError)
+        }
+      }
+      
       setMessage(msg)
       setLoading(false)
     }
@@ -196,6 +306,19 @@ export default function CompleteTechInfo({ initialFull = "", initialPhone = "" }
           </div>
           
           <div className="mb-6">
+            <label className="block mb-2 font-medium text-gray-700">Resume (PDF, max 5MB)</label>
+            <input
+              type="file"
+              accept=".pdf,application/pdf"
+              onChange={handleResumeChange}
+              className="w-full border border-gray-300 rounded px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+            />
+            {resumeFile && (
+              <p className="text-sm text-gray-600 mt-2">Selected: {resumeFile.name}</p>
+            )}
+          </div>
+          
+          <div className="mb-6">
             <label className="block mb-2 font-medium text-gray-700">Select your specialties (at least one required):</label>
             <div className="border border-gray-300 rounded p-3 max-h-48 overflow-y-auto bg-white">
               {categories.map(category => (
@@ -214,10 +337,10 @@ export default function CompleteTechInfo({ initialFull = "", initialPhone = "" }
 
           <button
             type="submit"
-            disabled={loading || selectedCategories.length === 0}
+            disabled={loading || uploadingResume || selectedCategories.length === 0}
             className="w-full py-2.5 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
           >
-            {loading ? "Saving..." : "Complete Profile"}
+            {uploadingResume ? "Uploading Resume..." : loading ? "Saving..." : "Complete Profile"}
           </button>
         </form>
       </div>
