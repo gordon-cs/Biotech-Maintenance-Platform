@@ -140,6 +140,9 @@ export default function CompleteTechInfo({ initialFull = "", initialPhone = "" }
     setMessage(null)
     setLoading(true)
 
+    let resumePath: string | null = null
+    let profileCreated = false
+
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.user) {
@@ -153,10 +156,9 @@ export default function CompleteTechInfo({ initialFull = "", initialPhone = "" }
       }
 
       // Upload resume first if provided
-      let resumeUrl: string | null = null
       if (resumeFile) {
         try {
-          resumeUrl = await uploadResume(session.user.id)
+          resumePath = await uploadResume(session.user.id)
         } catch (error) {
           const errorMsg = error instanceof Error ? error.message : String(error)
           console.error('Resume upload error:', error)
@@ -181,15 +183,31 @@ export default function CompleteTechInfo({ initialFull = "", initialPhone = "" }
             experience,
             bio,
             company: company || null,
-            resume_url: resumeUrl
+            resume_url: resumePath
           }
         })
       })
 
       if (!response.ok) {
         const error = await response.json()
+        
+        // Clean up uploaded resume if profile creation failed
+        if (resumePath) {
+          try {
+            await supabase.storage
+              .from('resume')
+              .remove([resumePath])
+            console.log('Cleaned up orphaned resume file:', resumePath)
+          } catch (cleanupError) {
+            console.error('Failed to clean up resume file:', cleanupError)
+          }
+        }
+        
         throw new Error(error.error || "Failed to save technician info")
       }
+
+      // Mark profile as successfully created
+      profileCreated = true
 
       // Now insert the technician categories
       const { error: categoryError } = await supabase
@@ -231,6 +249,19 @@ export default function CompleteTechInfo({ initialFull = "", initialPhone = "" }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       console.error("CompleteTechInfo error:", err)
+      
+      // Clean up orphaned resume if profile creation failed
+      if (resumePath && !profileCreated) {
+        try {
+          await supabase.storage
+            .from('resume')
+            .remove([resumePath])
+          console.log('Cleaned up orphaned resume file after error:', resumePath)
+        } catch (cleanupError) {
+          console.error('Failed to clean up resume file:', cleanupError)
+        }
+      }
+      
       setMessage(msg)
       setLoading(false)
     }
