@@ -138,7 +138,7 @@ export default function AdminUsersPage() {
       }
 
       if (data?.signedUrl) {
-        window.open(data.signedUrl, '_blank')
+        window.open(data.signedUrl, '_blank', 'noopener,noreferrer')
       }
     } catch (err) {
       console.error('Error viewing resume:', err)
