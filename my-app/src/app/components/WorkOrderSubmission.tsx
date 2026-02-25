@@ -142,7 +142,7 @@ export default function WorkOrderSubmission() {
       returnParams.set("description", form.description)
       returnParams.set("equipment", form.equipment)
       returnParams.set("urgency", form.urgency)
-      returnParams.set("category_id", form.category_id)
+      returnParams.set("category", form.category_id != null ? String(form.category_id) : "")
       returnParams.set("date", form.date)
       router.push(`/manage-addresses?returnTo=/work-orders/submission&${returnParams.toString()}`)
       return
