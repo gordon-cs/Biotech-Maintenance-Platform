@@ -77,7 +77,9 @@ export default function CompleteTechInfo({ initialFull = "", initialPhone = "" }
     const file = e.target.files?.[0]
     if (file) {
       // Validate file type (PDF only)
-      if (file.type !== 'application/pdf') {
+      const isPdfByMime = file.type === 'application/pdf'
+      const isPdfByExtension = file.name.toLowerCase().endsWith('.pdf')
+      if (!isPdfByMime && !isPdfByExtension) {
         setMessage("Please upload a PDF file only")
         setResumeFile(null)
         e.target.value = ""
