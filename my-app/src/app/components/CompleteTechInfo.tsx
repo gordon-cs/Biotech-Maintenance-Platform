@@ -79,15 +79,23 @@ export default function CompleteTechInfo({ initialFull = "", initialPhone = "" }
       // Validate file type (PDF only)
       if (file.type !== 'application/pdf') {
         setMessage("Please upload a PDF file only")
+        setResumeFile(null)
+        e.target.value = ""
         return
       }
       // Validate file size (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
         setMessage("Resume file must be less than 5MB")
+        setResumeFile(null)
+        e.target.value = ""
         return
       }
       setResumeFile(file)
       setMessage(null)
+    } else {
+      // No file selected; clear any previously stored resume
+      setResumeFile(null)
+      e.target.value = ""
     }
   }
 
