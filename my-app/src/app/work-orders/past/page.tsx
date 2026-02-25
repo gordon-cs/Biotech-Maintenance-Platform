@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation"
 import { supabase } from "@/lib/supabaseClient"
 import AddWorkOrderUpdate from "../../components/AddWorkOrderUpdate"
 import EditWorkOrderModal from "../../components/EditWorkOrderModal"
+import ConfirmationModal from "../../components/ConfirmationModal"
 
 type DisplayRow = {
   id: string
@@ -122,6 +123,15 @@ function PastOrdersContent() {
   const [paymentRequests, setPaymentRequests] = useState<Record<string, { id: number; payment_status: string; total_amount: number }>>({})
   const [isApprovingPayment, setIsApprovingPayment] = useState<string | null>(null)
   const [editOpen, setEditOpen] = useState(false)
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean
+    orderId: string | null
+    orderTitle: string
+  }>({
+    isOpen: false,
+    orderId: null,
+    orderTitle: "",
+  })
   
   const searchParams = useSearchParams()
   const selectedOrderId = searchParams.get("selected")
@@ -132,12 +142,19 @@ function PastOrdersContent() {
   }, [])
 
   const handleCancelOrder = async (orderId: string, orderTitle: string) => {
-    const confirmed = window.confirm(
-      `Are you sure you want to cancel "${orderTitle}"? This will mark it as canceled but preserve the record.`
-    )
-    
-    if (!confirmed) return
-    
+    setConfirmModal({
+      isOpen: true,
+      orderId,
+      orderTitle,
+    })
+  }
+
+  const handleConfirmCancel = async () => {
+    const orderId = confirmModal.orderId
+    const orderTitle = confirmModal.orderTitle
+
+    if (!orderId) return
+
     setCancellingOrderId(orderId)
     
     try {
@@ -202,7 +219,12 @@ function PastOrdersContent() {
       alert("Failed to cancel order: " + errorMessage)
     } finally {
       setCancellingOrderId(null)
+      setConfirmModal({ isOpen: false, orderId: null, orderTitle: "" })
     }
+  }
+
+  const handleCloseModal = () => {
+    setConfirmModal({ isOpen: false, orderId: null, orderTitle: "" })
   }
 
   const loadPaymentRequests = async () => {
@@ -244,7 +266,7 @@ function PastOrdersContent() {
       })
 
       if (response.ok) {
-        alert('💰 Payment approved and sent to Bill.com!')
+        alert('Payment approved and sent to Bill.com!')
         loadPaymentRequests() // Reload to update status
       } else {
         const error = await response.json()
@@ -610,7 +632,6 @@ function PastOrdersContent() {
                 {selectedOrder.status === 'completed' && (
                   <div className="mt-6 pt-6 border-t border-gray-200">
                     <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                      <span>💰</span>
                       <span>Payment Request</span>
                     </h3>
 
@@ -802,6 +823,16 @@ function PastOrdersContent() {
             )
           }
         }}
+      {/* Confirmation Modal for Canceling Work Order */}
+      <ConfirmationModal
+        isOpen={confirmModal.isOpen}
+        title="Cancel this work order?"
+        message={`Are you sure you want to cancel "${confirmModal.orderTitle}"? This will mark it as canceled but preserve the record.`}
+        confirmText="Cancel Order"
+        backText="Keep Order"
+        onConfirm={handleConfirmCancel}
+        onClose={handleCloseModal}
+        isDangerous={true}
       />
     </div>
   )
