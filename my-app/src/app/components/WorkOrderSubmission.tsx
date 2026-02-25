@@ -34,11 +34,15 @@ export default function WorkOrderSubmission() {
   const initialTitle = searchParams?.get("title") ?? ""
   const initialAddressId = searchParams?.get("address_id") ?? ""
 
+  const initialDescription = searchParams?.get("description") ?? ""
+  const initialEquipment = searchParams?.get("equipment") ?? ""
+  const initialUrgency = searchParams?.get("urgency") ?? ""
+
   const [form, setForm] = useState({
     title: initialTitle,
-    description: "",
-    equipment: "",
-    urgency: "", // display "Select..." by default
+    description: initialDescription,
+    equipment: initialEquipment,
+    urgency: initialUrgency, // display "Select..." by default
     category_id: initialCategory, // can be slug or id
     date: initialDate,
     address_id: initialAddressId, // new field for address selection
@@ -99,7 +103,14 @@ export default function WorkOrderSubmission() {
     
     // Handle "add_new" address option
     if (name === "address_id" && value === "add_new") {
-      router.push("/manage-addresses")
+      const returnParams = new URLSearchParams()
+      returnParams.set("title", form.title)
+      returnParams.set("description", form.description)
+      returnParams.set("equipment", form.equipment)
+      returnParams.set("urgency", form.urgency)
+      returnParams.set("category", form.category_id != null ? String(form.category_id) : "")
+      returnParams.set("date", form.date)
+      router.push(`/manage-addresses?returnTo=/work-orders/submission&${returnParams.toString()}`)
       return
     }
     

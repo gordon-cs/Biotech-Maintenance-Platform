@@ -1,3 +1,4 @@
+import { Suspense } from "react"
 import AddressManagement from "../components/AddressManagement"
 
 export const metadata = {
@@ -5,5 +6,9 @@ export const metadata = {
 }
 
 export default function ManageAddressesPage() {
-  return <AddressManagement />
+  return (
+    <Suspense fallback={null}>
+      <AddressManagement />
+    </Suspense>
+  )
 }
