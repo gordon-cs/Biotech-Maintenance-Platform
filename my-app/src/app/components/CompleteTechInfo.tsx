@@ -113,7 +113,7 @@ export default function CompleteTechInfo({ initialFull = "", initialPhone = "" }
       const filePath = fileName
 
       // Upload file to Supabase Storage
-      const { data, error } = await supabase.storage
+      const { error } = await supabase.storage
         .from('resume') // Your bucket name
         .upload(filePath, resumeFile, {
           cacheControl: '3600',
