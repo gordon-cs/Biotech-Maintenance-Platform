@@ -97,7 +97,6 @@ export default function CompleteTechInfo({ initialFull = "", initialPhone = "" }
     } else {
       // No file selected; clear any previously stored resume
       setResumeFile(null)
-      e.target.value = ""
     }
   }
 
