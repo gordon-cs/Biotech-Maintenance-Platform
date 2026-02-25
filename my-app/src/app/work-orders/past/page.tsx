@@ -7,6 +7,7 @@ import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { supabase } from "@/lib/supabaseClient"
 import AddWorkOrderUpdate from "../../components/AddWorkOrderUpdate"
+import EditWorkOrderModal from "../../components/EditWorkOrderModal"
 import ConfirmationModal from "../../components/ConfirmationModal"
 
 type DisplayRow = {
@@ -21,6 +22,7 @@ type DisplayRow = {
   labName?: string
   date?: string | null
   claimedBy?: string
+  equipment?: string | null
 }
 
 // shape returned by the server-side manager-work-orders route
@@ -33,6 +35,7 @@ type AssignedProfile = {
 type WorkOrderRow = {
   id: number
   title?: string | null
+  equipment?: string | null
   description?: string | null
   category_id?: number | null
   lab: number
@@ -121,6 +124,7 @@ function PastOrdersContent() {
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null)
   const [paymentRequests, setPaymentRequests] = useState<Record<string, { id: number; payment_status: string; total_amount: number }>>({})
   const [isApprovingPayment, setIsApprovingPayment] = useState<string | null>(null)
+  const [editOpen, setEditOpen] = useState(false)
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean
     orderId: string | null
@@ -358,22 +362,23 @@ function PastOrdersContent() {
         }
 
         const display: DisplayRow[] = woRows.map((r: WorkOrderRow) => ({
-           id: String(r.id),
-           title: r.title || "Untitled",
-           address: labMap[r.lab] || "N/A",
-           category: (r.category_id !== null && r.category_id !== undefined)
-            ? (categoryMap[r.category_id] ?? "N/A")
-            : "N/A",
-           description: r.description || "No description available",
-           created_at: r.created_at || "",
-           urgency: r.urgency || undefined,
-           status: r.status || "Open",
-           labName: labNameMap[r.lab] || "Unknown Lab",
-           date: r.date ?? null,
-           claimedBy: r.assigned && r.assigned.length
-             ? (r.assigned[0].full_name || r.assigned[0].email || String(r.assigned[0].id))
-             : undefined
-          }))
+            id: String(r.id),
+            title: r.title || "Untitled",
+            address: labMap[r.lab] || "N/A",
+            category: (r.category_id !== null && r.category_id !== undefined)
+             ? (categoryMap[r.category_id] ?? "N/A")
+             : "N/A",
+            description: r.description || "No description available",
+            created_at: r.created_at || "",
+            urgency: r.urgency || undefined,
+            status: r.status || "Open",
+            labName: labNameMap[r.lab] || "Unknown Lab",
+            date: r.date ?? null,
+            claimedBy: r.assigned && r.assigned.length
+              ? (r.assigned[0].full_name || r.assigned[0].email || String(r.assigned[0].id))
+              : undefined,
+           equipment: r.equipment ?? null
+           }))
 
         if (mounted) {
           setOrders(display)
@@ -570,6 +575,14 @@ function PastOrdersContent() {
                             {cancellingOrderId === selectedOrder.id ? "Canceling..." : "Cancel Order"}
                           </button>
                         )}
+                        {["open", "claimed"].includes((selectedOrder.status || "").toLowerCase()) && (
+                          <button
+                            onClick={() => setEditOpen(true)}
+                            className="px-3 py-1 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700"
+                          >
+                            Edit
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -585,7 +598,12 @@ function PastOrdersContent() {
                   )}
                   <div className="text-sm text-gray-500 mb-2">{selectedOrder.address}</div>
                   <div className="text-sm font-medium mb-2">Category: {selectedOrder.category}</div>
-                  {selectedOrder.urgency && (
+                  {selectedOrder.equipment && (
+                    <div className="text-sm text-gray-700 mb-2">
+                      <span className="font-medium">Equipment:</span> {selectedOrder.equipment}
+                    </div>
+                  )}
+                 {selectedOrder.urgency && (
                     <div className={`inline-block text-sm px-3 py-1 rounded-full mb-4 ${
                       selectedOrder.urgency?.toLowerCase() === "critical" ? "bg-red-100 text-red-800" :
                     selectedOrder.urgency?.toLowerCase() === "high" ? "bg-orange-100 text-orange-800" :
@@ -719,6 +737,95 @@ function PastOrdersContent() {
         </Link>
       </div>
 
+      { /* render modal */ }
+      <EditWorkOrderModal
+         open={editOpen}
+         onClose={() => setEditOpen(false)}
+         workOrder={{
+           id: selectedOrder?.id ?? "",
+           title: selectedOrder?.title ?? "",
+           description: selectedOrder?.description ?? "",
+           date: selectedOrder?.date ?? null,
+           urgency: selectedOrder?.urgency ?? null,
+           equipment: selectedOrder?.equipment ?? null
+         }}
+         onSaved={async (updated) => {
+          // normalize incoming values
+          const updatedId = String(updated.id)
+          const normalizedTitle = updated.title ?? ""
+          const normalizedDescription = updated.description ?? ""
+          const normalizedDate = updated.date ?? null
+          const normalizedUrgency = typeof updated.urgency === "string" ? updated.urgency : undefined
+          const normalizedEquipment = updated.equipment ?? null
+
+          // resolve category name if category_id was returned
+          let normalizedCategory = selectedOrder?.category ?? "N/A"
+          if (typeof updated.category_id === "number") {
+            const { data: catData, error: catErr } = await supabase
+              .from("categories")
+              .select("name")
+              .eq("id", updated.category_id)
+              .maybeSingle()
+            if (!catErr && catData && typeof catData.name === "string") {
+              normalizedCategory = catData.name
+            } else {
+              normalizedCategory = "N/A"
+            }
+          }
+
+          // resolve address string if address_id was returned
+          let normalizedAddress = selectedOrder?.address ?? "N/A"
+          if (typeof updated.address_id === "number") {
+            const { data: addrData, error: addrErr } = await supabase
+              .from("addresses")
+              .select("line1, city, state, zipcode")
+              .eq("id", updated.address_id)
+              .maybeSingle()
+            if (!addrErr && addrData) {
+              const parts = [addrData.line1, addrData.city, addrData.state, addrData.zipcode].filter(Boolean)
+              normalizedAddress = parts.length ? parts.join(", ") : "N/A"
+            } else {
+              normalizedAddress = "N/A"
+            }
+          }
+
+          // update orders list
+          setOrders(prev =>
+            prev.map(o =>
+              o.id === updatedId
+                ? {
+                    ...o,
+                    title: normalizedTitle,
+                    description: normalizedDescription,
+                    date: normalizedDate,
+                    urgency: normalizedUrgency,
+                    equipment: normalizedEquipment,
+                    category: normalizedCategory,
+                    address: normalizedAddress,
+                  }
+                : o
+            )
+          )
+
+          // update selectedOrder detail if it matches
+          if (selectedOrder?.id === updatedId) {
+            setSelectedOrder(prev =>
+              prev
+                ? {
+                    ...prev,
+                    title: normalizedTitle,
+                    description: normalizedDescription,
+                    date: normalizedDate,
+                    urgency: normalizedUrgency,
+                    equipment: normalizedEquipment,
+                    category: normalizedCategory,
+                    address: normalizedAddress,
+                  }
+                : prev
+            )
+          }
+        }}
+      />
       {/* Confirmation Modal for Canceling Work Order */}
       <ConfirmationModal
         isOpen={confirmModal.isOpen}
