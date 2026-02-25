@@ -823,6 +823,7 @@ function PastOrdersContent() {
             )
           }
         }}
+      />
       {/* Confirmation Modal for Canceling Work Order */}
       <ConfirmationModal
         isOpen={confirmModal.isOpen}
