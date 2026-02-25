@@ -96,40 +96,6 @@ export default function WorkOrderSubmission() {
     }
   }, [])
 
-  // Reload addresses when returning from manage-addresses page with new address_id
-  useEffect(() => {
-    const addressIdParam = searchParams?.get("address_id")
-    if (!addressIdParam) return
-
-    const reloadAddresses = async () => {
-      try {
-        const { data: authData } = await supabase.auth.getUser()
-        if (authData?.user?.id) {
-          const { data: labData } = await supabase
-            .from("labs")
-            .select("id")
-            .eq("manager_id", authData.user.id)
-            .maybeSingle()
-          
-          if (labData?.id) {
-            const { data: addrData, error: addrError } = await supabase
-              .from("addresses")
-              .select("id, line1, line2, city, state, zipcode")
-              .eq("lab_id", labData.id)
-            
-            if (!addrError && addrData) {
-              setAddresses(addrData as AddressRow[])
-            }
-          }
-        }
-      } catch (err) {
-        console.error("Error reloading addresses:", err)
-      }
-    }
-
-    reloadAddresses()
-  }, [searchParams?.get("address_id")])
-
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
   ) => {
