@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic"
 
-import React, { useEffect, useState, useMemo } from "react"
+import React, { useEffect, useState, Suspense, useMemo } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { supabase } from "@/lib/supabaseClient"
@@ -735,5 +735,16 @@ function PastOrdersContent() {
 }
 
 export default function PastOrdersPage() {
-  return <PastOrdersContent />
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading past orders...</p>
+        </div>
+      </div>
+    }>
+      <PastOrdersContent />
+    </Suspense>
+  )
 }
