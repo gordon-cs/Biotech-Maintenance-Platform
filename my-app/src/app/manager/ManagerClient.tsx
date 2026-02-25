@@ -49,39 +49,6 @@ export default function ManagerClient() {
     setSelectedAddressId(searchParams?.get("address_id") ?? "")
   }, [searchParams])
 
-  useEffect(() => {
-    if (!searchParams?.get("address_id")) return
-    
-    const reloadAddresses = async () => {
-      try {
-        const { data: authData } = await supabase.auth.getUser()
-        if (!authData?.user?.id) return
-
-        const { data: labData } = await supabase
-          .from("labs")
-          .select("id")
-          .eq("manager_id", authData.user.id)
-          .single()
-        
-        if (!labData?.id) return
-
-        const { data: addressData, error: addressError } = await supabase
-          .from("addresses")
-          .select("*")
-          .eq("lab_id", labData.id)
-          .order("is_default", { ascending: false })
-        
-        if (!addressError && addressData) {
-          setAddresses(addressData)
-        }
-      } catch (error) {
-        console.error("Error reloading addresses:", error)
-      }
-    }
-
-    reloadAddresses()
-  }, [searchParams?.get("address_id")])
-
   const getStatusBadgeStyle = (status: string) => {
     switch (status?.toLowerCase()) {
       case 'completed':
