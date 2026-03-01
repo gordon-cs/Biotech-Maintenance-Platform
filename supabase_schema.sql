@@ -16,7 +16,7 @@ BEGIN;
 -- 1) ENUM TYPES
 -- =========================
 CREATE TYPE public.payment_status AS ENUM ('unbilled', 'awaiting_payment', 'paid');
-CREATE TYPE public.wo_status      AS ENUM ('open', 'claimed', 'en_route', 'on_site', 'completed', 'canceled');
+CREATE TYPE public.wo_status      AS ENUM ('open', 'claimed', 'completed', 'canceled');
 CREATE TYPE public.wo_update_type AS ENUM ('comment', 'status_change');
 CREATE TYPE public.wo_urgency     AS ENUM ('low', 'normal', 'high', 'critical');
 
