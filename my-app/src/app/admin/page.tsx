@@ -65,6 +65,7 @@ export default function AdminPage() {
           <button onClick={() => router.push("/admin/users")} className="p-4 border rounded-lg text-left">Manage Users</button>
           <button onClick={() => router.push("/admin/workorders")} className="p-4 border rounded-lg text-left">Manage Work Orders</button>
           <button onClick={() => router.push("/admin/categories")} className="p-4 border rounded-lg text-left">Manage Categories</button>
+          <button onClick={() => router.push("/admin/assign-work-orders")} className="p-4 border rounded-lg text-left">Assign Work Orders</button>
         </div>
 
         {/* simplified: no quick actions for now */}
