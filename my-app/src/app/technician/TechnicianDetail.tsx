@@ -2,6 +2,7 @@
 
 import React, { useState } from "react"
 import AddWorkOrderUpdate from "../components/AddWorkOrderUpdate"
+import PaymentRequestPanel from "../components/PaymentRequestPanel"
 import ConfirmationModal from "../components/ConfirmationModal"
 import type { WorkOrder, TechnicianDetailProps } from "./types"
 
@@ -91,6 +92,14 @@ export default function TechnicianDetail({ order, currentUserId, onAccept, onCan
             currentStatus={order.status ?? "open"} 
             userRole="technician"
             onStatusChange={onStatusChange}
+          />
+        </div>
+
+        {/* Show Payment Request Panel for completed work orders */}
+        <div className="mt-8">
+          <PaymentRequestPanel 
+            selectedId={order.id} 
+            currentOrderStatus={order.status ?? "open"}
           />
         </div>
       </div>
