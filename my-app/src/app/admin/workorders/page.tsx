@@ -60,6 +60,15 @@ type DBWorkOrderUpdateRow = {
   created_at?: string | null
 }
 
+// explicit profile row type 
+type ProfileRow = {
+  id: string
+  full_name?: string | null
+  email?: string | null
+  role?: string | null
+  is_technician?: boolean | null
+}
+
 const STATUS_OPTIONS = [
   "open",
   "claimed",
@@ -126,8 +135,9 @@ export default function AdminWorkOrdersPage() {
         const profIds = Array.from(profIdSet)
         const profRes = await supabase.from("profiles").select("id, full_name, email").in("id", profIds)
         if (!profRes.error) {
+          const profRows = (profRes.data || []) as ProfileRow[]
           const map: Record<string, string> = {}
-          for (const p of (profRes.data || []) as Array<{ id: string; full_name?: string | null; email?: string | null }>) {
+          for (const p of profRows) {
             map[String(p.id)] = p.full_name?.trim() ? p.full_name : (p.email ?? String(p.id))
           }
           setProfileMap(map)
@@ -172,28 +182,31 @@ export default function AdminWorkOrdersPage() {
       })
 
       setRows(enriched)
-      // fetch profiles 
-      const techRes = await supabase.from("profiles").select("id, full_name, email, role").order("full_name", { ascending: true })
-       if (!techRes.error) {
-         const profiles = (techRes.data || []) as Array<Record<string, any>>
-         // prefer explicit technician markers
-         let techRows = profiles.filter(p => p.role === "technician" || p.is_technician === true)
-         if (techRows.length === 0) {
-           techRows = profiles.filter(p => typeof p.role === "string" && p.role.toLowerCase().includes("tech"))
-         }
-         if (techRows.length === 0) techRows = profiles
-         setTechnicians(
-           techRows.map(p => ({
-             id: String(p.id),
-             full_name: (p.full_name ?? null) as string | null,
-             email: (p.email ?? null) as string | null,
-           }))
-         )
-       } else {
-         // surface the error to UI so you notice immediately
-         console.warn("profiles fetch error:", techRes.error)
-         setTechnicians([])
-       }
+      // fetch profiles (typed)
+      const techRes = await supabase
+        .from("profiles")
+        .select("id, full_name, email, role")
+        .order("full_name", { ascending: true })
+      if (!techRes.error) {
+        const profiles = (techRes.data || []) as ProfileRow[]
+        // prefer explicit technician markers
+        let techRows = profiles.filter((p) => p.role === "technician" || p.is_technician === true)
+        if (techRows.length === 0) {
+          techRows = profiles.filter((p) => typeof p.role === "string" && p.role!.toLowerCase().includes("tech"))
+        }
+        if (techRows.length === 0) techRows = profiles
+        setTechnicians(
+          techRows.map((p) => ({
+            id: String(p.id),
+            full_name: p.full_name ?? null,
+            email: p.email ?? null,
+          }))
+        )
+      } else {
+        // surface the error to UI so you notice immediately
+        console.warn("profiles fetch error:", techRes.error)
+        setTechnicians([])
+      }
     } catch (err: unknown) {
       console.error(err)
       setMessage((err as { message?: string })?.message ?? "Failed to load work orders")
@@ -358,7 +371,7 @@ export default function AdminWorkOrdersPage() {
                         </select>
                       </td>
                       <td className="px-4 py-3 align-top">
-                        {r.assigned_to ? (techMap[r.assigned_to] ?? r.assigned_to) : "none"}
+                        {r.assigned_to ? (techMap[r.assigned_to] ?? profileMap[String(r.assigned_to)] ?? r.assigned_to) : "none"}
                       </td>
                       <td className="px-4 py-3 align-top">
                         <select
