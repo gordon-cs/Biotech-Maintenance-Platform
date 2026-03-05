@@ -33,6 +33,7 @@ export async function GET(req: NextRequest) {
         update_type,
         new_status,
         body,
+        attachment_url,
         created_at,
         author:profiles!author_id (
           id,
@@ -201,6 +202,7 @@ export async function POST(req: NextRequest) {
         update_type,
         new_status,
         body,
+        attachment_url,
         created_at,
         author:profiles!author_id (
           id,

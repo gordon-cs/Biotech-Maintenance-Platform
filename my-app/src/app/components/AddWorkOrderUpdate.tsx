@@ -20,6 +20,8 @@ export default function AddWorkOrderUpdate({ workOrderId, currentStatus = "open"
   const [success, setSuccess] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(userRole)
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null)
+  const [uploadingFile, setUploadingFile] = useState(false)
   
   // Fetch user role if not provided (only runs once when userRole is not provided)
   useEffect(() => {
@@ -55,6 +57,56 @@ export default function AddWorkOrderUpdate({ workOrderId, currentStatus = "open"
   // Only technicians can change status, and only if work order is not already completed
   const isWorkOrderCompleted = currentStatus?.toLowerCase() === "completed"
   const allowStatusChange = currentUserRole === "technician" && !isWorkOrderCompleted
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      // Validate file type (images and PDFs only)
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'application/pdf']
+      if (!allowedTypes.includes(file.type)) {
+        setMessage("Only images (JPEG, PNG, GIF, WebP) and PDFs are allowed")
+        e.target.value = ''
+        return
+      }
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setMessage("File must be less than 5MB")
+        e.target.value = ''
+        return
+      }
+      setAttachmentFile(file)
+      setMessage(null)
+    }
+  }
+
+  const uploadAttachment = async (updateId: number): Promise<string | null> => {
+    if (!attachmentFile) return null
+
+    setUploadingFile(true)
+    try {
+      const fileExt = attachmentFile.name.split('.').pop()
+      const fileName = `${updateId}-${Date.now()}.${fileExt}`
+      
+      const { data, error } = await supabase.storage
+        .from('updates')
+        .upload(fileName, attachmentFile, {
+          cacheControl: '3600',
+          upsert: false
+        })
+
+      if (error) {
+        console.error('Storage upload error:', error)
+        throw error
+      }
+
+      return fileName
+    } catch (error) {
+      console.error('Error uploading attachment:', error)
+      throw error
+    } finally {
+      setUploadingFile(false)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -103,10 +155,35 @@ export default function AddWorkOrderUpdate({ workOrderId, currentStatus = "open"
         throw new Error(err.error || "Failed to post update")
       }
 
+      // Get the created update ID
+      const result = await response.json()
+      const updateId = result.data?.id
+
+      // Upload attachment if provided
+      if (attachmentFile && updateId) {
+        try {
+          const filePath = await uploadAttachment(updateId)
+          
+          // Update the work_order_update record with attachment_url
+          if (filePath) {
+            await supabase
+              .from('work_order_updates')
+              .update({ attachment_url: filePath })
+              .eq('id', updateId)
+          }
+        } catch (error) {
+          console.error('Failed to upload attachment:', error)
+          setMessage('Update posted but file upload failed')
+          setLoading(false)
+          return
+        }
+      }
+
       // Reset form
       setBody("")
       setUpdateType("comment")
       setNewStatus("completed")
+      setAttachmentFile(null)
       setSuccess("Update posted successfully!")
       
       // Trigger refresh of updates list
@@ -209,13 +286,32 @@ export default function AddWorkOrderUpdate({ workOrderId, currentStatus = "open"
             />
           </label>
 
+          {/* File Attachment */}
+          <div>
+            <label className="block text-sm mb-1 font-medium text-gray-700">
+              Attachment (optional, max 5MB - images or PDF)
+            </label>
+            <input
+              type="file"
+              accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,application/pdf"
+              onChange={handleFileChange}
+              disabled={loading || uploadingFile || isWorkOrderCompleted}
+              className="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 disabled:opacity-50"
+            />
+            {attachmentFile && (
+              <p className="text-xs text-gray-600 mt-1">
+                Selected: {attachmentFile.name}
+              </p>
+            )}
+          </div>
+
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={loading || !body.trim() || isWorkOrderCompleted}
+            disabled={loading || uploadingFile || !body.trim() || isWorkOrderCompleted}
             className="px-3 py-1 bg-blue-600 text-white rounded disabled:opacity-50"
           >
-            {loading ? "Posting..." : "Post Update"}
+            {uploadingFile ? "Uploading..." : loading ? "Posting..." : "Post Update"}
           </button>
         </form>
       </div>

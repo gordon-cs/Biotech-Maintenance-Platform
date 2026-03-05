@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useEffect, useState } from "react"
+import { supabase } from "@/lib/supabaseClient"
 
 type Update = {
   id: number
@@ -9,6 +10,7 @@ type Update = {
   update_type: "comment" | "status_change"
   new_status?: string | null
   body: string
+  attachment_url?: string | null
   created_at: string
   author?: {
     id: string
@@ -27,6 +29,27 @@ export default function WorkOrderUpdates({ workOrderId, onRefresh }: Props) {
   const [updates, setUpdates] = useState<Update[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  const viewAttachment = async (filePath: string) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from('updates')
+        .createSignedUrl(filePath, 3600)
+      
+      if (error) {
+        console.error('Error creating signed URL:', error)
+        alert('Failed to load attachment: ' + error.message)
+        return
+      }
+
+      if (data?.signedUrl) {
+        window.open(data.signedUrl, '_blank', 'noopener,noreferrer')
+      }
+    } catch (err) {
+      console.error('Error viewing attachment:', err)
+      alert('Failed to load attachment')
+    }
+  }
 
 
 
@@ -181,6 +204,15 @@ export default function WorkOrderUpdates({ workOrderId, onRefresh }: Props) {
               )}
 
               <p className="text-sm text-gray-800 whitespace-pre-wrap">{update.body}</p>
+
+              {update.attachment_url && (
+                <button
+                  onClick={() => viewAttachment(update.attachment_url!)}
+                  className="text-sm text-blue-600 hover:underline mt-2"
+                >
+                  View Attachment
+                </button>
+              )}
             </div>
           </div>
         </div>
