@@ -207,7 +207,7 @@ export default function WorkOrderUpdates({ workOrderId, onRefresh }: Props) {
 
               {update.attachment_url && (
                 <button
-                  onClick={() => viewAttachment(update.attachment_url)}
+                  onClick={() => viewAttachment(update.attachment_url!)}
                   className="text-sm text-blue-600 hover:underline mt-2"
                 >
                   View Attachment
