@@ -20,6 +20,7 @@ export default function AddWorkOrderUpdate({ workOrderId, currentStatus = "open"
   const [success, setSuccess] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(userRole)
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null)
   
   // Fetch user role if not provided (only runs once when userRole is not provided)
   useEffect(() => {
@@ -56,6 +57,32 @@ export default function AddWorkOrderUpdate({ workOrderId, currentStatus = "open"
   const isWorkOrderCompleted = currentStatus?.toLowerCase() === "completed"
   const allowStatusChange = currentUserRole === "technician" && !isWorkOrderCompleted
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      // Validate file type (images and PDFs only)
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'application/pdf']
+      if (!allowedTypes.includes(file.type)) {
+        setMessage("Only images (JPEG, PNG, GIF, WebP) and PDFs are allowed")
+        setAttachmentFile(null)
+        e.target.value = ''
+        return
+      }
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setMessage("File must be less than 5MB")
+        setAttachmentFile(null)
+        e.target.value = ''
+        return
+      }
+      setAttachmentFile(file)
+      setMessage(null)
+    } else {
+      // No file selected; clear any previously stored file
+      setAttachmentFile(null)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setMessage(null)
@@ -67,6 +94,8 @@ export default function AddWorkOrderUpdate({ workOrderId, currentStatus = "open"
     }
 
     setLoading(true)
+
+    let attachmentPath: string | null = null
 
     try {
       const { data: { session } } = await supabase.auth.getSession()
@@ -82,11 +111,45 @@ export default function AddWorkOrderUpdate({ workOrderId, currentStatus = "open"
         return
       }
 
+      // Upload attachment first if provided
+      if (attachmentFile) {
+        try {
+          // Generate temporary ID for filename (we'll use timestamp + random)
+          const tempId = `${Date.now()}-${Math.random().toString(36).substring(7)}`
+          
+          const nameExt = attachmentFile.name.includes('.') ? attachmentFile.name.split('.').pop() : ''
+          const mimeExt = attachmentFile.type && attachmentFile.type.includes('/') ? attachmentFile.type.split('/').pop() : ''
+          const ext = nameExt || mimeExt || ''
+          const fileName = ext ? `${tempId}.${ext}` : tempId
+          
+          const { error: uploadError } = await supabase.storage
+            .from('updates')
+            .upload(fileName, attachmentFile, {
+              cacheControl: '3600',
+              upsert: false
+            })
+
+          if (uploadError) {
+            console.error('Storage upload error:', uploadError)
+            throw uploadError
+          }
+
+          attachmentPath = fileName
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : String(error)
+          console.error('Attachment upload error:', error)
+          setMessage(`Failed to upload attachment: ${errorMsg}`)
+          setLoading(false)
+          return
+        }
+      }
+
       const payload = {
         work_order_id: workOrderId,
         update_type: updateType,
         body: body.trim(),
         ...(updateType === "status_change" ? { new_status: newStatus } : {}),
+        ...(attachmentPath ? { attachment_url: attachmentPath } : {}),
       }
 
       const response = await fetch("/api/work-order-updates", {
@@ -100,6 +163,19 @@ export default function AddWorkOrderUpdate({ workOrderId, currentStatus = "open"
 
       if (!response.ok) {
         const err = await response.json()
+        
+        // Clean up uploaded attachment if update creation failed
+        if (attachmentPath) {
+          try {
+            await supabase.storage
+              .from('updates')
+              .remove([attachmentPath])
+            console.log('Cleaned up orphaned attachment file:', attachmentPath)
+          } catch (cleanupError) {
+            console.error('Failed to clean up attachment file:', cleanupError)
+          }
+        }
+        
         throw new Error(err.error || "Failed to post update")
       }
 
@@ -107,6 +183,7 @@ export default function AddWorkOrderUpdate({ workOrderId, currentStatus = "open"
       setBody("")
       setUpdateType("comment")
       setNewStatus("completed")
+      setAttachmentFile(null)
       setSuccess("Update posted successfully!")
       
       // Trigger refresh of updates list
@@ -208,6 +285,25 @@ export default function AddWorkOrderUpdate({ workOrderId, currentStatus = "open"
               disabled={loading || isWorkOrderCompleted}
             />
           </label>
+
+          {/* File Attachment */}
+          <div>
+            <label className="block text-sm mb-1 font-medium text-gray-700">
+              Attachment (optional, max 5MB - images or PDF)
+            </label>
+            <input
+              type="file"
+              accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,application/pdf"
+              onChange={handleFileChange}
+              disabled={loading || isWorkOrderCompleted}
+              className="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 disabled:opacity-50"
+            />
+            {attachmentFile && (
+              <p className="text-xs text-gray-600 mt-1">
+                Selected: {attachmentFile.name}
+              </p>
+            )}
+          </div>
 
           {/* Submit Button */}
           <button
