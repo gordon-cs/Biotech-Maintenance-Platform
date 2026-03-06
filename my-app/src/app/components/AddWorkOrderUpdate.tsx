@@ -21,7 +21,6 @@ export default function AddWorkOrderUpdate({ workOrderId, currentStatus = "open"
   const [refreshKey, setRefreshKey] = useState(0)
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(userRole)
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null)
-  const [uploadingFile, setUploadingFile] = useState(false)
   
   // Fetch user role if not provided (only runs once when userRole is not provided)
   useEffect(() => {
@@ -79,35 +78,6 @@ export default function AddWorkOrderUpdate({ workOrderId, currentStatus = "open"
     }
   }
 
-  const uploadAttachment = async (updateId: number): Promise<string | null> => {
-    if (!attachmentFile) return null
-
-    setUploadingFile(true)
-    try {
-      const fileExt = attachmentFile.name.split('.').pop()
-      const fileName = `${updateId}-${Date.now()}.${fileExt}`
-      
-      const { data, error } = await supabase.storage
-        .from('updates')
-        .upload(fileName, attachmentFile, {
-          cacheControl: '3600',
-          upsert: false
-        })
-
-      if (error) {
-        console.error('Storage upload error:', error)
-        throw error
-      }
-
-      return fileName
-    } catch (error) {
-      console.error('Error uploading attachment:', error)
-      throw error
-    } finally {
-      setUploadingFile(false)
-    }
-  }
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setMessage(null)
@@ -119,6 +89,8 @@ export default function AddWorkOrderUpdate({ workOrderId, currentStatus = "open"
     }
 
     setLoading(true)
+
+    let attachmentPath: string | null = null
 
     try {
       const { data: { session } } = await supabase.auth.getSession()
@@ -134,11 +106,42 @@ export default function AddWorkOrderUpdate({ workOrderId, currentStatus = "open"
         return
       }
 
+      // Upload attachment first if provided
+      if (attachmentFile) {
+        try {
+          // Generate temporary ID for filename (we'll use timestamp + random)
+          const tempId = `${Date.now()}-${Math.random().toString(36).substring(7)}`
+          const fileExt = attachmentFile.name.split('.').pop()
+          const fileName = `${tempId}.${fileExt}`
+          
+          const { error: uploadError } = await supabase.storage
+            .from('updates')
+            .upload(fileName, attachmentFile, {
+              cacheControl: '3600',
+              upsert: false
+            })
+
+          if (uploadError) {
+            console.error('Storage upload error:', uploadError)
+            throw uploadError
+          }
+
+          attachmentPath = fileName
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : String(error)
+          console.error('Attachment upload error:', error)
+          setMessage(`Failed to upload attachment: ${errorMsg}`)
+          setLoading(false)
+          return
+        }
+      }
+
       const payload = {
         work_order_id: workOrderId,
         update_type: updateType,
         body: body.trim(),
         ...(updateType === "status_change" ? { new_status: newStatus } : {}),
+        ...(attachmentPath ? { attachment_url: attachmentPath } : {}),
       }
 
       const response = await fetch("/api/work-order-updates", {
@@ -152,31 +155,20 @@ export default function AddWorkOrderUpdate({ workOrderId, currentStatus = "open"
 
       if (!response.ok) {
         const err = await response.json()
-        throw new Error(err.error || "Failed to post update")
-      }
-
-      // Get the created update ID
-      const result = await response.json()
-      const updateId = result.data?.id
-
-      // Upload attachment if provided
-      if (attachmentFile && updateId) {
-        try {
-          const filePath = await uploadAttachment(updateId)
-          
-          // Update the work_order_update record with attachment_url
-          if (filePath) {
-            await supabase
-              .from('work_order_updates')
-              .update({ attachment_url: filePath })
-              .eq('id', updateId)
+        
+        // Clean up uploaded attachment if update creation failed
+        if (attachmentPath) {
+          try {
+            await supabase.storage
+              .from('updates')
+              .remove([attachmentPath])
+            console.log('Cleaned up orphaned attachment file:', attachmentPath)
+          } catch (cleanupError) {
+            console.error('Failed to clean up attachment file:', cleanupError)
           }
-        } catch (error) {
-          console.error('Failed to upload attachment:', error)
-          setMessage('Update posted but file upload failed')
-          setLoading(false)
-          return
         }
+        
+        throw new Error(err.error || "Failed to post update")
       }
 
       // Reset form
@@ -295,7 +287,7 @@ export default function AddWorkOrderUpdate({ workOrderId, currentStatus = "open"
               type="file"
               accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,application/pdf"
               onChange={handleFileChange}
-              disabled={loading || uploadingFile || isWorkOrderCompleted}
+              disabled={loading || isWorkOrderCompleted}
               className="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 disabled:opacity-50"
             />
             {attachmentFile && (
@@ -308,10 +300,10 @@ export default function AddWorkOrderUpdate({ workOrderId, currentStatus = "open"
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={loading || uploadingFile || !body.trim() || isWorkOrderCompleted}
+            disabled={loading || !body.trim() || isWorkOrderCompleted}
             className="px-3 py-1 bg-blue-600 text-white rounded disabled:opacity-50"
           >
-            {uploadingFile ? "Uploading..." : loading ? "Posting..." : "Post Update"}
+            {loading ? "Posting..." : "Post Update"}
           </button>
         </form>
       </div>

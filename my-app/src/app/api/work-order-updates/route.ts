@@ -91,6 +91,7 @@ export async function POST(req: NextRequest) {
       update_type: "comment" | "status_change"
       new_status?: string | null
       body: string
+      attachment_url?: string | null
     }
 
     // Validation
@@ -194,6 +195,7 @@ export async function POST(req: NextRequest) {
         update_type: body.update_type,
         new_status: body.update_type === "status_change" ? body.new_status : null,
         body: body.body.trim(),
+        attachment_url: body.attachment_url ?? null,
       })
       .select(`
         id,
