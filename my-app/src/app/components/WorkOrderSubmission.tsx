@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react"
 import { supabase } from "@/lib/supabaseClient"
 import Link from "next/link"
 import { useSearchParams, useRouter } from "next/navigation"
+import ConfirmationModal from "./ConfirmationModal"
 
 // payload type (no `any`)
 type WorkOrderPayload = {
@@ -51,6 +52,7 @@ export default function WorkOrderSubmission() {
   const [addresses, setAddresses] = useState<AddressRow[]>([])
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<{ id?: string; message: string } | null>(null)
+  const [showConfirmation, setShowConfirmation] = useState(false)
   // Fixed initial fee set by platform admin (BBM)
   const labInitialFee = 50.00 // Platform-wide initial service fee
 
@@ -167,7 +169,7 @@ export default function WorkOrderSubmission() {
       return
     }
     if (!form.date || !String(form.date).trim()) {
-      setResult({ message: "Please select a date." })
+      setResult({ message: "Please select a due date." })
       setLoading(false)
       return
     }
@@ -183,6 +185,15 @@ export default function WorkOrderSubmission() {
       setLoading(false)
       return
     }
+
+    // All validation passed, show confirmation modal
+    setLoading(false)
+    setShowConfirmation(true)
+  }
+
+  const handleConfirm = async () => {
+    setShowConfirmation(false)
+    setLoading(true)
 
     try {
       const { data: authData, error: userErr } = await supabase.auth.getUser()
@@ -224,6 +235,7 @@ export default function WorkOrderSubmission() {
         return
       }
       
+      const addressIdNum = Number(form.address_id)
       const payload: WorkOrderPayload = {
         title: form.title || null,
         description: form.description || null,
@@ -262,14 +274,11 @@ export default function WorkOrderSubmission() {
               body: JSON.stringify({ workOrderId })
             })
 
-            if (response.ok) {
-              setResult({ id: workOrderId, message: "Work order submitted successfully. Initial fee invoice sent to lab manager." })
-            } else {
-              const err = await response.json()
-              setResult({ id: workOrderId, message: `Work order submitted, but failed to create initial fee invoice: ${err.error}` })
-            }
+            // Redirect to dashboard after successful submission
+            router.push('/manager')
           } catch (invoiceError) {
-            setResult({ id: workOrderId, message: "Work order submitted, but failed to send initial fee invoice." })
+            // Still redirect even if invoice creation fails
+            router.push('/manager')
           }
         }
         setForm({ title: "", description: "", equipment: "", urgency: "", category_id: "", date: "", address_id: "" })
@@ -284,6 +293,15 @@ export default function WorkOrderSubmission() {
 
   return (
     <div className="p-4 border rounded bg-white w-full max-w-md mx-auto mt-8">
+      <ConfirmationModal
+        isOpen={showConfirmation}
+        title="Confirm Work Order Submission"
+        message={`Please confirm that you want to submit the following work order:\n\nTitle: ${form.title}\nCategory: ${categories.find(c => c.id === Number(form.category_id) || c.slug === form.category_id)?.name || form.category_id}\nAddress: ${addresses.find(a => a.id === Number(form.address_id))?.line1 || form.address_id}\nDue Date: ${form.date}\n\nThis will create a work order and send an invoice for the initial service fee.`}
+        confirmText="Submit"
+        backText="Cancel"
+        onConfirm={handleConfirm}
+        onClose={() => setShowConfirmation(false)}
+      />
       {result && (
         <div className="mb-4 p-3 border rounded bg-gray-50 text-center">
           <div className="font-semibold">{result.message}</div>
@@ -378,7 +396,7 @@ export default function WorkOrderSubmission() {
         )}
 
         <label className="block mb-4">
-          <div className="text-sm mb-1">Date *</div>
+          <div className="text-sm mb-1">Due Date *</div>
           <input type="date" name="date" value={form.date} onChange={handleChange} required className="w-full border px-2 py-1 rounded" />
         </label>
 

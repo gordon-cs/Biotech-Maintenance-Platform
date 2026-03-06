@@ -99,7 +99,6 @@ export default function TechnicianDetail({ order, currentUserId, onAccept, onCan
         <div className="mt-8">
           <PaymentRequestPanel 
             selectedId={order.id} 
-            currentOrderStatus={order.status ?? "open"}
           />
         </div>
       </div>
