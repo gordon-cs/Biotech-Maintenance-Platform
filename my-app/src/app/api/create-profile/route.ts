@@ -25,6 +25,7 @@ type CreateProfileBody = {
     experience?: string | null
     bio?: string | null
     company?: string | null
+    resume_url?: string | null
   } | null
 }
 
@@ -145,7 +146,8 @@ export async function POST(req: NextRequest) {
         id: userId,
         experience: body.tech?.experience ?? null,
         bio: body.tech?.bio ?? null,
-        company: body.tech?.company ?? null
+        company: body.tech?.company ?? null,
+        resume_url: body.tech?.resume_url ?? null
       }
 
       // First check if technician already exists
