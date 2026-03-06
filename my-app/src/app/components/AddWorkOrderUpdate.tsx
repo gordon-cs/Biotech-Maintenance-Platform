@@ -64,17 +64,22 @@ export default function AddWorkOrderUpdate({ workOrderId, currentStatus = "open"
       const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'application/pdf']
       if (!allowedTypes.includes(file.type)) {
         setMessage("Only images (JPEG, PNG, GIF, WebP) and PDFs are allowed")
+        setAttachmentFile(null)
         e.target.value = ''
         return
       }
       // Validate file size (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
         setMessage("File must be less than 5MB")
+        setAttachmentFile(null)
         e.target.value = ''
         return
       }
       setAttachmentFile(file)
       setMessage(null)
+    } else {
+      // No file selected; clear any previously stored file
+      setAttachmentFile(null)
     }
   }
 
@@ -111,8 +116,11 @@ export default function AddWorkOrderUpdate({ workOrderId, currentStatus = "open"
         try {
           // Generate temporary ID for filename (we'll use timestamp + random)
           const tempId = `${Date.now()}-${Math.random().toString(36).substring(7)}`
-          const fileExt = attachmentFile.name.split('.').pop()
-          const fileName = `${tempId}.${fileExt}`
+          
+          const nameExt = attachmentFile.name.includes('.') ? attachmentFile.name.split('.').pop() : ''
+          const mimeExt = attachmentFile.type && attachmentFile.type.includes('/') ? attachmentFile.type.split('/').pop() : ''
+          const ext = nameExt || mimeExt || ''
+          const fileName = ext ? `${tempId}.${ext}` : tempId
           
           const { error: uploadError } = await supabase.storage
             .from('updates')

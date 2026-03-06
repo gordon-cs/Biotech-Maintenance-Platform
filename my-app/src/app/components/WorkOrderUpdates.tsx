@@ -30,24 +30,34 @@ export default function WorkOrderUpdates({ workOrderId, onRefresh }: Props) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const viewAttachment = async (filePath: string) => {
+  const viewAttachment = async (updateId: number) => {
     try {
-      const { data, error } = await supabase.storage
-        .from('updates')
-        .createSignedUrl(filePath, 3600)
-      
-      if (error) {
-        console.error('Error creating signed URL:', error)
-        alert('Failed to load attachment: ' + error.message)
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        alert('You must be signed in to view attachments')
         return
       }
 
-      if (data?.signedUrl) {
-        window.open(data.signedUrl, '_blank', 'noopener,noreferrer')
+      const response = await fetch(`/api/work-order-updates/attachment?update_id=${updateId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      })
+
+      if (!response.ok) {
+        const err = await response.json()
+        throw new Error(err.error || 'Failed to load attachment')
+      }
+
+      const result = await response.json()
+      if (result.signedUrl) {
+        window.open(result.signedUrl, '_blank', 'noopener,noreferrer')
       }
     } catch (err) {
       console.error('Error viewing attachment:', err)
-      alert('Failed to load attachment')
+      const msg = err instanceof Error ? err.message : 'Failed to load attachment'
+      alert(msg)
     }
   }
 
@@ -207,7 +217,7 @@ export default function WorkOrderUpdates({ workOrderId, onRefresh }: Props) {
 
               {update.attachment_url && (
                 <button
-                  onClick={() => viewAttachment(update.attachment_url!)}
+                  onClick={() => viewAttachment(update.id)}
                   className="text-sm text-blue-600 hover:underline mt-2"
                 >
                   View Attachment

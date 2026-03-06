@@ -50,6 +50,14 @@ export async function POST(req: NextRequest) {
   const raw: unknown = await req.json()
   const body = raw as CreateProfileBody // (Optional) replace with Zod validation later
 
+  // Validate resume_url format if provided (security: prevent arbitrary storage paths)
+  if (body.tech?.resume_url) {
+    const resumeUrlPattern = /^[a-zA-Z0-9_-]+\.pdf$/
+    if (!resumeUrlPattern.test(body.tech.resume_url) || body.tech.resume_url.length > 100) {
+      return NextResponse.json({ error: "Invalid resume_url format" }, { status: 400 })
+    }
+  }
+
   const userId = user.id
 
     // First get existing profile to preserve any fields not being updated

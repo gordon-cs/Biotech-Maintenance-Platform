@@ -116,6 +116,18 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // Validate attachment_url format if provided (security: prevent arbitrary storage paths)
+    if (body.attachment_url) {
+      // Must be a simple filename (no path traversal, no absolute paths)
+      const attachmentUrlPattern = /^[a-zA-Z0-9_-]+\.[a-zA-Z0-9]+$/
+      if (!attachmentUrlPattern.test(body.attachment_url) || body.attachment_url.length > 100) {
+        return NextResponse.json(
+          { error: "Invalid attachment_url format" },
+          { status: 400 }
+        )
+      }
+    }
+
     // For status changes, verify user is a technician
     if (body.update_type === "status_change") {
       const { data: profile, error: profileErr } = await serviceClient
