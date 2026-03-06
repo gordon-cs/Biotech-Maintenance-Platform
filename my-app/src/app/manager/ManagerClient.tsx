@@ -229,7 +229,7 @@ export default function ManagerClient() {
 
             <div className="grid grid-cols-2 gap-4">
               <label className="block">
-                <div className="text-sm mb-1">Date</div>
+                <div className="text-sm mb-1">Due Date</div>
                 <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full border px-3 py-2 rounded" />
               </label>
 
