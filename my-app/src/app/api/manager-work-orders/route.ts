@@ -118,7 +118,7 @@ export async function POST(req: NextRequest) {
     // fetch work orders for allowed labs
     const { data: workOrders, error: woError } = await serviceClient
       .from("work_orders")
-      .select("id, title, description, equipment, category_id, lab, created_at, urgency, status, date, assigned_to")
+      .select("id, title, description, equipment, address_id, category_id, lab, created_at, urgency, status, date, assigned_to")
       .in("lab", allowedLabIds)
       .order("created_at", { ascending: false })
 
