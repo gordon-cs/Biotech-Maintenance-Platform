@@ -24,9 +24,13 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
 
 Payment features can be enabled or disabled without removing code.
 
-Set this environment variable before starting the app:
+Payment availability is controlled by a build-time environment variable that is inlined into the client bundle. Make sure to set it **before** running `next dev` or `next build`:
 
 ```bash
+# e.g. in your shell, before starting the dev server or building:
+NEXT_PUBLIC_ENABLE_PAYMENTS=false
+
+# or in .env.local (loaded when Next.js starts):
 NEXT_PUBLIC_ENABLE_PAYMENTS=false
 ```
 
