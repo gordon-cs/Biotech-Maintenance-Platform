@@ -52,7 +52,7 @@ export default function WorkOrderSubmission() {
   const [addresses, setAddresses] = useState<AddressRow[]>([])
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<{ id?: string; message: string } | null>(null)
-  // Fixed initial fee set by platform admin (BBM)
+  // Platform initial fee set by admin (applied when payments are enabled; 0 when disabled)
   const labInitialFee = PAYMENTS_ENABLED ? 50.00 : 0.00
 
   useEffect(() => {
