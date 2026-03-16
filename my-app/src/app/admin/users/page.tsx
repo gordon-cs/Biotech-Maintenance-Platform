@@ -124,25 +124,34 @@ export default function AdminUsersPage() {
     }
   }
 
-  const viewResume = async (resumePath: string) => {
+  const viewResume = async (techId: string) => {
     try {
-      // Generate a signed URL that expires in 1 hour
-      const { data, error } = await supabase.storage
-        .from('resume')
-        .createSignedUrl(resumePath, 3600)
-      
-      if (error) {
-        console.error('Error creating signed URL:', error)
-        alert('Failed to load resume: ' + error.message)
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        alert('You must be signed in to view resumes')
         return
       }
 
-      if (data?.signedUrl) {
-        window.open(data.signedUrl, '_blank', 'noopener,noreferrer')
+      const response = await fetch(`/api/technicians/resume?tech_id=${techId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      })
+
+      if (!response.ok) {
+        const err = await response.json()
+        throw new Error(err.error || 'Failed to load resume')
+      }
+
+      const result = await response.json()
+      if (result.signedUrl) {
+        window.open(result.signedUrl, '_blank', 'noopener,noreferrer')
       }
     } catch (err) {
       console.error('Error viewing resume:', err)
-      alert('Failed to load resume')
+      const msg = err instanceof Error ? err.message : 'Failed to load resume'
+      alert(msg)
     }
   }
 
@@ -275,7 +284,7 @@ export default function AdminUsersPage() {
                     <td className="px-4 py-3">
                       {tech.resume_url ? (
                         <button
-                          onClick={() => viewResume(tech.resume_url!)}
+                          onClick={() => viewResume(tech.id)}
                           className="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
                         >
                           View Resume

@@ -33,6 +33,7 @@ export async function GET(req: NextRequest) {
         update_type,
         new_status,
         body,
+        attachment_url,
         created_at,
         author:profiles!author_id (
           id,
@@ -90,6 +91,7 @@ export async function POST(req: NextRequest) {
       update_type: "comment" | "status_change"
       new_status?: string | null
       body: string
+      attachment_url?: string | null
     }
 
     // Validation
@@ -112,6 +114,18 @@ export async function POST(req: NextRequest) {
         { error: "new_status is required when update_type is status_change" },
         { status: 400 }
       )
+    }
+
+    // Validate attachment_url format if provided (security: prevent arbitrary storage paths)
+    if (body.attachment_url) {
+      // Must be a simple filename (no path traversal, no absolute paths)
+      const attachmentUrlPattern = /^[a-zA-Z0-9_-]+\.[a-zA-Z0-9]+$/
+      if (!attachmentUrlPattern.test(body.attachment_url) || body.attachment_url.length > 100) {
+        return NextResponse.json(
+          { error: "Invalid attachment_url format" },
+          { status: 400 }
+        )
+      }
     }
 
     // For status changes, verify user is a technician
@@ -193,6 +207,7 @@ export async function POST(req: NextRequest) {
         update_type: body.update_type,
         new_status: body.update_type === "status_change" ? body.new_status : null,
         body: body.body.trim(),
+        attachment_url: body.attachment_url ?? null,
       })
       .select(`
         id,
@@ -201,6 +216,7 @@ export async function POST(req: NextRequest) {
         update_type,
         new_status,
         body,
+        attachment_url,
         created_at,
         author:profiles!author_id (
           id,

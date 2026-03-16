@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useEffect, useState } from "react"
+import { supabase } from "@/lib/supabaseClient"
 
 type Update = {
   id: number
@@ -9,6 +10,7 @@ type Update = {
   update_type: "comment" | "status_change"
   new_status?: string | null
   body: string
+  attachment_url?: string | null
   created_at: string
   author?: {
     id: string
@@ -27,6 +29,37 @@ export default function WorkOrderUpdates({ workOrderId, onRefresh }: Props) {
   const [updates, setUpdates] = useState<Update[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  const viewAttachment = async (updateId: number) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        alert('You must be signed in to view attachments')
+        return
+      }
+
+      const response = await fetch(`/api/work-order-updates/attachment?update_id=${updateId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      })
+
+      if (!response.ok) {
+        const err = await response.json()
+        throw new Error(err.error || 'Failed to load attachment')
+      }
+
+      const result = await response.json()
+      if (result.signedUrl) {
+        window.open(result.signedUrl, '_blank', 'noopener,noreferrer')
+      }
+    } catch (err) {
+      console.error('Error viewing attachment:', err)
+      const msg = err instanceof Error ? err.message : 'Failed to load attachment'
+      alert(msg)
+    }
+  }
 
 
 
@@ -181,6 +214,15 @@ export default function WorkOrderUpdates({ workOrderId, onRefresh }: Props) {
               )}
 
               <p className="text-sm text-gray-800 whitespace-pre-wrap">{update.body}</p>
+
+              {update.attachment_url && (
+                <button
+                  onClick={() => viewAttachment(update.id)}
+                  className="text-sm text-blue-600 hover:underline mt-2"
+                >
+                  View Attachment
+                </button>
+              )}
             </div>
           </div>
         </div>
