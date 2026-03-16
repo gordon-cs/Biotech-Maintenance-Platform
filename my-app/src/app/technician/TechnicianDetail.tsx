@@ -4,6 +4,7 @@ import React, { useState } from "react"
 import AddWorkOrderUpdate from "../components/AddWorkOrderUpdate"
 import PaymentRequestPanel from "../components/PaymentRequestPanel"
 import ConfirmationModal from "../components/ConfirmationModal"
+import { PAYMENTS_ENABLED } from "@/lib/featureFlags"
 import type { WorkOrder, TechnicianDetailProps } from "./types"
 
 function formatSubmitted(date?: string | null) {
@@ -95,13 +96,14 @@ export default function TechnicianDetail({ order, currentUserId, onAccept, onCan
           />
         </div>
 
-        {/* Show Payment Request Panel for completed work orders */}
-        <div className="mt-8">
-          <PaymentRequestPanel 
-            selectedId={order.id} 
-            currentOrderStatus={order.status ?? "open"}
-          />
-        </div>
+        {PAYMENTS_ENABLED && (
+          <div className="mt-8">
+            <PaymentRequestPanel 
+              selectedId={order.id} 
+              currentOrderStatus={order.status ?? "open"}
+            />
+          </div>
+        )}
       </div>
 
       {/* Confirmation Modal Component */}

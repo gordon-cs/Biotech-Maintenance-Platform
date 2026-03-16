@@ -6,6 +6,7 @@ import React, { useEffect, useState, Suspense, useMemo } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { supabase } from "@/lib/supabaseClient"
+import { PAYMENTS_ENABLED } from "@/lib/featureFlags"
 import AddWorkOrderUpdate from "../../components/AddWorkOrderUpdate"
 import EditWorkOrderModal from "../../components/EditWorkOrderModal"
 import ConfirmationModal from "../../components/ConfirmationModal"
@@ -230,6 +231,8 @@ function PastOrdersContent() {
   }
 
   const loadPaymentRequests = async () => {
+    if (!PAYMENTS_ENABLED) return
+
     try {
       const { data } = await supabase
         .from('invoices')
@@ -248,6 +251,8 @@ function PastOrdersContent() {
   }
 
   const handleApprovePayment = async (workOrderId: string, invoiceId: number) => {
+    if (!PAYMENTS_ENABLED) return
+
     setIsApprovingPayment(workOrderId)
     
     try {
@@ -428,7 +433,7 @@ function PastOrdersContent() {
   }, [orders, searchTerm, locationFilter, categoryFilter, sortOrder])
 
   useEffect(() => {
-    if (orders.length > 0) {
+    if (PAYMENTS_ENABLED && orders.length > 0) {
       loadPaymentRequests()
     }
   }, [orders])
@@ -631,7 +636,7 @@ function PastOrdersContent() {
                 </div>
 
                 {/* Payment Request Section - NEWLY ADDED */}
-                {selectedOrder.status === 'completed' && (
+                {PAYMENTS_ENABLED && selectedOrder.status === 'completed' && (
                   <div className="mt-6 pt-6 border-t border-gray-200">
                     <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                       <span>Payment Request</span>

@@ -1,7 +1,9 @@
 "use client"
 
+import Link from 'next/link'
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import { PAYMENTS_ENABLED } from '@/lib/featureFlags'
 
 interface PaymentRequest {
   id: number
@@ -128,6 +130,12 @@ export default function PaymentRequests() {
   }
 
   const loadPaymentRequests = async () => {
+    if (!PAYMENTS_ENABLED) {
+      setRequests([])
+      setLoading(false)
+      return
+    }
+
     try {
       setLoading(true)
       
@@ -192,6 +200,8 @@ export default function PaymentRequests() {
   }, [])
 
   const handleApprovePayment = async (request: PaymentRequest) => {
+    if (!PAYMENTS_ENABLED) return
+
     if (!confirm(`Approve payment of $${Number(request.total_amount).toFixed(2)}?`)) {
       return
     }
@@ -231,6 +241,8 @@ export default function PaymentRequests() {
   }
 
   const handleSyncStatus = async (request: PaymentRequest) => {
+    if (!PAYMENTS_ENABLED) return
+
     setIsSyncing(true)
 
     try {
@@ -259,6 +271,27 @@ export default function PaymentRequests() {
     } finally {
       setIsSyncing(false)
     }
+  }
+
+  if (!PAYMENTS_ENABLED) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-6">
+        <div className="max-w-3xl mx-auto">
+          <div className="bg-white border border-gray-200 rounded-lg p-8 text-center">
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">Payments Temporarily Unavailable</h1>
+            <p className="text-gray-600 mb-6">
+              Payment features are currently disabled. Work order management remains available.
+            </p>
+            <Link
+              href="/manager"
+              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Back to Dashboard
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   if (loading) {
