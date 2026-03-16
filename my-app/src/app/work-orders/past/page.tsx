@@ -436,7 +436,7 @@ function PastOrdersContent() {
     if (PAYMENTS_ENABLED && orders.length > 0) {
       loadPaymentRequests()
     }
-  }, [orders])
+  }, [orders, PAYMENTS_ENABLED])
 
   return (
     <div className="min-h-screen bg-gray-50 relative">
