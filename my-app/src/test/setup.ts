@@ -7,7 +7,7 @@ afterEach(() => {
   cleanup()
 })
 
-// Set environment variables before any imports
+// Set environment variables for tests
 process.env.RESEND_API_KEY = 'test-api-key'
 process.env.NEXT_PUBLIC_SITE_URL = 'http://localhost:3000'
 
