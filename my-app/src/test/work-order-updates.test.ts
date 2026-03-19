@@ -23,7 +23,7 @@ const { GET, POST } = await import('@/api/work-order-updates/route')
 
 describe('Work Order Updates API', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    vi.resetAllMocks()
   })
 
   describe('GET /api/work-order-updates', () => {
