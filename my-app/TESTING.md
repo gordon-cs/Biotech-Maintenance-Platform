@@ -56,19 +56,24 @@ Tests are located in `src/test/`:
 - Handles both comments and status changes
 
 **Work Order Updates API** (`api/work-order-updates/route.ts`)
-  - GET endpoint fetches updates for a work order
-  - POST endpoint creates new updates (comments and status changes)
-  - Validates authentication and authorization
-  - EnfAPI Contracts** - Your actual API routes work correctly
-**Validation Rules** 
-  - Invalid data is rejected with helpful errors
-**Authorization** 
-  - Only authorized users can perform certain actions
-**Configuration** 
-  - Proper branding and environment setupders
-  - Completed work orders cannot be modified
-  - Status can only be changed to 'completed'
-  - Returns appropriate error messages for invalid requests
+- GET endpoint fetches updates for a work order
+- POST endpoint creates new updates (comments and status changes)
+- Validates authentication and authorization
+- Ensures API contracts: your actual API routes work correctly
+
+**Validation Rules**
+- Invalid data is rejected with helpful errors
+
+**Authorization**
+- Only authorized users can perform certain actions
+
+**Configuration**
+- Proper branding and environment setup
+
+**Business Rules**
+- Completed work orders cannot be modified
+- Status can only be changed to `completed`
+- Returns appropriate error messages for invalid requests
 
 **Business Rules Validation**
 - All validated through API tests
