@@ -185,7 +185,7 @@ export default function AdminWorkOrdersPage() {
       // fetch profiles (typed)
       const techRes = await supabase
         .from("profiles")
-        .select("id, full_name, email, role")
+        .select("id, full_name, email, role, is_technician") // include column
         .order("full_name", { ascending: true })
       if (!techRes.error) {
         const profiles = (techRes.data || []) as ProfileRow[]
