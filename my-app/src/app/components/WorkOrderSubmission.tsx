@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react"
 import { supabase } from "@/lib/supabaseClient"
+import { PAYMENTS_ENABLED } from "@/lib/featureFlags"
 import Link from "next/link"
 import { useSearchParams, useRouter } from "next/navigation"
 
@@ -51,8 +52,8 @@ export default function WorkOrderSubmission() {
   const [addresses, setAddresses] = useState<AddressRow[]>([])
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<{ id?: string; message: string } | null>(null)
-  // Fixed initial fee set by platform admin (BBM)
-  const labInitialFee = 50.00 // Platform-wide initial service fee
+  // Platform initial fee set by admin (applied when payments are enabled; 0 when disabled)
+  const labInitialFee = PAYMENTS_ENABLED ? 50.00 : 0.00
 
   useEffect(() => {
     let mounted = true
@@ -235,7 +236,7 @@ export default function WorkOrderSubmission() {
         date: form.date || null,
         created_by: user.id,
         address_id: addressIdNum,
-        initial_fee: labInitialFee,
+        initial_fee: PAYMENTS_ENABLED ? labInitialFee : null,
       }
 
       const { data, error } = await supabase
@@ -250,7 +251,7 @@ export default function WorkOrderSubmission() {
         const inserted = data as InsertIdRow | null
         const workOrderId = inserted?.id
 
-        if (workOrderId) {
+        if (PAYMENTS_ENABLED && workOrderId) {
           try {
             const { data: { session } } = await supabase.auth.getSession()
             const response = await fetch('/api/invoices/create-initial-fee', {
@@ -271,6 +272,8 @@ export default function WorkOrderSubmission() {
           } catch (invoiceError) {
             setResult({ id: workOrderId, message: "Work order submitted, but failed to send initial fee invoice." })
           }
+        } else if (workOrderId) {
+          setResult({ id: workOrderId, message: "Work order submitted successfully." })
         }
         setForm({ title: "", description: "", equipment: "", urgency: "", category_id: "", date: "", address_id: "" })
       }
@@ -366,7 +369,7 @@ export default function WorkOrderSubmission() {
           </select>
         </label>
 
-        {labInitialFee > 0 && (
+        {PAYMENTS_ENABLED && labInitialFee > 0 && (
           <div className="mb-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
             <div className="flex items-center justify-between">
               <div>

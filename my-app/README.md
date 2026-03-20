@@ -20,6 +20,23 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Feature Toggles
+
+Payment features can be enabled or disabled without removing code.
+
+Payment availability is controlled by a build-time environment variable that is inlined into the client bundle. Make sure to set it **before** running `next dev` or `next build`:
+
+```bash
+# e.g. in your shell, before starting the dev server or building:
+NEXT_PUBLIC_ENABLE_PAYMENTS=false
+
+# or in .env.local (loaded when Next.js starts):
+NEXT_PUBLIC_ENABLE_PAYMENTS=false
+```
+
+- `false` (or unset): hides payment UI and disables payment actions.
+- `true`: enables payment UI and payment actions.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
