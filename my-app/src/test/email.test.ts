@@ -1,20 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+const mockSend = vi.fn().mockResolvedValue({ id: 'test-email-id' })
+
 // Mock Resend before importing
 vi.mock('resend', () => {
-  const mockSend = vi.fn().mockResolvedValue({ id: 'test-email-id' })
   return {
     Resend: class MockResend {
       emails = {
         send: mockSend,
       }
     },
-    mockSend,
   }
 })
 
 const { sendWorkOrderUpdateEmail } = await import('@/lib/email')
-const { Resend, mockSend } = await import('resend')
 
 describe('Email Service', () => {
   beforeEach(() => {
