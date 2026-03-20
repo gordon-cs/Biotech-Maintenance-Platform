@@ -38,7 +38,7 @@ type WorkOrderRow = {
   equipment?: string | null
   description?: string | null
   category_id?: number | null
-  address_id?: number | null
+  address_id?: number | string | null
   lab: number
   created_at?: string | null
   urgency?: string | null
@@ -367,17 +367,31 @@ function PastOrdersContent() {
           zipcode?: string | null
         }
         
+        const normalizeToNumber = (v: number | string | null | undefined): number | null => {
+          if (v === null || v === undefined) return null
+          if (typeof v === "number") return Number.isFinite(v) ? v : null
+          // string case
+          if (typeof v === "string") {
+            const n = Number(v)
+            return Number.isFinite(n) ? n : null
+          }
+          return null
+        }
+
         const addrIds = Array.from(
-          new Set(woRows.map(w => w.address_id).filter((v): v is number => v !== null && v !== undefined))
+          new Set(
+            woRows
+              .map(w => normalizeToNumber(w.address_id))
+              .filter((v): v is number => v !== null)
+          )
         )
-        console.log("addrIds:", addrIds)
+        // addrIds is now an array of numbers normalized from number|string
          const addressMap: Record<number, string> = {}
          if (addrIds.length) {
            const addrRes = await supabase
              .from("addresses")
              .select("id, label, line1, line2, city, state, zipcode")
              .in("id", addrIds)
-          console.log("addrRes:", addrRes)
   
             if (!addrRes.error) {
              const addrRows = (addrRes.data || []) as AddressRow[]
