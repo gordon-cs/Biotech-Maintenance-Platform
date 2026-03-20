@@ -9,11 +9,12 @@ vi.mock('resend', () => {
         send: mockSend,
       }
     },
+    mockSend,
   }
 })
 
 const { sendWorkOrderUpdateEmail } = await import('@/lib/email')
-const { Resend } = await import('resend')
+const { Resend, mockSend } = await import('resend')
 
 describe('Email Service', () => {
   beforeEach(() => {
@@ -86,9 +87,6 @@ describe('Email Service', () => {
     })
 
     it('should call resend.emails.send with correct from address', async () => {
-      const mockResend = new Resend('test-key')
-      const sendSpy = vi.spyOn(mockResend.emails, 'send')
-
       const recipient = { email: 'test@example.com' }
       const data = {
         workOrderId: 100,
@@ -101,8 +99,8 @@ describe('Email Service', () => {
 
       await sendWorkOrderUpdateEmail(recipient, data)
 
-      expect(sendSpy).toHaveBeenCalled()
-      const callArgs = sendSpy.mock.calls[0]?.[0]
+      expect(mockSend).toHaveBeenCalled()
+      const callArgs = mockSend.mock.calls[0]?.[0]
       expect(callArgs?.from).toContain('bostonbiotechmanagement.com')
       expect(callArgs?.from).toContain('Boston Biotech Management')
     })
