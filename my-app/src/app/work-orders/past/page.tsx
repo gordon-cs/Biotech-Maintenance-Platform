@@ -118,7 +118,6 @@ function PastOrdersContent() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
-  const [locationFilter, setLocationFilter] = useState("")
   const [categoryFilter, setCategoryFilter] = useState("")
   const [sortOrder, setSortOrder] = useState("most_recent")
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null)
@@ -143,17 +142,16 @@ function PastOrdersContent() {
     document.title = "Past Orders | Biotech Maintenance"
   }, [])
 
-  const handleCancelOrder = async (orderId: string, orderTitle: string) => {
+  const handleCancelOrder = async (orderId: string) => {
     setConfirmModal({
       isOpen: true,
       orderId,
-      orderTitle,
+      orderTitle: "",
     })
   }
 
   const handleConfirmCancel = async () => {
     const orderId = confirmModal.orderId
-    const orderTitle = confirmModal.orderTitle
 
     if (!orderId) return
 
@@ -244,12 +242,13 @@ function PastOrdersContent() {
         })
         setPaymentRequests(requestsMap)
       }
-    } catch (err) {
+    } catch (_) {
+      // Silently fail to load payment requests
     }
   }
 
   // Automatically sync payment statuses from Bill.com
-  const syncPaymentStatuses = async (invoicesToSync?: any[]) => {
+  const syncPaymentStatuses = async (invoicesToSync?: Array<{ id: number; bill_ar_invoice_id: string; payment_status: string }>) => {
     try {
       console.log('[Frontend Auto Sync] Starting sync...')
       
@@ -370,10 +369,10 @@ function PastOrdersContent() {
         alert('Payment approved and sent to Bill.com!')
         loadPaymentRequests() // Reload to update status
       } else {
-        const error = await response.json()
-        alert(`Failed to approve payment: ${error.error}`)
+        const errorData = await response.json()
+        alert(`Failed to approve payment: ${errorData.error}`)
       }
-    } catch (error) {
+    } catch (_) {
       alert('Failed to approve payment')
     } finally {
       setIsApprovingPayment(null)
@@ -430,7 +429,6 @@ function PastOrdersContent() {
         // debug: log status and body when non-ok
         if (!mgrResp.ok) {
           const text = await mgrResp.text().catch(() => "<no body>")
-          // eslint-disable-next-line no-console
           console.error("manager-work-orders failed", mgrResp.status, mgrResp.statusText, text)
           // Throw a generic error to avoid leaking internal response details to the UI
           throw new Error(`Failed fetching manager work orders: ${mgrResp.status} ${mgrResp.statusText}`)
@@ -515,16 +513,12 @@ function PastOrdersContent() {
       )
     }
     
-    if (locationFilter) {
-      filtered = filtered.filter(order => order.address.includes(locationFilter))
-    }
-    
     if (categoryFilter) {
       filtered = filtered.filter(order => order.category === categoryFilter)
     }
     
     return sortOrders(filtered, sortOrder)
-  }, [orders, searchTerm, locationFilter, categoryFilter, sortOrder])
+  }, [orders, searchTerm, categoryFilter, sortOrder])
 
   useEffect(() => {
     if (orders.length > 0) {
@@ -630,7 +624,7 @@ function PastOrdersContent() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
-                            handleCancelOrder(order.id, order.title)
+                          handleCancelOrder(order.id)
                           }}
                           disabled={cancellingOrderId === order.id}
                           className="px-2 py-1 text-xs bg-orange-600 text-white rounded hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -696,7 +690,7 @@ function PastOrdersContent() {
                       <div className="flex gap-2">
                         {canCancelOrder(selectedOrder.status || '') && (
                           <button
-                            onClick={() => handleCancelOrder(selectedOrder.id, selectedOrder.title)}
+                          onClick={() => handleCancelOrder(selectedOrder.id)}
                             disabled={cancellingOrderId === selectedOrder.id}
                             className="px-3 py-1 text-sm bg-orange-600 text-white rounded hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
                           >

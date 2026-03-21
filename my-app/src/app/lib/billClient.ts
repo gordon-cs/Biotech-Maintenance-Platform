@@ -47,7 +47,7 @@ class BillClient {
     let data: unknown;
     try {
       data = responseText ? JSON.parse(responseText) : null;
-    } catch (e) {
+    } catch (_) {
       throw new Error(`Bill.com authentication failed: ${responseText}`);
     }
 
@@ -483,7 +483,7 @@ class BillClient {
     let result: unknown
     try {
       result = responseText ? JSON.parse(responseText) : null
-    } catch (e) {
+    } catch (_) {
       throw new Error(`Bill.com AR invoice error: ${responseText}`)
     }
 
@@ -574,14 +574,14 @@ class BillClient {
       let result: unknown
       try {
         result = responseText ? JSON.parse(responseText) : null
-      } catch (e) {
-        throw new Error(`Bill.com get invoice error: ${responseText}`)
+      } catch (_) {
+        // JSON parse error
       }
 
       if (!response.ok) {
         const errResult = result as { message?: string };
         throw new Error(
-          `Bill.com get invoice error: ${errResult?.message || JSON.stringify(result)}`
+          `Bill.com get invoice error: ${(errResult as any)?.message || JSON.stringify(result)}`
         )
       }
 
@@ -593,10 +593,10 @@ class BillClient {
       }
       
       return {
-        status: invoiceData?.status || 'unknown',
-        paid: invoiceData?.paid || 0,
-        amount: invoiceData?.amount || 0,
-        amountPaid: invoiceData?.amountPaid || 0,
+        status: (invoiceData as any)?.status || 'unknown',
+        paid: (invoiceData as any)?.paid || 0,
+        amount: (invoiceData as any)?.amount || 0,
+        amountPaid: (invoiceData as any)?.amountPaid || 0,
       }
     } catch (error) {
       console.error(`[BillClient] Failed to fetch invoice ${billInvoiceId}:`, error)
