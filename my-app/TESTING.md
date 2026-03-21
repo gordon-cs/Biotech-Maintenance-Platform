@@ -20,6 +20,77 @@ npm run test:ui
 npm run test:coverage
 ```
 
+## Install Verification (Did Setup Work?)
+
+Use this checklist on a fresh machine or after dependency changes.
+
+### 1) Install dependencies
+
+```bash
+npm ci
+```
+
+Expected result:
+- Install completes with no errors.
+
+### 2) Verify the app builds
+
+```bash
+npm run build
+```
+
+Expected result:
+- Next.js production build succeeds.
+
+### 3) Verify tests run
+
+```bash
+npm run test:run
+```
+
+Expected result:
+- Test run completes successfully.
+
+### 4) Optional runtime smoke check
+
+```bash
+npm run dev
+```
+
+Then confirm these routes load in a browser:
+- `/signin`
+- `/signup`
+- `/work-orders/submission`
+- `/work-orders/past`
+
+Expected result:
+- App starts and core pages render.
+
+## Breakage Detection (Did a Change Break Something?)
+
+Run this sequence before pushing code:
+
+```bash
+npm run build
+npm run test:run
+```
+
+If either command fails, treat it as a regression until fixed.
+
+Recommended targeted checks while developing:
+
+```bash
+# Watch mode for fast feedback
+npm test
+
+# Run only one suite while iterating
+npx vitest run src/test/work-order-updates.test.ts
+```
+
+CI recommendation:
+- Run `npm ci`, `npm run build`, and `npm run test:run` on every pull request.
+- Block merges when any of those checks fail.
+
 ### Test Files
 
 Tests are located in `src/test/`:
@@ -111,6 +182,15 @@ The tests focus on:
 2. **Integration Points** - External API interactions (Resend)
 3. **Configuration** - Proper branding and environment setup
 4. **Error Cases** - Graceful handling of failures
+
+### Coverage Boundaries (Important)
+
+Current tests are mostly mocked unit/integration tests. They are strong for regression detection in covered modules, but they do not fully validate live infrastructure (real Supabase, live external services) by themselves.
+
+For full system confidence, pair this suite with:
+- Production build verification (`npm run build`)
+- Runtime smoke check (`npm run dev`)
+- Optional environment-specific integration checks against test infrastructure
 
 ### Writing New Tests
 
