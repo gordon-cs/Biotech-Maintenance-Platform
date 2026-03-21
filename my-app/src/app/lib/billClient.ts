@@ -8,6 +8,23 @@ interface BillResponse {
   };
 }
 
+interface InvoiceStatusResponse {
+  status?: string;
+  paid?: number;
+  amount?: number;
+  amountPaid?: number;
+  [key: string]: unknown;
+}
+
+interface BillInvoiceResponse {
+  response_data?: InvoiceStatusResponse;
+  status?: string;
+  paid?: number;
+  amount?: number;
+  amountPaid?: number;
+  [key: string]: unknown;
+}
+
 class BillClient {
   private apiUrl: string
   private devKey: string
@@ -571,9 +588,9 @@ class BillClient {
       })
 
       const responseText = await response.text()
-      let result: unknown
+      let result: BillInvoiceResponse | null = null
       try {
-        result = responseText ? JSON.parse(responseText) : null
+        result = responseText ? JSON.parse(responseText) as BillInvoiceResponse : null
       } catch (_) {
         // JSON parse error
       }
@@ -581,22 +598,22 @@ class BillClient {
       if (!response.ok) {
         const errResult = result as { message?: string };
         throw new Error(
-          `Bill.com get invoice error: ${(errResult as any)?.message || JSON.stringify(result)}`
+          `Bill.com get invoice error: ${errResult?.message || JSON.stringify(result)}`
         )
       }
 
       // Handle both response_data wrapper and direct response
-      const invoiceData = (result as any)?.response_data || result as any
+      const invoiceData: InvoiceStatusResponse = result?.response_data || (result as InvoiceStatusResponse)
       
       if (process.env.DEBUG === 'true') {
         console.log('[BillClient] getInvoiceStatus raw response:', invoiceData)
       }
       
       return {
-        status: (invoiceData as any)?.status || 'unknown',
-        paid: (invoiceData as any)?.paid || 0,
-        amount: (invoiceData as any)?.amount || 0,
-        amountPaid: (invoiceData as any)?.amountPaid || 0,
+        status: invoiceData?.status || 'unknown',
+        paid: invoiceData?.paid || 0,
+        amount: invoiceData?.amount || 0,
+        amountPaid: invoiceData?.amountPaid || 0,
       }
     } catch (error) {
       console.error(`[BillClient] Failed to fetch invoice ${billInvoiceId}:`, error)
