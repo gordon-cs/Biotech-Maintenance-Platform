@@ -42,7 +42,31 @@ Tests are located in `src/test/`:
   - Authentication & authorization
   - Validation (missing fields, invalid values)
   - Status change rules (technician-only, assignment required)
-  - Business rule enforcement
+  - Success flows with email notification routing
+  - Resilience when email delivery fails
+
+- **work-order-submission.test.tsx** - Tests for work order creation UI
+  - Address selection behavior (including `add_new` routing)
+  - Category slug resolution before insert
+  - Successful submit feedback
+
+- **work-order-completion.test.tsx** - Tests for work order completion UI
+  - Completing without payment request
+  - Completing with payment request and invoice creation payload
+
+- **create-profile.test.ts** - Tests for account/profile creation API
+  - Missing token handling
+  - Lab profile + default address creation flow
+  - Technician profile upsert flow
+
+- **auth-gate.test.tsx** - Tests for auth guard behavior
+  - Loading state and authenticated render
+  - Redirect when no session exists
+  - Redirect on auth sign-out event
+
+- **address-management.test.tsx** - Tests for address CRUD UI
+  - Add address flow
+  - Delete address flow
 
 - **billClient.test.ts** - Placeholder (Bill.com features in development)
   - Skipped - will be added when feature is complete
@@ -61,26 +85,24 @@ Tests are located in `src/test/`:
 - Validates authentication and authorization
 - Ensures API contracts: your actual API routes work correctly
 
-**Validation Rules**
-- Invalid data is rejected with helpful errors
+**Work Order Creation UI** (`components/WorkOrderSubmission.tsx`)
+- Ensures manager workflow creates work orders with valid payloads
+- Verifies category/address handling and form behavior
 
-**Authorization**
-- Only authorized users can perform certain actions
+**Work Order Completion UI** (`components/WorkOrderCompletion.tsx`)
+- Validates completion status update behavior
+- Verifies optional payment request + invoice record creation path
 
-**Configuration**
-- Proper branding and environment setup
+**Account Creation API** (`api/create-profile/route.ts`)
+- Enforces token-based authentication
+- Handles lab and technician onboarding flows
 
-**Business Rules**
-- Completed work orders cannot be modified
-- Status can only be changed to `completed`
-- Returns appropriate error messages for invalid requests
+**Auth Guard** (`components/AuthGate.tsx`)
+- Redirects unauthenticated users to login
+- Responds to auth state changes
 
-**Business Rules Validation**
-- All validated through API tests
-- Urgency levels: low, normal, high, critical
-- Status transitions: open → claimed → completed
-- Update types: comment, status_change
-- Role-based permissions enforced in API handlers
+**Address Management UI** (`components/AddressManagement.tsx`)
+- Covers create/delete address actions and success messages
 
 ### Test Coverage
 
@@ -118,10 +140,18 @@ describe('My Feature', () => {
 - Verify correct HTTP status codes and error messages
 - Validate business rules are enforced
 
+**API Tests** (`create-profile.test.ts`):
+- Exercise real route handler logic for profile onboarding
+- Verify role-specific persistence flows
+
 **Integration Tests** (`email.test.ts`, `email-template.test.ts`):
 - Test email service integration
 - Verify correct email content generation
 - Mock external email API
-- Validate template structure and brandingntent generation
-- Mock external email APIg tests
-- **Environment Variables**: Set in `src/test/setup.ts`
+
+**Component Tests** (`*.test.tsx`):
+- Render client components in JSDOM
+- Mock `next/navigation` and Supabase client behavior
+- Validate UI behavior and side effects from user actions
+
+**Environment Variables**: Set in `src/test/setup.ts`

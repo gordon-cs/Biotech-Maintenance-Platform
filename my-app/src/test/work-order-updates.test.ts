@@ -20,10 +20,12 @@ vi.mock('@/lib/email', () => ({
 
 // Import after mocks are set up
 const { GET, POST } = await import('@/api/work-order-updates/route')
+const { sendWorkOrderUpdateEmail } = await import('@/lib/email')
 
 describe('Work Order Updates API', () => {
   beforeEach(() => {
     vi.resetAllMocks()
+    vi.mocked(sendWorkOrderUpdateEmail).mockResolvedValue({ success: true } as never)
   })
 
   describe('GET /api/work-order-updates', () => {
@@ -434,6 +436,32 @@ describe('Work Order Updates API', () => {
         }),
       })
 
+      mockSupabaseClient.from.mockReturnValueOnce({
+        insert: vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({
+              data: mockUpdate,
+              error: null,
+            }),
+          }),
+        }),
+      })
+      mockSupabaseClient.from.mockReturnValueOnce({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({
+              data: {
+                id: 123,
+                title: 'Test work order',
+                lab: 1,
+                assigned_to: null,
+              },
+              error: null,
+            }),
+          }),
+        }),
+      })
+
       const request = new NextRequest('http://localhost/api/work-order-updates', {
         method: 'POST',
         headers: { 'authorization': 'Bearer test-token' },
@@ -450,6 +478,184 @@ describe('Work Order Updates API', () => {
       expect(response.status).toBe(201)
       expect(data.data.update_type).toBe('comment')
       expect(data.data.body).toBe('Test comment')
+    })
+
+    it('should allow assigned technician to complete work order and notify lab manager', async () => {
+      const mockUpdate = {
+        id: 9,
+        work_order_id: 123,
+        update_type: 'status_change',
+        new_status: 'completed',
+        body: 'Finished all checks',
+        author: {
+          id: 'user-123',
+          full_name: 'Assigned Tech',
+          email: 'tech@example.com',
+          role: 'technician',
+        },
+      }
+
+      mockSupabaseClient.from
+        .mockReturnValueOnce({
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { role: 'technician' },
+                error: null,
+              }),
+            }),
+          }),
+        })
+        .mockReturnValueOnce({
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { assigned_to: 'user-123', status: 'claimed' },
+                error: null,
+              }),
+            }),
+          }),
+        })
+        .mockReturnValueOnce({
+          insert: vi.fn().mockReturnValue({
+            select: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: mockUpdate,
+                error: null,
+              }),
+            }),
+          }),
+        })
+        .mockReturnValueOnce({
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: {
+                  id: 123,
+                  title: 'Sterilizer calibration',
+                  lab: 77,
+                  assigned_to: 'user-123',
+                },
+                error: null,
+              }),
+            }),
+          }),
+        })
+        .mockReturnValueOnce({
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { manager_id: 'manager-1' },
+                error: null,
+              }),
+            }),
+          }),
+        })
+        .mockReturnValueOnce({
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { email: 'manager@example.com', full_name: 'Lab Manager' },
+                error: null,
+              }),
+            }),
+          }),
+        })
+
+      const request = new NextRequest('http://localhost/api/work-order-updates', {
+        method: 'POST',
+        headers: { authorization: 'Bearer test-token' },
+        body: JSON.stringify({
+          work_order_id: 123,
+          update_type: 'status_change',
+          new_status: 'completed',
+          body: 'Finished all checks',
+        }),
+      })
+
+      const response = await POST(request)
+      const data = await response.json()
+
+      expect(response.status).toBe(201)
+      expect(data.data.update_type).toBe('status_change')
+      expect(sendWorkOrderUpdateEmail).toHaveBeenCalledTimes(1)
+      expect(sendWorkOrderUpdateEmail).toHaveBeenCalledWith(
+        { email: 'manager@example.com', name: 'Lab Manager' },
+        expect.objectContaining({
+          workOrderId: 123,
+          updateType: 'status_change',
+          newStatus: 'completed',
+        })
+      )
+    })
+
+    it('should still return 201 when email sending fails', async () => {
+      vi.mocked(sendWorkOrderUpdateEmail).mockResolvedValueOnce({
+        success: false,
+        error: new Error('email provider unavailable'),
+      })
+
+      const mockUpdate = {
+        id: 10,
+        work_order_id: 555,
+        update_type: 'comment',
+        body: 'Please recheck this unit',
+        author: {
+          id: 'user-123',
+          full_name: 'Lab Manager',
+          email: 'lab@example.com',
+          role: 'lab',
+        },
+      }
+
+      mockSupabaseClient.from
+        .mockReturnValueOnce({
+          insert: vi.fn().mockReturnValue({
+            select: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: mockUpdate,
+                error: null,
+              }),
+            }),
+          }),
+        })
+        .mockReturnValueOnce({
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { id: 555, title: 'Pump inspection', lab: 91, assigned_to: 'tech-8' },
+                error: null,
+              }),
+            }),
+          }),
+        })
+        .mockReturnValueOnce({
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { email: 'tech8@example.com', full_name: 'Assigned Tech' },
+                error: null,
+              }),
+            }),
+          }),
+        })
+
+      const request = new NextRequest('http://localhost/api/work-order-updates', {
+        method: 'POST',
+        headers: { authorization: 'Bearer test-token' },
+        body: JSON.stringify({
+          work_order_id: 555,
+          update_type: 'comment',
+          body: 'Please recheck this unit',
+        }),
+      })
+
+      const response = await POST(request)
+      const data = await response.json()
+
+      expect(response.status).toBe(201)
+      expect(data.data.work_order_id).toBe(555)
+      expect(sendWorkOrderUpdateEmail).toHaveBeenCalledTimes(1)
     })
   })
 })
