@@ -181,7 +181,7 @@ export default function EditWorkOrderModal({
 
         <div className="grid grid-cols-2 gap-3 mb-4">
           <label className="block">
-            <div className="text-sm mb-1">Date</div>
+            <div className="text-sm mb-1">Due Date</div>
             <input type="date" value={date ?? ""} onChange={(e) => setDate(e.target.value || null)} className="w-full border px-2 py-1 rounded" />
           </label>
 
