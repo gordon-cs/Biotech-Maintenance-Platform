@@ -1,8 +1,0 @@
-{
-  "crons": [
-    {
-      "path": "/api/bill/sync-all-pending",
-      "schedule": "*/5 * * * *"
-    }
-  ]
-}

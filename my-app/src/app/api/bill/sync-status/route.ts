@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
           { status: 404 }
         )
       }
-      log(`[Sync Status] Invoice found:`, { id: invoice.id, bill_ar_invoice_id: invoice.bill_ar_invoice_id, current_status: invoice.payment_status })
+      log('[Sync Status] Invoice found: id=' + invoice.id + ', bill_id=' + invoice.bill_ar_invoice_id + ', status=' + invoice.payment_status)
 
       if (!invoice.bill_ar_invoice_id) {
         log('[Sync Status] Invoice has no bill_ar_invoice_id')
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
         // Query Bill.com for current invoice status
         log(`[Sync Status] Querying Bill.com for invoice ${invoice.bill_ar_invoice_id}...`)
         const billInvoiceData = await billClient.getInvoiceStatus(invoice.bill_ar_invoice_id)
-        log(`[Sync Status] Bill.com response:`, billInvoiceData)
+        log('[Sync Status] Bill.com response: ' + JSON.stringify(billInvoiceData))
 
         // Map Bill.com status to our payment status
         let mappedStatus = 'awaiting_payment'
@@ -113,14 +113,14 @@ export async function POST(request: NextRequest) {
             updateData.paid_at = new Date().toISOString()
           }
 
-          log(`[Sync Status] Updating invoice with:`, updateData)
+          log('[Sync Status] Updating invoice with: ' + JSON.stringify(updateData))
           const { error: updateError } = await supabaseAdmin
             .from('invoices')
             .update(updateData)
             .eq('id', invoiceId)
 
           if (updateError) {
-            log(`[Sync Status] Update failed:`, updateError)
+            log('[Sync Status] Update failed: ' + updateError.message)
             return NextResponse.json(
               { error: 'Failed to update invoice', details: updateError.message },
               { status: 500 }
