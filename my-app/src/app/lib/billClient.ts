@@ -553,6 +553,56 @@ class BillClient {
 
     return result.response_data
   }
+
+  // Fetch invoice details from Bill.com (for payment status sync)
+  async getInvoiceStatus(billInvoiceId: string): Promise<{ status: string; paid: number; amount: number; amountPaid: number }> {
+    await this.ensureLoggedIn()
+
+    const url = `${this.apiUrl}/invoices/${billInvoiceId}`
+
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'content-type': 'application/json',
+          'devKey': this.devKey,
+          'sessionId': this.sessionId!,
+        }
+      })
+
+      const responseText = await response.text()
+      let result: unknown
+      try {
+        result = responseText ? JSON.parse(responseText) : null
+      } catch (e) {
+        throw new Error(`Bill.com get invoice error: ${responseText}`)
+      }
+
+      if (!response.ok) {
+        const errResult = result as { message?: string };
+        throw new Error(
+          `Bill.com get invoice error: ${errResult?.message || JSON.stringify(result)}`
+        )
+      }
+
+      // Handle both response_data wrapper and direct response
+      const invoiceData = (result as any)?.response_data || result as any
+      
+      if (process.env.DEBUG === 'true') {
+        console.log('[BillClient] getInvoiceStatus raw response:', invoiceData)
+      }
+      
+      return {
+        status: invoiceData?.status || 'unknown',
+        paid: invoiceData?.paid || 0,
+        amount: invoiceData?.amount || 0,
+        amountPaid: invoiceData?.amountPaid || 0,
+      }
+    } catch (error) {
+      console.error(`[BillClient] Failed to fetch invoice ${billInvoiceId}:`, error)
+      throw error
+    }
+  }
 }
 
 export const billClient = new BillClient()

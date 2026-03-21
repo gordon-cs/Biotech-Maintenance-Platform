@@ -235,6 +235,7 @@ function PastOrdersContent() {
         .from('invoices')
         .select('*')
         .in('work_order_id', orders.map(o => parseInt(o.id)))
+        .neq('invoice_type', 'initial_fee')  // Exclude initial fee invoices
       
       if (data) {
         const requestsMap: Record<string, { id: number; payment_status: string; total_amount: number }> = {}
@@ -244,6 +245,104 @@ function PastOrdersContent() {
         setPaymentRequests(requestsMap)
       }
     } catch (err) {
+    }
+  }
+
+  // Automatically sync payment statuses from Bill.com
+  const syncPaymentStatuses = async (invoicesToSync?: any[]) => {
+    try {
+      console.log('[Frontend Auto Sync] Starting sync...')
+      
+      // Use provided invoices or fetch them
+      let invoices = invoicesToSync
+      if (!invoices) {
+        console.log('[Frontend Auto Sync] No invoices provided, fetching from Supabase...')
+        const { data } = await supabase
+          .from('invoices')
+          .select('*')
+          .in('work_order_id', orders.map(o => parseInt(o.id)))
+          .neq('invoice_type', 'initial_fee')
+        invoices = data || []
+      }
+      
+      console.log(`[Frontend Auto Sync] Total invoices: ${invoices.length}`)
+      
+      if (invoices.length === 0) {
+        console.log('[Frontend Auto Sync] No invoices to sync')
+        return
+      }
+
+      // Sync all invoices with bill_ar_invoice_id and awaiting_payment status
+      const invoicesToSyncFiltered = invoices.filter(invoice => {
+        const hasId = !!invoice.bill_ar_invoice_id
+        const needsSync = invoice.payment_status === 'awaiting_payment' || invoice.payment_status === 'unbilled'
+        console.log(`[Frontend Auto Sync] Invoice ${invoice.id}: has_bill_id=${hasId}, needs_sync=${needsSync}`)
+        return hasId && needsSync
+      })
+      
+      console.log(`[Frontend Auto Sync] Invoices to sync: ${invoicesToSyncFiltered.length}`)
+
+      const syncPromises = invoicesToSyncFiltered
+        .map(async (invoice) => {
+          try {
+            // Get fresh session for each request to ensure token is valid
+            const { data: { session } } = await supabase.auth.getSession()
+            
+            if (!session?.access_token) {
+              console.error(`[Frontend Auto Sync] Invoice ${invoice.id}: No valid session`)
+              return null
+            }
+
+            console.log(`[Frontend Auto Sync] Syncing invoice ${invoice.id} with bill_id ${invoice.bill_ar_invoice_id}...`)
+
+            const response = await fetch('/api/bill/sync-status', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.access_token}`
+              },
+              body: JSON.stringify({ invoiceId: invoice.id })
+            })
+
+            if (response.status === 401) {
+              console.error(`[Frontend Auto Sync] Invoice ${invoice.id}: Authentication failed (401)`)
+              return null
+            }
+
+            if (!response.ok) {
+              console.error(`[Frontend Auto Sync] Invoice ${invoice.id} sync failed with status ${response.status}`)
+              const errorData = await response.json()
+              console.error(`[Frontend Auto Sync] Error details:`, errorData)
+              return null
+            }
+
+            const syncData = await response.json()
+            console.log(`[Frontend Auto Sync] Invoice ${invoice.id} response:`, syncData)
+            
+            if (syncData?.statusChanged) {
+              console.log(`[Frontend Auto Sync] Invoice ${invoice.id} status: ${syncData.previousStatus} → ${syncData.status}`)
+            } else {
+              console.log(`[Frontend Auto Sync] Invoice ${invoice.id} status unchanged: ${syncData.status}`)
+            }
+            return syncData
+          } catch (err) {
+            console.error(`[Frontend Auto Sync] Invoice ${invoice.id} error:`, err instanceof Error ? err.message : String(err))
+            return null
+          }
+        })
+
+      if (syncPromises.length > 0) {
+        console.log(`[Frontend Auto Sync] Starting ${syncPromises.length} parallel sync requests...`)
+        // Wait for all syncs to complete
+        await Promise.all(syncPromises)
+        
+        console.log(`[Frontend Auto Sync] All sync requests complete, reloading payment requests...`)
+        // Reload payment requests once after all syncs are done
+        loadPaymentRequests()
+        console.log(`[Frontend Auto Sync] Sync complete`)
+      }
+    } catch (err) {
+      console.error('[Frontend Auto Sync] Error syncing payment statuses:', err instanceof Error ? err.message : String(err))
     }
   }
 
@@ -429,7 +528,36 @@ function PastOrdersContent() {
 
   useEffect(() => {
     if (orders.length > 0) {
-      loadPaymentRequests()
+      const loadAndSync = async () => {
+        try {
+          // Fetch invoices for these orders (exclude initial fee invoices)
+          const { data: invoices } = await supabase
+            .from('invoices')
+            .select('*')
+            .in('work_order_id', orders.map(o => parseInt(o.id)))
+            .neq('invoice_type', 'initial_fee')  // Exclude initial fee invoices
+          
+          if (invoices) {
+            // Update state with current data
+            const requestsMap: Record<string, { id: number; payment_status: string; total_amount: number }> = {}
+            invoices.forEach(invoice => {
+              requestsMap[invoice.work_order_id] = invoice
+            })
+            setPaymentRequests(requestsMap)
+            
+            // Then sync in background (pass the data to avoid re-querying)
+            const syncTimer = setTimeout(() => {
+              syncPaymentStatuses(invoices)
+            }, 500)
+            
+            return () => clearTimeout(syncTimer)
+          }
+        } catch (err) {
+          console.error('Error loading payment requests:', err)
+        }
+      }
+      
+      loadAndSync()
     }
   }, [orders])
 
