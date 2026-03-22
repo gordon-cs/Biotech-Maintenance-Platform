@@ -521,38 +521,40 @@ function PastOrdersContent() {
   }, [orders, searchTerm, categoryFilter, sortOrder])
 
   useEffect(() => {
-    if (orders.length > 0) {
-      const loadAndSync = async () => {
-        try {
-          // Fetch invoices for these orders (exclude initial fee invoices)
-          const { data: invoices } = await supabase
-            .from('invoices')
-            .select('*')
-            .in('work_order_id', orders.map(o => parseInt(o.id)))
-            .neq('invoice_type', 'initial_fee')  // Exclude initial fee invoices
-          
-          if (invoices) {
-            // Update state with current data
-            const requestsMap: Record<string, { id: number; payment_status: string; total_amount: number }> = {}
-            invoices.forEach(invoice => {
-              requestsMap[invoice.work_order_id] = invoice
-            })
-            setPaymentRequests(requestsMap)
-            
-            // Then sync in background (pass the data to avoid re-querying)
-            const syncTimer = setTimeout(() => {
-              syncPaymentStatuses(invoices)
-            }, 500)
-            
-            return () => clearTimeout(syncTimer)
-          }
-        } catch (err) {
-          console.error('Error loading payment requests:', err)
+    if (orders.length === 0) return
+
+    let syncTimer: ReturnType<typeof setTimeout> | undefined
+
+    const loadAndSync = async () => {
+      try {
+        // Fetch invoices for these orders (exclude initial fee invoices)
+        const { data: invoices } = await supabase
+          .from('invoices')
+          .select('*')
+          .in('work_order_id', orders.map(o => parseInt(o.id)))
+          .neq('invoice_type', 'initial_fee')  // Exclude initial fee invoices
+
+        if (invoices) {
+          // Update state with current data
+          const requestsMap: Record<string, { id: number; payment_status: string; total_amount: number }> = {}
+          invoices.forEach(invoice => {
+            requestsMap[invoice.work_order_id] = invoice
+          })
+          setPaymentRequests(requestsMap)
+
+          // Then sync in background (pass the data to avoid re-querying)
+          syncTimer = setTimeout(() => {
+            syncPaymentStatuses(invoices)
+          }, 500)
         }
+      } catch (err) {
+        console.error('Error loading payment requests:', err)
       }
-      
-      loadAndSync()
     }
+
+    loadAndSync()
+
+    return () => { if (syncTimer !== undefined) clearTimeout(syncTimer) }
   }, [orders])
 
   return (
