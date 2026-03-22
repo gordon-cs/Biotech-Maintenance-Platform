@@ -41,6 +41,11 @@ export default function EditProfile() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [fullName, setFullName] = useState("")
   const [phone, setPhone] = useState("")
+
+  // helper: keep digits only (no plus, no letters)
+  const sanitizePhone = (raw: string): string => {
+    return (raw ?? "").replace(/[^\d]/g, "")
+  }
   
   // Lab-specific fields
   const [labName, setLabName] = useState("")
@@ -160,6 +165,14 @@ export default function EditProfile() {
         return
       }
 
+      const normalizedPhone = sanitizePhone(phone)
+      if (normalizedPhone.length < 7) {
+        setMessage("Please enter a valid phone number.")
+        setSaving(false)
+        return
+      }
+      setPhone(normalizedPhone)
+
       if (!session.access_token) {
         throw new Error("No access token found")
       }
@@ -182,7 +195,7 @@ export default function EditProfile() {
       const requestBody: RequestBody = {
         role: profile?.role ?? null,
         full_name: fullName,
-        phone: phone
+        phone: normalizedPhone
       }
 
       if (profile?.role === "lab") {
@@ -253,7 +266,7 @@ export default function EditProfile() {
       if (categoryUpdateFailed) {
         setMessage("Profile updated, but failed to update categories.");
       } else {
-        setMessage("Profile updated successfully!");
+        setMessage("Profile updated successfully!")
       }
       setSaving(false)
 
@@ -302,8 +315,12 @@ export default function EditProfile() {
           <label className="block mb-2 font-medium text-gray-700">Phone</label>
           <input
             type="tel"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            maxLength={15}
+            title="Digits only"
             value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+            onChange={(e) => setPhone(sanitizePhone(e.target.value))}
             className="w-full border border-gray-300 rounded px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             required
           />
