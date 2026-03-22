@@ -281,17 +281,16 @@ function PastOrdersContent() {
       
       console.log(`[Frontend Auto Sync] Invoices to sync: ${invoicesToSyncFiltered.length}`)
 
+      const { data: { session } } = await supabase.auth.getSession()
+
+      if (!session?.access_token) {
+        console.error("[Frontend Auto Sync] No valid session available; aborting invoice sync.")
+        return
+      }
+
       const syncPromises = invoicesToSyncFiltered
         .map(async (invoice) => {
           try {
-            // Get fresh session for each request to ensure token is valid
-            const { data: { session } } = await supabase.auth.getSession()
-            
-            if (!session?.access_token) {
-              console.error(`[Frontend Auto Sync] Invoice ${invoice.id}: No valid session`)
-              return null
-            }
-
             console.log(`[Frontend Auto Sync] Syncing invoice ${invoice.id} with bill_id ${invoice.bill_ar_invoice_id}...`)
 
             const response = await fetch('/api/bill/sync-status', {
