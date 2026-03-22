@@ -49,17 +49,10 @@ export async function POST(request: NextRequest) {
     log('[Billing Webhook] Verifying signature with ' + possibleKeys.length + ' keys')
 
     let signatureValid = false
-    let matchedKey: string | null = null
 
     for (const key of possibleKeys) {
-      const testHash = crypto
-        .createHmac('sha256', key)
-        .update(rawBody)
-        .digest('base64')
-
-      if (testHash === signature) {
+      if (verifyWebhookSignature(rawBody, signature, key)) {
         signatureValid = true
-        matchedKey = key
         log('[Billing Webhook] ✓ Signature verified successfully')
         break
       }
