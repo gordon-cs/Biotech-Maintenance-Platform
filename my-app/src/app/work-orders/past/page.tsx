@@ -233,7 +233,7 @@ function PastOrdersContent() {
         .from('invoices')
         .select('*')
         .in('work_order_id', orders.map(o => parseInt(o.id)))
-        .neq('invoice_type', 'initial_fee')  // Exclude initial fee invoices
+        .or('invoice_type.is.null,invoice_type.eq.service')  // Include service (and legacy NULL) invoices only
       
       if (data) {
         const requestsMap: Record<string, { id: number; payment_status: string; total_amount: number }> = {}
