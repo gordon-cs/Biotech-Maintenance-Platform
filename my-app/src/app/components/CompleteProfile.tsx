@@ -24,6 +24,11 @@ export default function CompleteProfile() {
   const [fullName, setFullName] = useState("")
   const [phone, setPhone] = useState("")
 
+  // helper: keep digits only
+  const sanitizePhone = (raw: string): string => {
+    return (raw ?? "").replace(/[^\d]/g, "")
+  }
+
   useEffect(() => {
     const load = async () => {
       const {
@@ -69,6 +74,12 @@ export default function CompleteProfile() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
     setMessage(null)
+    const normalizedPhone = sanitizePhone(phone)
+    if (normalizedPhone.length < 7) {
+      setMessage("Please enter a valid phone number.")
+      return
+    }
+
     const {
       data: { session },
     } = await supabase.auth.getSession()
@@ -83,10 +94,10 @@ export default function CompleteProfile() {
       // The lab info page will save everything in one call
       const searchParams = new URLSearchParams()
       searchParams.set('fullName', fullName)
-      searchParams.set('phone', phone)
+      searchParams.set('phone', normalizedPhone)
       
       // Log what we're passing
-      console.log('Navigating with params:', { fullName, phone })
+      console.log('Navigating with params:', { fullName, phone: normalizedPhone })
       
       // Use router.push with the URLSearchParams
       router.push(`/complete-lab?${searchParams.toString()}`)
@@ -113,7 +124,7 @@ export default function CompleteProfile() {
         body: JSON.stringify({
           role: "technician",
           full_name: fullName,
-          phone: phone
+          phone: normalizedPhone
         })
       })
 
@@ -125,10 +136,10 @@ export default function CompleteProfile() {
       // Then go to tech info step with query parameters
       const searchParams = new URLSearchParams()
       searchParams.set('fullName', fullName)
-      searchParams.set('phone', phone)
+      searchParams.set('phone', normalizedPhone)
       
       // Log what we're passing
-      console.log('Navigating to tech info with params:', { fullName, phone })
+      console.log('Navigating to tech info with params:', { fullName, phone: normalizedPhone })
       
       // Use router.push with the URLSearchParams
       router.push(`/complete-tech?${searchParams.toString()}`)
@@ -206,8 +217,12 @@ export default function CompleteProfile() {
                 <label className="block mb-2 font-medium text-gray-700">Phone Number</label>
                 <input
                   type="tel"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={15}
+                  title="Digits only"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  onChange={(e) => setPhone(sanitizePhone(e.target.value))}
                   className="w-full border border-gray-300 rounded px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   required
                 />
