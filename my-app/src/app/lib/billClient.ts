@@ -8,6 +8,23 @@ interface BillResponse {
   };
 }
 
+interface InvoiceStatusResponse {
+  status?: string;
+  paid?: number;
+  amount?: number;
+  amountPaid?: number;
+  [key: string]: unknown;
+}
+
+interface BillInvoiceResponse {
+  response_data?: InvoiceStatusResponse;
+  status?: string;
+  paid?: number;
+  amount?: number;
+  amountPaid?: number;
+  [key: string]: unknown;
+}
+
 class BillClient {
   private apiUrl: string
   private devKey: string
@@ -47,7 +64,7 @@ class BillClient {
     let data: unknown;
     try {
       data = responseText ? JSON.parse(responseText) : null;
-    } catch (e) {
+    } catch (_) {
       throw new Error(`Bill.com authentication failed: ${responseText}`);
     }
 
@@ -483,7 +500,7 @@ class BillClient {
     let result: unknown
     try {
       result = responseText ? JSON.parse(responseText) : null
-    } catch (e) {
+    } catch (_) {
       throw new Error(`Bill.com AR invoice error: ${responseText}`)
     }
 
@@ -552,6 +569,64 @@ class BillClient {
     }
 
     return result.response_data
+  }
+
+  // Fetch invoice details from Bill.com (for payment status sync)
+  async getInvoiceStatus(billInvoiceId: string, retried = false): Promise<{ status: string; paid: number; amount: number; amountPaid: number }> {
+    await this.ensureLoggedIn()
+
+    const url = `${this.apiUrl}/invoices/${billInvoiceId}`
+
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'content-type': 'application/json',
+          'devKey': this.devKey,
+          'sessionId': this.sessionId!,
+        }
+      })
+
+      if (response.status === 401) {
+        if (retried) {
+          throw new Error('Bill.com session expired and re-authentication failed')
+        }
+        await this.login()
+        return this.getInvoiceStatus(billInvoiceId, true)
+      }
+
+      const responseText = await response.text()
+      let result: BillInvoiceResponse | null = null
+      try {
+        result = responseText ? JSON.parse(responseText) as BillInvoiceResponse : null
+      } catch (_) {
+        // JSON parse error
+      }
+
+      if (!response.ok) {
+        const errResult = result as { message?: string };
+        throw new Error(
+          `Bill.com get invoice error: ${errResult?.message || JSON.stringify(result)}`
+        )
+      }
+
+      // Handle both response_data wrapper and direct response
+      const invoiceData: InvoiceStatusResponse = result?.response_data || (result as InvoiceStatusResponse)
+      
+      if (process.env.DEBUG === 'true') {
+        console.log('[BillClient] getInvoiceStatus raw response:', invoiceData)
+      }
+      
+      return {
+        status: invoiceData?.status || 'unknown',
+        paid: invoiceData?.paid || 0,
+        amount: invoiceData?.amount || 0,
+        amountPaid: invoiceData?.amountPaid || 0,
+      }
+    } catch (error) {
+      console.error(`[BillClient] Failed to fetch invoice ${billInvoiceId}:`, error)
+      throw error
+    }
   }
 }
 
