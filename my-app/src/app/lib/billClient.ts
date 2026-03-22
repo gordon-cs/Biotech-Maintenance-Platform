@@ -572,7 +572,7 @@ class BillClient {
   }
 
   // Fetch invoice details from Bill.com (for payment status sync)
-  async getInvoiceStatus(billInvoiceId: string): Promise<{ status: string; paid: number; amount: number; amountPaid: number }> {
+  async getInvoiceStatus(billInvoiceId: string, retried = false): Promise<{ status: string; paid: number; amount: number; amountPaid: number }> {
     await this.ensureLoggedIn()
 
     const url = `${this.apiUrl}/invoices/${billInvoiceId}`
@@ -586,6 +586,14 @@ class BillClient {
           'sessionId': this.sessionId!,
         }
       })
+
+      if (response.status === 401) {
+        if (retried) {
+          throw new Error('Bill.com session expired and re-authentication failed')
+        }
+        await this.login()
+        return this.getInvoiceStatus(billInvoiceId, true)
+      }
 
       const responseText = await response.text()
       let result: BillInvoiceResponse | null = null
