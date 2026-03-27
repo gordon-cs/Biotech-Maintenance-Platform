@@ -25,6 +25,10 @@ export default function CompleteLabInfo({ initialFull = "", initialPhone = "" }:
   const [zipcode, setZipcode] = useState("")
   const [fullName, setFullName] = useState(initialFull)
   const [phone, setPhone] = useState(initialPhone)
+  // helper: keep digits only
+  const sanitizePhone = (raw: string): string => {
+    return (raw ?? "").replace(/[^\d]/g, "")
+  }
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
 
@@ -54,6 +58,13 @@ export default function CompleteLabInfo({ initialFull = "", initialPhone = "" }:
     setLoading(true)
 
     try {
+      const normalizedPhone = sanitizePhone(phone || initialPhone)
+      if (normalizedPhone.length < 7) {
+        setMessage("Please enter a valid phone number.")
+        setLoading(false)
+        return
+      }
+
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.user) {
         setMessage("You must be signed in.")
@@ -75,7 +86,7 @@ export default function CompleteLabInfo({ initialFull = "", initialPhone = "" }:
         body: JSON.stringify({
           role: "lab",
           full_name: fullName || initialFull, // Use the initial values if no changes
-          phone: phone || initialPhone,
+          phone: normalizedPhone,
           lab: {
             name: labName,
           },

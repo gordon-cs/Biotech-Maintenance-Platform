@@ -20,6 +20,10 @@ export default function CompleteTechInfo({ initialFull = "", initialPhone = "" }
   const [categories, setCategories] = useState<Category[]>([])
   const [fullName, setFullName] = useState(initialFull)
   const [phone, setPhone] = useState(initialPhone)
+  // helper: keep digits only
+  const sanitizePhone = (raw: string): string => {
+    return (raw ?? "").replace(/[^\d]/g, "")
+  }
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [resumeFile, setResumeFile] = useState<File | null>(null)
@@ -139,10 +143,10 @@ export default function CompleteTechInfo({ initialFull = "", initialPhone = "" }
     e.preventDefault()
     setMessage(null)
     setLoading(true)
-
+ 
     let resumePath: string | null = null
     let profileCreated = false
-
+ 
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.user) {
@@ -150,44 +154,51 @@ export default function CompleteTechInfo({ initialFull = "", initialPhone = "" }
         setLoading(false)
         return
       }
-
+ 
       if (!session.access_token) {
         throw new Error("No access token found")
       }
-
-      // Upload resume first if provided
-      if (resumeFile) {
-        try {
-          resumePath = await uploadResume(session.user.id)
-        } catch (error) {
-          const errorMsg = error instanceof Error ? error.message : String(error)
-          console.error('Resume upload error:', error)
-          setMessage(`Failed to upload resume: ${errorMsg}`)
-          setLoading(false)
-          return
-        }
+ 
+      const normalizedPhone = sanitizePhone(phone || initialPhone)
+      if (normalizedPhone.length < 7) {
+        setMessage("Please enter a valid phone number.")
+        setLoading(false)
+        return
       }
-
-      // Create/update profile and technician info via API route
-      const response = await fetch("/api/create-profile", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify({
-          role: "technician",
-          full_name: fullName || initialFull,
-          phone: phone || initialPhone,
-          tech: {
-            experience,
-            bio,
-            company: company || null,
-            resume_url: resumePath
-          }
-        })
-      })
-
+ 
+       // Upload resume first if provided
+       if (resumeFile) {
+         try {
+           resumePath = await uploadResume(session.user.id)
+         } catch (error) {
+           const errorMsg = error instanceof Error ? error.message : String(error)
+           console.error('Resume upload error:', error)
+           setMessage(`Failed to upload resume: ${errorMsg}`)
+           setLoading(false)
+           return
+         }
+       }
+ 
+       // Create/update profile and technician info via API route
+       const response = await fetch("/api/create-profile", {
+         method: "POST",
+         headers: {
+           "Content-Type": "application/json",
+           "Authorization": `Bearer ${session.access_token}`
+         },
+         body: JSON.stringify({
+           role: "technician",
+           full_name: fullName || initialFull,
+           phone: normalizedPhone,
+           tech: {
+             experience,
+             bio,
+             company: company || null,
+             resume_url: resumePath
+           }
+         })
+       })
+ 
       if (!response.ok) {
         const error = await response.json()
         
@@ -205,10 +216,10 @@ export default function CompleteTechInfo({ initialFull = "", initialPhone = "" }
         
         throw new Error(error.error || "Failed to save technician info")
       }
-
+ 
       // Mark profile as successfully created
       profileCreated = true
-
+ 
       // Now insert the technician categories
       const { error: categoryError } = await supabase
         .from('technician_categories')
