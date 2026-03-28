@@ -119,7 +119,6 @@ function PastOrdersContent() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
-  const [locationFilter, setLocationFilter] = useState("")
   const [categoryFilter, setCategoryFilter] = useState("")
   const [sortOrder, setSortOrder] = useState("most_recent")
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null)
@@ -144,17 +143,16 @@ function PastOrdersContent() {
     document.title = "Past Orders | Biotech Maintenance"
   }, [])
 
-  const handleCancelOrder = async (orderId: string, orderTitle: string) => {
+  const handleCancelOrder = async (orderId: string) => {
     setConfirmModal({
       isOpen: true,
       orderId,
-      orderTitle,
+      orderTitle: "",
     })
   }
 
   const handleConfirmCancel = async () => {
     const orderId = confirmModal.orderId
-    const orderTitle = confirmModal.orderTitle
 
     if (!orderId) return
 
@@ -236,6 +234,7 @@ function PastOrdersContent() {
         .from('invoices')
         .select('*')
         .in('work_order_id', orders.map(o => parseInt(o.id)))
+        .or('invoice_type.is.null,invoice_type.eq.service')  // Include service (and legacy NULL) invoices only
       
       if (data) {
         const requestsMap: Record<string, { id: number; payment_status: string; total_amount: number }> = {}
@@ -244,7 +243,105 @@ function PastOrdersContent() {
         })
         setPaymentRequests(requestsMap)
       }
+    } catch (_) {
+      // Silently fail to load payment requests
+    }
+  }
+
+  // Automatically sync payment statuses from Bill.com
+  const syncPaymentStatuses = async (invoicesToSync?: Array<{ id: number; bill_ar_invoice_id: string; payment_status: string }>) => {
+    try {
+      console.log('[Frontend Auto Sync] Starting sync...')
+      
+      // Use provided invoices or fetch them
+      let invoices = invoicesToSync
+      if (!invoices) {
+        console.log('[Frontend Auto Sync] No invoices provided, fetching from Supabase...')
+        const { data } = await supabase
+          .from('invoices')
+          .select('*')
+          .in('work_order_id', orders.map(o => parseInt(o.id)))
+          .neq('invoice_type', 'initial_fee')
+        invoices = data || []
+      }
+      
+      console.log(`[Frontend Auto Sync] Total invoices: ${invoices.length}`)
+      
+      if (invoices.length === 0) {
+        console.log('[Frontend Auto Sync] No invoices to sync')
+        return
+      }
+
+      // Sync all invoices with bill_ar_invoice_id and awaiting_payment status
+      const invoicesToSyncFiltered = invoices.filter(invoice => {
+        const hasId = !!invoice.bill_ar_invoice_id
+        const needsSync = invoice.payment_status === 'awaiting_payment' || invoice.payment_status === 'unbilled'
+        console.log(`[Frontend Auto Sync] Invoice ${invoice.id}: has_bill_id=${hasId}, needs_sync=${needsSync}`)
+        return hasId && needsSync
+      })
+      
+      console.log(`[Frontend Auto Sync] Invoices to sync: ${invoicesToSyncFiltered.length}`)
+
+      const { data: { session } } = await supabase.auth.getSession()
+
+      if (!session?.access_token) {
+        console.error("[Frontend Auto Sync] No valid session available; aborting invoice sync.")
+        return
+      }
+
+      const syncPromises = invoicesToSyncFiltered
+        .map(async (invoice) => {
+          try {
+            console.log(`[Frontend Auto Sync] Syncing invoice ${invoice.id} with bill_id ${invoice.bill_ar_invoice_id}...`)
+
+            const response = await fetch('/api/bill/sync-status', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.access_token}`
+              },
+              body: JSON.stringify({ invoiceId: invoice.id })
+            })
+
+            if (response.status === 401) {
+              console.error(`[Frontend Auto Sync] Invoice ${invoice.id}: Authentication failed (401)`)
+              return null
+            }
+
+            if (!response.ok) {
+              console.error(`[Frontend Auto Sync] Invoice ${invoice.id} sync failed with status ${response.status}`)
+              const errorData = await response.json()
+              console.error(`[Frontend Auto Sync] Error details:`, errorData)
+              return null
+            }
+
+            const syncData = await response.json()
+            console.log(`[Frontend Auto Sync] Invoice ${invoice.id} response:`, syncData)
+            
+            if (syncData?.statusChanged) {
+              console.log(`[Frontend Auto Sync] Invoice ${invoice.id} status: ${syncData.previousStatus} → ${syncData.status}`)
+            } else {
+              console.log(`[Frontend Auto Sync] Invoice ${invoice.id} status unchanged: ${syncData.status}`)
+            }
+            return syncData
+          } catch (err) {
+            console.error(`[Frontend Auto Sync] Invoice ${invoice.id} error:`, err instanceof Error ? err.message : String(err))
+            return null
+          }
+        })
+
+      if (syncPromises.length > 0) {
+        console.log(`[Frontend Auto Sync] Starting ${syncPromises.length} parallel sync requests...`)
+        // Wait for all syncs to complete
+        await Promise.all(syncPromises)
+        
+        console.log(`[Frontend Auto Sync] All sync requests complete, reloading payment requests...`)
+        // Reload payment requests once after all syncs are done
+        loadPaymentRequests()
+        console.log(`[Frontend Auto Sync] Sync complete`)
+      }
     } catch (err) {
+      console.error('[Frontend Auto Sync] Error syncing payment statuses:', err instanceof Error ? err.message : String(err))
     }
   }
 
@@ -272,10 +369,10 @@ function PastOrdersContent() {
         alert('Payment approved and sent to Bill.com!')
         loadPaymentRequests() // Reload to update status
       } else {
-        const error = await response.json()
-        alert(`Failed to approve payment: ${error.error}`)
+        const errorData = await response.json()
+        alert(`Failed to approve payment: ${errorData.error}`)
       }
-    } catch (error) {
+    } catch (_) {
       alert('Failed to approve payment')
     } finally {
       setIsApprovingPayment(null)
@@ -332,7 +429,6 @@ function PastOrdersContent() {
         // debug: log status and body when non-ok
         if (!mgrResp.ok) {
           const text = await mgrResp.text().catch(() => "<no body>")
-          // eslint-disable-next-line no-console
           console.error("manager-work-orders failed", mgrResp.status, mgrResp.statusText, text)
           // Throw a generic error to avoid leaking internal response details to the UI
           throw new Error(`Failed fetching manager work orders: ${mgrResp.status} ${mgrResp.statusText}`)
@@ -523,21 +619,48 @@ function PastOrdersContent() {
       )
     }
     
-    if (locationFilter) {
-      filtered = filtered.filter(order => order.address.includes(locationFilter))
-    }
-    
     if (categoryFilter) {
       filtered = filtered.filter(order => order.category === categoryFilter)
     }
     
     return sortOrders(filtered, sortOrder)
-  }, [orders, searchTerm, locationFilter, categoryFilter, sortOrder])
+  }, [orders, searchTerm, categoryFilter, sortOrder])
 
   useEffect(() => {
-    if (orders.length > 0) {
-      loadPaymentRequests()
+    if (orders.length === 0) return
+
+    let syncTimer: ReturnType<typeof setTimeout> | undefined
+
+    const loadAndSync = async () => {
+      try {
+        // Fetch invoices for these orders (exclude initial fee invoices)
+        const { data: invoices } = await supabase
+          .from('invoices')
+          .select('*')
+          .in('work_order_id', orders.map(o => parseInt(o.id)))
+          .neq('invoice_type', 'initial_fee')  // Exclude initial fee invoices
+
+        if (invoices) {
+          // Update state with current data
+          const requestsMap: Record<string, { id: number; payment_status: string; total_amount: number }> = {}
+          invoices.forEach(invoice => {
+            requestsMap[invoice.work_order_id] = invoice
+          })
+          setPaymentRequests(requestsMap)
+
+          // Then sync in background (pass the data to avoid re-querying)
+          syncTimer = setTimeout(() => {
+            syncPaymentStatuses(invoices)
+          }, 500)
+        }
+      } catch (err) {
+        console.error('Error loading payment requests:', err)
+      }
     }
+
+    loadAndSync()
+
+    return () => { if (syncTimer !== undefined) clearTimeout(syncTimer) }
   }, [orders])
 
   return (
@@ -609,7 +732,7 @@ function PastOrdersContent() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
-                            handleCancelOrder(order.id, order.title)
+                          handleCancelOrder(order.id)
                           }}
                           disabled={cancellingOrderId === order.id}
                           className="px-2 py-1 text-xs bg-orange-600 text-white rounded hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -675,7 +798,7 @@ function PastOrdersContent() {
                       <div className="flex gap-2">
                         {canCancelOrder(selectedOrder.status || '') && (
                           <button
-                            onClick={() => handleCancelOrder(selectedOrder.id, selectedOrder.title)}
+                          onClick={() => handleCancelOrder(selectedOrder.id)}
                             disabled={cancellingOrderId === selectedOrder.id}
                             className="px-3 py-1 text-sm bg-orange-600 text-white rounded hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
