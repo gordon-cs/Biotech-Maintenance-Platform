@@ -76,7 +76,11 @@ export default function ManagerClient() {
     let mounted = true
     const loadData = async () => {
       // Load categories
-      const { data: catData, error: catError } = await supabase.from("categories").select("id,slug,name")
+      const { data: catData, error: catError } = await supabase
+        .from("categories")
+        .select("id,slug,name")
+        .eq("active", true)
+        .order("id", { ascending: true })
       if (!catError && catData && mounted) setCategories(catData as Category[])
 
       // Load recent work orders for current user

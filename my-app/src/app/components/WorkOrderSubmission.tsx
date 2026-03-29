@@ -23,7 +23,7 @@ type WorkOrderPayload = {
 // small row shapes used for casting query results
 type LabRow = { id: number; manager_id: string }
 // full category shape used in the dropdown
-type CategoryRow = { id: number; slug: string; name: string }
+type CategoryRow = { id: number; slug: string; name: string; initial_fee?: number | null }
 type AddressRow = { id: number; line1: string | null; line2: string | null; city: string | null; state: string | null; zipcode: string | null }
 type InsertIdRow = { id: string } // bigint/int8 is returned as string by the client
 
@@ -53,14 +53,23 @@ export default function WorkOrderSubmission() {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<{ id?: string; message: string } | null>(null)
   const [showConfirmation, setShowConfirmation] = useState(false)
-  // Fixed initial fee set by platform admin (BBM)
-  const labInitialFee = 50.00 // Platform-wide initial service fee
+
+  const getSelectedCategoryFee = (): number => {
+    const raw = (form.category_id ?? "").toString().trim()
+    if (!raw) return 0
+    const match = categories.find((c) => String(c.id) === raw || c.slug === raw)
+    return Number(match?.initial_fee ?? 0)
+  }
 
   useEffect(() => {
     let mounted = true
     const load = async () => {
       // Load categories
-      const { data: catData, error: catError } = await supabase.from("categories").select("id,slug,name")
+      const { data: catData, error: catError } = await supabase
+        .from("categories")
+        .select("id,slug,name,initial_fee")
+        .eq("active", true)
+        .order("id", { ascending: true })
       if (!catError && catData && mounted) {
         setCategories(catData as CategoryRow[])
       }
@@ -206,14 +215,17 @@ export default function WorkOrderSubmission() {
 
       // resolve category id if the provided value is a slug
       let resolvedCategoryId: number | null = null
+      let resolvedInitialFee = 0
       const catVal = (form.category_id ?? "").toString().trim()
       if (catVal) {
         if (/^\d+$/.test(catVal)) {
           resolvedCategoryId = Number(catVal)
+          const selectedCat = categories.find((c) => c.id === resolvedCategoryId)
+          resolvedInitialFee = Number(selectedCat?.initial_fee ?? 0)
         } else {
           const catRes = await supabase
             .from("categories")
-            .select("id")
+            .select("id, initial_fee")
             .eq("slug", catVal)
             .maybeSingle()
           if (catRes.error) {
@@ -221,8 +233,9 @@ export default function WorkOrderSubmission() {
             setLoading(false)
             return
           }
-          const catRow = catRes.data as { id: number } | null
+          const catRow = catRes.data as { id: number; initial_fee?: number | null } | null
           resolvedCategoryId = catRow?.id ?? null
+          resolvedInitialFee = Number(catRow?.initial_fee ?? 0)
         }
       }
 
@@ -247,7 +260,7 @@ export default function WorkOrderSubmission() {
         date: form.date || null,
         created_by: user.id,
         address_id: addressIdNum,
-        initial_fee: labInitialFee,
+        initial_fee: resolvedInitialFee,
       }
 
       const { data, error } = await supabase
@@ -384,13 +397,13 @@ export default function WorkOrderSubmission() {
           </select>
         </label>
 
-        {labInitialFee > 0 && (
+        {getSelectedCategoryFee() > 0 && (
           <div className="mb-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-semibold text-blue-900">Initial Service Fee</p>
               </div>
-              <p className="text-2xl font-bold text-blue-900">${labInitialFee.toFixed(2)}</p>
+              <p className="text-2xl font-bold text-blue-900">${getSelectedCategoryFee().toFixed(2)}</p>
             </div>
           </div>
         )}
