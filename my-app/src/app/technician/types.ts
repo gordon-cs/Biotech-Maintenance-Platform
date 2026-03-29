@@ -37,13 +37,14 @@ export type WorkOrderUpdate = {
 }
 
 export type WorkOrder = {
-  id: number
+  id: number | string
   created_by?: string | null
   lab?: number | null
   title?: string | null
   description?: string | null
   equipment?: string | null
   urgency?: string | null
+  category?: string | null
   status?: string | null
   date?: string | null
   due_date?: string | null
@@ -61,8 +62,8 @@ export type WorkOrder = {
 export type TechnicianDetailProps = {
   order: WorkOrder | null
   currentUserId?: string | null
-  onAccept: (id: number) => void
-  onCancel: (id: number) => void
+  onAccept: (id: number | string) => void
+  onCancel: (id: number | string) => void
   activeTab: "open" | "mine"
   onStatusChange?: (newStatus: string) => void
 }
