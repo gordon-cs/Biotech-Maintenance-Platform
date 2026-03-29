@@ -9,7 +9,9 @@ type WorkOrderRowServer = {
   id: number
   title?: string | null
   description?: string | null
-  equipment?: string | null
+  brand?: string | null
+  model?: string | null
+  serial_number?: string | null
   category_id?: number | null
   lab: number
   created_at?: string | null
@@ -118,7 +120,7 @@ export async function POST(req: NextRequest) {
     // fetch work orders for allowed labs
     const { data: workOrders, error: woError } = await serviceClient
       .from("work_orders")
-      .select("id, title, description, equipment, address_id, category_id, lab, created_at, urgency, status, date, assigned_to")
+      .select("id, title, description, brand, model, serial_number, address_id, category_id, lab, created_at, urgency, status, date, assigned_to")
       .in("lab", allowedLabIds)
       .order("created_at", { ascending: false })
 

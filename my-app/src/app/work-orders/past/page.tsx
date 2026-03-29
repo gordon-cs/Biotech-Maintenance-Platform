@@ -22,7 +22,9 @@ type DisplayRow = {
   labName?: string
   date?: string | null
   claimedBy?: string
-  equipment?: string | null
+  brand?: string | null
+  model?: string | null
+  serial_number?: string | null
 }
 
 // shape returned by the server-side manager-work-orders route
@@ -35,7 +37,9 @@ type AssignedProfile = {
 type WorkOrderRow = {
   id: number
   title?: string | null
-  equipment?: string | null
+  brand?: string | null
+  model?: string | null
+  serial_number?: string | null
   description?: string | null
   category_id?: number | null
   address_id?: number | string | null
@@ -483,7 +487,9 @@ function PastOrdersContent() {
             claimedBy: r.assigned && r.assigned.length
               ? (r.assigned[0].full_name || r.assigned[0].email || String(r.assigned[0].id))
               : undefined,
-           equipment: r.equipment ?? null
+           brand: r.brand ?? null,
+           model: r.model ?? null,
+           serial_number: r.serial_number ?? null
            })
          })
 
@@ -705,11 +711,15 @@ function PastOrdersContent() {
                   )}
                   <div className="text-sm text-gray-500 mb-2">{selectedOrder.address}</div>
                   <div className="text-sm font-medium mb-2">Category: {selectedOrder.category}</div>
-                  {selectedOrder.equipment && (
-                    <div className="text-sm text-gray-700 mb-2">
-                      <span className="font-medium">Equipment:</span> {selectedOrder.equipment}
-                    </div>
-                  )}
+                  <div className="text-sm text-gray-700 mb-2">
+                    <span className="font-medium">Brand:</span> {selectedOrder.brand?.trim() ? selectedOrder.brand : "N/A"}
+                  </div>
+                  <div className="text-sm text-gray-700 mb-2">
+                    <span className="font-medium">Model:</span> {selectedOrder.model?.trim() ? selectedOrder.model : "N/A"}
+                  </div>
+                  <div className="text-sm text-gray-700 mb-2">
+                    <span className="font-medium">Serial Number:</span> {selectedOrder.serial_number?.trim() ? selectedOrder.serial_number : "N/A"}
+                  </div>
                  {selectedOrder.urgency && (
                     <div className={`inline-block text-sm px-3 py-1 rounded-full mb-4 ${
                       selectedOrder.urgency?.toLowerCase() === "critical" ? "bg-red-100 text-red-800" :
@@ -854,7 +864,9 @@ function PastOrdersContent() {
            description: selectedOrder?.description ?? "",
            date: selectedOrder?.date ?? null,
            urgency: selectedOrder?.urgency ?? null,
-           equipment: selectedOrder?.equipment ?? null
+           brand: selectedOrder?.brand ?? null,
+           model: selectedOrder?.model ?? null,
+           serial_number: selectedOrder?.serial_number ?? null
          }}
          onSaved={async (updated) => {
           // normalize incoming values
@@ -863,7 +875,9 @@ function PastOrdersContent() {
           const normalizedDescription = updated.description ?? ""
           const normalizedDate = updated.date ?? null
           const normalizedUrgency = typeof updated.urgency === "string" ? updated.urgency : undefined
-          const normalizedEquipment = updated.equipment ?? null
+          const normalizedBrand = updated.brand ?? null
+          const normalizedModel = updated.model ?? null
+          const normalizedSerialNumber = updated.serial_number ?? null
 
           // resolve category name if category_id was returned
           let normalizedCategory = selectedOrder?.category ?? "N/A"
@@ -906,7 +920,9 @@ function PastOrdersContent() {
                     description: normalizedDescription,
                     date: normalizedDate,
                     urgency: normalizedUrgency,
-                    equipment: normalizedEquipment,
+                    brand: normalizedBrand,
+                    model: normalizedModel,
+                    serial_number: normalizedSerialNumber,
                     category: normalizedCategory,
                     address: normalizedAddress,
                   }
@@ -924,7 +940,9 @@ function PastOrdersContent() {
                     description: normalizedDescription,
                     date: normalizedDate,
                     urgency: normalizedUrgency,
-                    equipment: normalizedEquipment,
+                    brand: normalizedBrand,
+                    model: normalizedModel,
+                    serial_number: normalizedSerialNumber,
                     category: normalizedCategory,
                     address: normalizedAddress,
                   }
