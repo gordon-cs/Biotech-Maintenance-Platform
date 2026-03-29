@@ -115,7 +115,7 @@ describe('WorkOrderSubmission', () => {
     const addressSelect = await screen.findByRole('combobox', { name: /service area \(address\) \*/i })
     fireEvent.change(addressSelect, { target: { name: 'address_id', value: 'add_new' } })
 
-    expect(pushMock).toHaveBeenCalledWith('/manage-addresses')
+    expect(pushMock).toHaveBeenCalledWith(expect.stringMatching(/^\/manage-addresses\?/))
   })
 
   it('submits a work order and resolves category slug to category id', async () => {
@@ -123,6 +123,26 @@ describe('WorkOrderSubmission', () => {
 
     fireEvent.change(await screen.findByRole('textbox', { name: /title \*/i }), {
       target: { name: 'title', value: 'Fix incubator alarm' },
+    })
+
+    fireEvent.change(screen.getByRole('textbox', { name: /description \*/i }), {
+      target: { name: 'description', value: 'Incubator alarm keeps triggering after restart.' },
+    })
+
+    fireEvent.change(screen.getByRole('textbox', { name: /brand \*/i }), {
+      target: { name: 'brand', value: 'Thermo Fisher' },
+    })
+
+    fireEvent.change(screen.getByRole('textbox', { name: /model \*/i }), {
+      target: { name: 'model', value: 'TX-200' },
+    })
+
+    fireEvent.change(screen.getByRole('textbox', { name: /serial number \*/i }), {
+      target: { name: 'serial_number', value: 'N/A' },
+    })
+
+    fireEvent.change(screen.getByRole('combobox', { name: /urgency \*/i }), {
+      target: { name: 'urgency', value: 'high' },
     })
 
     fireEvent.change(screen.getByRole('combobox', { name: /category/i }), {
@@ -133,14 +153,25 @@ describe('WorkOrderSubmission', () => {
       target: { name: 'address_id', value: '12' },
     })
 
+    fireEvent.change(screen.getByLabelText(/due date \*/i), {
+      target: { name: 'date', value: '2026-04-10' },
+    })
+
     fireEvent.click(screen.getByRole('button', { name: /submit work order/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^submit$/i }))
 
     await waitFor(() => {
-      expect(screen.getByText('Work order submitted successfully.')).toBeInTheDocument()
+      expect(insertedPayload).not.toBeNull()
     })
 
     expect(insertedPayload).toMatchObject({
       title: 'Fix incubator alarm',
+      description: 'Incubator alarm keeps triggering after restart.',
+      brand: 'Thermo Fisher',
+      model: 'TX-200',
+      serial_number: 'N/A',
+      urgency: 'high',
+      date: '2026-04-10',
       category_id: 2,
       lab: 7,
       created_by: 'manager-1',
