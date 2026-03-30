@@ -331,7 +331,7 @@ export default function WorkOrderSubmission() {
       <ConfirmationModal
         isOpen={showConfirmation}
         title="Confirm Work Order Submission"
-        message={`Please confirm that you want to submit the following work order:\n\nTitle: ${form.title}\nCategory: ${categories.find(c => c.id === Number(form.category_id) || c.slug === form.category_id)?.name || form.category_id}\nAddress: ${addresses.find(a => a.id === Number(form.address_id))?.line1 || form.address_id}\nDue Date: ${form.date}\n\nThis will create a work order and send an invoice for the initial service fee.`}
+        message={`Please review and confirm this work order:\n\nEQUIPMENT DETAILS\nTitle: ${form.title}\nBrand: ${form.brand}\nModel: ${form.model}\nSerial: ${form.serial_number}\n\nSERVICE INFO\nCategory: ${categories.find(c => c.id === Number(form.category_id) || c.slug === form.category_id)?.name || form.category_id}\nUrgency: ${form.urgency}\nDue Date: ${form.date}\n\nLOCATION\nAddress: ${addresses.find(a => a.id === Number(form.address_id))?.line1 || form.address_id}\n\nNOTES\n${form.description}\n\nFEES\nInitial Service Fee: $${labInitialFee.toFixed(2)}`}
         confirmText="Submit"
         backText="Cancel"
         onConfirm={handleConfirm}
