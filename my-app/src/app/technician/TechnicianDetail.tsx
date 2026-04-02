@@ -93,6 +93,7 @@ export default function TechnicianDetail({
                 {formatStatus(order.status)}
               </span>
 
+<<<<<<< HEAD
               <div className="flex gap-2">
                 {/* Technicians: only allow Accept when open */}
                 {activeTab === "open" && (order.status ?? "").toLowerCase() === "open" && (
@@ -106,6 +107,17 @@ export default function TechnicianDetail({
               </div>
             </div>
           </div>
+=======
+        <div className="mb-4 space-y-1">
+          <div className="text-sm text-gray-700"><span className="font-medium">Brand:</span> {order.brand?.trim() ? order.brand : "N/A"}</div>
+          <div className="text-sm text-gray-700"><span className="font-medium">Model:</span> {order.model?.trim() ? order.model : "N/A"}</div>
+          <div className="text-sm text-gray-700"><span className="font-medium">Serial Number:</span> {order.serial_number?.trim() ? order.serial_number : "N/A"}</div>
+        </div>
+
+        <div className="mb-6">
+          <span className="inline-block bg-yellow-50 text-yellow-900 px-4 py-2 rounded-full text-sm font-medium">Priority: {order.urgency ?? "normal"}</span>
+        </div>
+>>>>>>> origin
 
           <div className="text-sm text-gray-500 mb-1">Submitted on {formatDateTime(order.created_at)}</div>
           <div className="text-sm text-gray-500 mb-2">Due Date: {formatDateTime(order.date)}</div>

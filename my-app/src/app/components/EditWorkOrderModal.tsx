@@ -12,7 +12,9 @@ export type EditWorkOrderProps = {
     description: string;
     date?: string | null;
     urgency?: string | null;
-    equipment?: string | null;
+    brand?: string | null;
+    model?: string | null;
+    serial_number?: string | null;
     category_id?: number | null;
     address_id?: number | null;
   }) => void;
@@ -22,7 +24,9 @@ export type EditWorkOrderProps = {
     description: string;
     date?: string | null;
     urgency?: string | null;
-    equipment?: string | null;
+    brand?: string | null;
+    model?: string | null;
+    serial_number?: string | null;
     category_id?: number | null | string;
     address_id?: number | null | string;
   };
@@ -41,7 +45,9 @@ export default function EditWorkOrderModal({
   const [description, setDescription] = useState(workOrder.description);
   const [date, setDate] = useState<string | null>(workOrder.date ?? null);
   const [urgency, setUrgency] = useState<string | null>(workOrder.urgency ?? null);
-  const [equipment, setEquipment] = useState<string | null>(workOrder.equipment ?? null);
+  const [brand, setBrand] = useState<string | null>(workOrder.brand ?? null);
+  const [model, setModel] = useState<string | null>(workOrder.model ?? null);
+  const [serialNumber, setSerialNumber] = useState<string | null>(workOrder.serial_number ?? null);
   const [categoryId, setCategoryId] = useState<string | number | null>((workOrder.category_id ?? null) as string | number | null);
   const [addressId, setAddressId] = useState<string | number | null>((workOrder.address_id ?? null) as string | number | null);
 
@@ -56,7 +62,9 @@ export default function EditWorkOrderModal({
     setDescription(workOrder.description);
     setDate(workOrder.date ?? null);
     setUrgency(workOrder.urgency ?? null);
-    setEquipment(workOrder.equipment ?? null);
+    setBrand(workOrder.brand ?? null);
+    setModel(workOrder.model ?? null);
+    setSerialNumber(workOrder.serial_number ?? null);
     setCategoryId(workOrder.category_id ?? null);
     setAddressId(workOrder.address_id ?? null);
   }, [workOrder, open]);
@@ -116,13 +124,30 @@ export default function EditWorkOrderModal({
         setLoading(false);
         return;
       }
+      if (!brand || !brand.trim()) {
+        setError("Brand is required.");
+        setLoading(false);
+        return;
+      }
+      if (!model || !model.trim()) {
+        setError("Model is required.");
+        setLoading(false);
+        return;
+      }
+      if (!serialNumber || !serialNumber.trim()) {
+        setError("Serial number is required. Enter N/A if unknown.");
+        setLoading(false);
+        return;
+      }
 
       const payload = {
         title: title?.trim() || null,
         description: description?.trim() || null,
         date: date ?? null,
         urgency: urgency ?? null,
-        equipment: equipment ?? null,
+        brand: brand?.trim() || null,
+        model: model?.trim() || null,
+        serial_number: serialNumber?.trim() || null,
         category_id: catNum,
         address_id: addrNum,
       };
@@ -138,7 +163,9 @@ export default function EditWorkOrderModal({
           description: payload.description ?? "",
           date: payload.date,
           urgency: payload.urgency,
-          equipment: payload.equipment,
+          brand: payload.brand,
+          model: payload.model,
+          serial_number: payload.serial_number,
           category_id: payload.category_id ?? null,
           address_id: payload.address_id ?? null,
         });
@@ -175,8 +202,25 @@ export default function EditWorkOrderModal({
         </label>
 
         <label className="block mb-3">
-          <div className="text-sm mb-1">Equipment</div>
-          <input value={equipment ?? ""} onChange={(e) => setEquipment(e.target.value || null)} className="w-full border px-2 py-1 rounded" />
+          <div className="text-sm mb-1">Brand *</div>
+          <input value={brand ?? ""} onChange={(e) => setBrand(e.target.value || null)} className="w-full border px-2 py-1 rounded" required />
+        </label>
+
+        <label className="block mb-3">
+          <div className="text-sm mb-1">Model *</div>
+          <input value={model ?? ""} onChange={(e) => setModel(e.target.value || null)} className="w-full border px-2 py-1 rounded" required />
+        </label>
+
+        <label className="block mb-3">
+          <div className="text-sm mb-1">Serial Number *</div>
+          <input
+            value={serialNumber ?? ""}
+            onChange={(e) => setSerialNumber(e.target.value || null)}
+            className="w-full border px-2 py-1 rounded"
+            placeholder="Enter serial number (or N/A if unknown)"
+            required
+          />
+          <div className="text-xs text-gray-500 mt-1">If you do not know the serial number, enter N/A.</div>
         </label>
 
         <div className="grid grid-cols-2 gap-3 mb-4">

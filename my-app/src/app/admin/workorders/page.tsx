@@ -20,7 +20,9 @@ type WorkOrder = {
   lab?: number | null
   title?: string | null
   description?: string | null
-  equipment?: string | null
+  brand?: string | null
+  model?: string | null
+  serial_number?: string | null
   urgency?: string | null
   status?: string | null
   date?: string | null
@@ -39,7 +41,9 @@ type DBWorkOrderRow = {
   lab?: number | null
   title?: string | null
   description?: string | null
-  equipment?: string | null
+  brand?: string | null
+  model?: string | null
+  serial_number?: string | null
   urgency?: string | null
   status?: string | null
   date?: string | null
@@ -101,7 +105,7 @@ export default function AdminWorkOrdersPage() {
       const res = await supabase
         .from("work_orders")
         .select(
-          `id, created_by, lab, title, description, equipment, urgency, status, date, assigned_to, created_at, updated_at, category_id, address_id`
+          `id, created_by, lab, title, description, brand, model, serial_number, urgency, status, date, assigned_to, created_at, updated_at, category_id, address_id`
         )
         .order("id", { ascending: true })
 
@@ -168,7 +172,9 @@ export default function AdminWorkOrdersPage() {
           lab: w.lab ?? null,
           title: w.title ?? null,
           description: w.description ?? null,
-          equipment: w.equipment ?? null,
+          brand: w.brand ?? null,
+          model: w.model ?? null,
+          serial_number: w.serial_number ?? null,
           urgency: w.urgency ?? null,
           status: w.status ?? null,
           date: w.date ?? null,
@@ -353,7 +359,7 @@ export default function AdminWorkOrdersPage() {
                         <div className="font-medium">{r.title ?? "Untitled"}</div>
                         <div className="text-sm text-gray-600">{r.description ?? ""}</div>
                         <div className="text-xs text-gray-500 mt-1">
-                          Equipment: {r.equipment ?? "—"} • Urgency: {r.urgency ?? "—"}
+                          Brand: {r.brand ?? "—"} • Model: {r.model ?? "—"} • Serial #: {r.serial_number ?? "—"} • Urgency: {r.urgency ?? "—"}
                         </div>
                       </td>
                       <td className="px-4 py-3 align-top">

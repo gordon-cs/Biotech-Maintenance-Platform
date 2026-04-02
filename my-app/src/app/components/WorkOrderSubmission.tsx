@@ -10,7 +10,9 @@ import ConfirmationModal from "./ConfirmationModal"
 type WorkOrderPayload = {
   title: string | null
   description: string | null
-  equipment: string | null
+  brand: string | null
+  model: string | null
+  serial_number: string | null
   urgency: "low" | "normal" | "high" | "critical" | string | null
   lab?: number | null
   category_id?: number | null
@@ -36,13 +38,17 @@ export default function WorkOrderSubmission() {
   const initialAddressId = searchParams?.get("address_id") ?? ""
 
   const initialDescription = searchParams?.get("description") ?? ""
-  const initialEquipment = searchParams?.get("equipment") ?? ""
+  const initialBrand = searchParams?.get("brand") ?? ""
+  const initialModel = searchParams?.get("model") ?? ""
+  const initialSerialNumber = searchParams?.get("serial_number") ?? ""
   const initialUrgency = searchParams?.get("urgency") ?? ""
 
   const [form, setForm] = useState({
     title: initialTitle,
     description: initialDescription,
-    equipment: initialEquipment,
+    brand: initialBrand,
+    model: initialModel,
+    serial_number: initialSerialNumber,
     urgency: initialUrgency, // display "Select..." by default
     category_id: initialCategory, // can be slug or id
     date: initialDate,
@@ -108,7 +114,9 @@ export default function WorkOrderSubmission() {
       const returnParams = new URLSearchParams()
       returnParams.set("title", form.title)
       returnParams.set("description", form.description)
-      returnParams.set("equipment", form.equipment)
+      returnParams.set("brand", form.brand)
+      returnParams.set("model", form.model)
+      returnParams.set("serial_number", form.serial_number)
       returnParams.set("urgency", form.urgency)
       returnParams.set("category", form.category_id != null ? String(form.category_id) : "")
       returnParams.set("date", form.date)
@@ -147,7 +155,7 @@ export default function WorkOrderSubmission() {
     setResult(null)
     setLoading(true)
 
-    // client-side validation: require all fields except equipment
+    // client-side validation: enforce required submission fields
     if (!form.title || !form.title.trim()) {
       setResult({ message: "Title is required." })
       setLoading(false)
@@ -155,6 +163,21 @@ export default function WorkOrderSubmission() {
     }
     if (!form.description || !form.description.trim()) {
       setResult({ message: "Description is required." })
+      setLoading(false)
+      return
+    }
+    if (!form.brand || !form.brand.trim()) {
+      setResult({ message: "Brand is required." })
+      setLoading(false)
+      return
+    }
+    if (!form.model || !form.model.trim()) {
+      setResult({ message: "Model is required." })
+      setLoading(false)
+      return
+    }
+    if (!form.serial_number || !form.serial_number.trim()) {
+      setResult({ message: "Serial number is required. Enter N/A if unknown." })
       setLoading(false)
       return
     }
@@ -239,7 +262,9 @@ export default function WorkOrderSubmission() {
       const payload: WorkOrderPayload = {
         title: form.title || null,
         description: form.description || null,
-        equipment: form.equipment || null,
+        brand: form.brand || null,
+        model: form.model || null,
+        serial_number: form.serial_number || null,
         // if user didn't pick an urgency (empty string), default to "normal"
         urgency: (form.urgency && form.urgency.trim() ? String(form.urgency) : "normal").toLowerCase(),
         lab: labId,
@@ -281,7 +306,17 @@ export default function WorkOrderSubmission() {
             router.push('/manager')
           }
         }
-        setForm({ title: "", description: "", equipment: "", urgency: "", category_id: "", date: "", address_id: "" })
+        setForm({
+          title: "",
+          description: "",
+          brand: "",
+          model: "",
+          serial_number: "",
+          urgency: "",
+          category_id: "",
+          date: "",
+          address_id: "",
+        })
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err)
@@ -326,8 +361,26 @@ export default function WorkOrderSubmission() {
         </label>
 
         <label className="block mb-3">
-          <div className="text-sm mb-1">Equipment</div>
-          <input name="equipment" value={form.equipment} onChange={handleChange} className="w-full border px-2 py-1 rounded" />
+          <div className="text-sm mb-1">Brand *</div>
+          <input name="brand" value={form.brand} onChange={handleChange} required className="w-full border px-2 py-1 rounded" />
+        </label>
+
+        <label className="block mb-3">
+          <div className="text-sm mb-1">Model *</div>
+          <input name="model" value={form.model} onChange={handleChange} required className="w-full border px-2 py-1 rounded" />
+        </label>
+
+        <label className="block mb-3">
+          <div className="text-sm mb-1">Serial Number *</div>
+          <input
+            name="serial_number"
+            value={form.serial_number}
+            onChange={handleChange}
+            required
+            placeholder="Enter serial number (or N/A if unknown)"
+            className="w-full border px-2 py-1 rounded"
+          />
+          <div className="text-xs text-gray-500 mt-1">If you do not know the serial number, enter N/A.</div>
         </label>
 
         <label className="block mb-3">

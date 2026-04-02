@@ -63,7 +63,7 @@ export default function useTechnician() {
         const res = await supabase
           .from("work_orders")
           .select(
-            "id,title,description,date,category_id,lab,created_by,status,created_at,address_id,assigned_to,urgency"
+            "id,title,description,brand,model,serial_number,date,category_id,lab,created_by,status,created_at,address_id,assigned_to,urgency"
           )
           .order("created_at", { ascending: sortBy === "oldest" })
 
@@ -126,6 +126,9 @@ export default function useTechnician() {
             id,
             title: wo.title ?? null,
             description: wo.description ?? null,
+            brand: wo.brand ?? null,
+            model: wo.model ?? null,
+            serial_number: wo.serial_number ?? null,
             date: wo.date ?? null,
             category_id: categoryId,
             lab: wo.lab != null ? Number(wo.lab) : null,
