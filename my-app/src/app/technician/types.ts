@@ -4,6 +4,7 @@ export type DBWorkOrderRow = {
   lab?: number | null
   title?: string | null
   description?: string | null
+  equipment?: string | null
   brand?: string | null
   model?: string | null
   serial_number?: string | null
@@ -44,6 +45,7 @@ export type WorkOrder = {
   lab?: number | null
   title?: string | null
   description?: string | null
+  equipment?: string | null
   brand?: string | null
   model?: string | null
   serial_number?: string | null

@@ -763,16 +763,19 @@ function PastOrdersContent() {
                         <div className="font-medium text-sm mb-1">{order.title}</div>
                         <div className="text-xs text-gray-500 mb-1">{order.address}</div>
                         <div className="text-xs text-gray-400">{order.category}</div>
-                        {order.urgency && (
-                          <div className={`text-xs mt-1 px-2 py-1 rounded inline-block ${
-                            order.urgency?.toLowerCase() === "high" ? "bg-red-100 text-red-800" :
-                            order.urgency?.toLowerCase() === "medium" ? "bg-yellow-100 text-yellow-800" :
-                            order.urgency?.toLowerCase() === "low" ? "bg-green-100 text-green-800" :
-                            "bg-gray-100 text-gray-800"
-                          }`}>
-                            {order.urgency}
-                          </div>
-                        )}
+                        {order.urgency && (() => {
+                          const u = (order.urgency ?? "").toLowerCase()
+                          return (
+                            <div className={`text-xs mt-1 px-2 py-1 rounded inline-block ${
+                              u === "critical" ? "bg-red-300 text-red-900" :
+                              u === "high" ? "bg-red-100 text-red-800" :
+                              u === "low" ? "bg-green-100 text-green-800" :
+                              /* normal / medium / unknown */ "bg-gray-100 text-gray-800"
+                            }`}>
+                              {order.urgency}
+                            </div>
+                          )
+                        })()}
                       </div>
                     </div>
                   </div>
@@ -843,17 +846,19 @@ function PastOrdersContent() {
                   <div className="text-sm text-gray-700 mb-2">
                     <span className="font-medium">Serial Number:</span> {selectedOrder.serial_number?.trim() ? selectedOrder.serial_number : "N/A"}
                   </div>
-                 {selectedOrder.urgency && (
-                    <div className={`inline-block text-sm px-3 py-1 rounded-full mb-4 ${
-                      selectedOrder.urgency?.toLowerCase() === "critical" ? "bg-red-100 text-red-800" :
-                    selectedOrder.urgency?.toLowerCase() === "high" ? "bg-orange-100 text-orange-800" :
-                    selectedOrder.urgency?.toLowerCase() === "normal" ? "bg-yellow-100 text-yellow-800" :
-                    selectedOrder.urgency?.toLowerCase() === "low" ? "bg-green-100 text-green-800" :
-                    "bg-gray-100 text-gray-800"
-                  }`}>
-                    Priority: {selectedOrder.urgency}
-                  </div>
-                )}
+                 {selectedOrder.urgency && (() => {
+                    const u = (selectedOrder.urgency ?? "").toLowerCase()
+                    return (
+                      <div className={`inline-block text-sm px-3 py-1 rounded-full mb-4 ${
+                        u === "critical" ? "bg-red-300 text-red-900" :
+                        u === "high" ? "bg-red-100 text-red-800" :
+                        u === "low" ? "bg-green-100 text-green-800" :
+                        /* normal / medium / unknown */ "bg-gray-100 text-gray-800"
+                      }`}>
+                        Priority: {selectedOrder.urgency}
+                      </div>
+                    )
+                  })()}
                 </div>
 
                 <div className="mb-6">
