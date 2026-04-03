@@ -54,7 +54,11 @@ export default function TechnicianDashboard({ onSelectWorkOrder }: Props) {
 
   useEffect(() => {
     if (!filtered.length) { setSelectedId(null); return }
-    if (!selectedId || !filtered.find((f) => f.id === selectedId)) setSelectedId(filtered[0].id)
+    if (!selectedId || !filtered.find((f) => f.id === selectedId)) {
+      const raw = filtered[0].id
+      const n = typeof raw === "number" ? raw : Number(raw)
+      setSelectedId(Number.isFinite(n) ? n : null)
+    }
   }, [filtered, selectedId])
 
   return (
@@ -112,8 +116,8 @@ export default function TechnicianDashboard({ onSelectWorkOrder }: Props) {
 
         <div className="grid grid-cols-12 gap-6">
           <div className="col-span-4">
-            <div className="h-[calc(100vh-420px)] min-h-[360px] max-h-[620px] overflow-y-auto border border-gray-200 rounded-lg bg-white p-3">
-              <TechnicianList items={filtered} selectedId={selectedId} onSelect={(id) => setSelectedId(id)} loading={loading} />
+              <div className="h-[calc(100vh-420px)] min-h-[360px] max-h-[620px] overflow-y-auto border border-gray-200 rounded-lg bg-white p-3">
+              <TechnicianList items={filtered} selectedId={selectedId} onSelect={(id) => setSelectedId(id == null ? null : Number(id))} loading={loading} />
             </div>
           </div>
 
@@ -121,8 +125,8 @@ export default function TechnicianDashboard({ onSelectWorkOrder }: Props) {
             <TechnicianDetail
               order={workOrders.find((w) => w.id === selectedId) ?? null}
               currentUserId={currentUserId}
-              onAccept={(id) => void acceptJob(id)}
-              onCancel={(id) => void cancelJob(id)}
+              onAccept={(id) => void acceptJob(Number(id))}
+              onCancel={(id) => void cancelJob(Number(id))}
               activeTab={activeTab}
               onStatusChange={handleStatusChange}
             />
