@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { Resend } from 'resend'
 import { billClient } from '@/lib/billClient'
+import { resolveBillPaymentUrl } from '@/lib/billPaymentLink'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -84,6 +85,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to create invoice' }, { status: 500 })
     }
 
+    if (invoice.bill_ar_invoice_id) {
+      const paymentUrl = resolveBillPaymentUrl(invoice)
+
+      if (paymentUrl && invoice.payment_url !== paymentUrl) {
+        await supabaseAdmin
+          .from('invoices')
+          .update({ payment_url: paymentUrl, updated_at: new Date().toISOString() })
+          .eq('id', invoice.id)
+      }
+
+      return NextResponse.json({
+        invoiceId: invoice.id,
+        alreadyCreated: true,
+        message: 'Initial fee invoice already exists in Bill.com'
+      })
+    }
+
     let billCustomerId: string | null = lab.bill_customer_id
 
     if (!billCustomerId || !billCustomerId.startsWith('0cu')) {
@@ -122,10 +140,15 @@ export async function POST(request: NextRequest) {
       customerName: manager.full_name || lab.name,
     })
 
+    const paymentUrl = resolveBillPaymentUrl(billInvoice)
+
     // Update invoice with Bill.com ID
     await supabaseAdmin
       .from('invoices')
-      .update({ bill_ar_invoice_id: billInvoice.id })
+      .update({
+        bill_ar_invoice_id: billInvoice.id,
+        payment_url: paymentUrl,
+      })
       .eq('id', invoice.id)
 
     // Send initial fee invoice email to lab manager
@@ -147,6 +170,13 @@ export async function POST(request: NextRequest) {
               <p><strong>Invoice ID:</strong> #${invoice.id}</p>
             </div>
             <p>The initial fee invoice has been created in Bill.com and is ready for payment.</p>
+            ${paymentUrl ? `
+              <p style="text-align: center; margin: 28px 0;">
+                <a href="${paymentUrl}" style="display: inline-block; padding: 14px 28px; background-color: #16a34a; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold;">
+                  Pay Invoice in Bill.com
+                </a>
+              </p>
+            ` : ''}
             <p>Best regards,<br/>Biotech Maintenance Platform</p>
           </div>
         `

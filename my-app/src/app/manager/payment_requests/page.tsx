@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import { resolveBillPaymentUrl } from '@/lib/billPaymentLink'
 
 interface PaymentRequest {
   id: number
@@ -10,6 +11,7 @@ interface PaymentRequest {
   created_by: string
   total_amount: number
   payment_status: string
+  payment_url?: string | null
   created_at: string
   invoice_type: string // 'initial_fee' or 'service'
   work_orders?: {
@@ -218,7 +220,7 @@ export default function PaymentRequests() {
       const result = await response.json()
 
       if (response.ok) {
-        alert('Payment approved and sent to Bill.com!')
+        alert(result.alreadyCreated ? 'Payment was already sent to Bill.com.' : 'Payment approved and sent to Bill.com!')
         loadPaymentRequests()
       } else {
         alert(`Failed to approve payment: ${result.error}`)
@@ -260,6 +262,8 @@ export default function PaymentRequests() {
       setIsSyncing(false)
     }
   }
+
+  const selectedPaymentUrl = selectedRequest ? resolveBillPaymentUrl(selectedRequest) : null
 
   if (loading) {
     return (
@@ -501,6 +505,16 @@ export default function PaymentRequests() {
                         </div>
                       </div>
                     </div>
+                    {selectedPaymentUrl && (
+                      <a
+                        href={selectedPaymentUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mb-4 inline-flex w-full items-center justify-center rounded-lg border-2 border-green-600 bg-white py-3 px-6 font-semibold text-green-700 transition-all hover:bg-green-50"
+                      >
+                        Open Bill.com Payment Page
+                      </a>
+                    )}
                     <button
                       onClick={() => handleSyncStatus(selectedRequest)}
                       disabled={isSyncing}
@@ -523,8 +537,8 @@ export default function PaymentRequests() {
                   <p className="text-sm text-blue-800">
                     <strong>ℹ️ What happens next?</strong><br/>
                     • AR Invoice will be created in Bill.com<br/>
-                    • Payment link will be emailed to the lab manager<br/>
-                    • Lab manager clicks &quot;Pay&quot; in email → pays on Bill.com hosted page<br/>
+                    • Payment link is available here in the webapp<br/>
+                    • Lab manager opens this page and clicks the payment button → pays on Bill.com hosted page<br/>
                     • Payment status automatically updates to &quot;Paid&quot; via webhook
                   </p>
                 </div>

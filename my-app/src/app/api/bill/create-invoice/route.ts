@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { billClient } from '@/lib/billClient'
+import { resolveBillPaymentUrl } from '@/lib/billPaymentLink'
 
 // Create admin client for bypassing RLS
 const supabaseAdmin = createClient(
@@ -86,6 +87,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid amount' }, { status: 400 })
     }
 
+    if (invoice.bill_ar_invoice_id) {
+      const paymentUrl = resolveBillPaymentUrl(invoice)
+
+      if (paymentUrl && invoice.payment_url !== paymentUrl) {
+        await supabaseAdmin
+          .from('invoices')
+          .update({ payment_url: paymentUrl, updated_at: new Date().toISOString() })
+          .eq('id', invoiceId)
+      }
+
+      return NextResponse.json(
+        {
+          success: true,
+          arInvoiceId: invoice.bill_ar_invoice_id,
+          alreadyCreated: true,
+        },
+        { status: 200 }
+      )
+    }
+
     let billCustomerId: string | null = lab.bill_customer_id
 
     if (!billCustomerId || !billCustomerId.startsWith('0cu')) {
@@ -129,10 +150,13 @@ export async function POST(request: NextRequest) {
       customerName: manager.full_name || lab.name,
     })
 
+    const paymentUrl = resolveBillPaymentUrl(arInvoice)
+
     const { error: updateError } = await supabaseAdmin
       .from('invoices')
       .update({
         bill_ar_invoice_id: arInvoice.id,
+        payment_url: paymentUrl,
         payment_status: 'awaiting_payment',
         updated_at: new Date().toISOString(),
       })
