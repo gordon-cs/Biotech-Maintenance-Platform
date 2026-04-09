@@ -21,8 +21,6 @@ export default function AdminCategoriesPage() {
   const [adding, setAdding] = useState(false)
   const [deleting, setDeleting] = useState<Record<number, boolean>>({})
   const [toggling, setToggling] = useState<Record<number, boolean>>({})
-  const [savingFee, setSavingFee] = useState<Record<number, boolean>>({})
-  const [feeDrafts, setFeeDrafts] = useState<Record<number, string>>({})
   const [message, setMessage] = useState<string | null>(null)
 
   useEffect(() => {
