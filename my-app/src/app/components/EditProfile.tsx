@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabaseClient"
 
 type Profile = {
   id: string
-  role: "lab" | "technician" | null
+  role: "admin" | "lab" | "technician" | null
   full_name: string | null
   phone: string | null
   email?: string | null
@@ -23,6 +23,11 @@ type Technician = {
   experience: string | null
   bio: string | null
   company: string | null
+  line1: string | null
+  line2: string | null
+  city: string | null
+  state: string | null
+  zipcode: string | null
 }
 
 type Category = {
@@ -54,6 +59,11 @@ export default function EditProfile() {
   const [company, setCompany] = useState("")
   const [experience, setExperience] = useState("")
   const [bio, setBio] = useState("")
+  const [line1, setLine1] = useState("")
+  const [line2, setLine2] = useState("")
+  const [city, setCity] = useState("")
+  const [state, setState] = useState("")
+  const [zipcode, setZipcode] = useState("")
   const [selectedCategories, setSelectedCategories] = useState<number[]>([])
   const [categories, setCategories] = useState<Category[]>([])
 
@@ -108,6 +118,11 @@ export default function EditProfile() {
             setCompany(techData.company ?? "")
             setExperience(techData.experience ?? "")
             setBio(techData.bio ?? "")
+            setLine1(techData.line1 ?? "")
+            setLine2(techData.line2 ?? "")
+            setCity(techData.city ?? "")
+            setState(techData.state ?? "")
+            setZipcode(techData.zipcode ?? "")
           }
 
           // Load categories
@@ -152,6 +167,37 @@ export default function EditProfile() {
     })
   }
 
+  const postJson = async <T,>(url: string, token: string, body: unknown): Promise<T> => {
+    let response: Response
+    try {
+      response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      })
+    } catch (networkErr) {
+      console.error(`Network error calling ${url}:`, networkErr)
+      throw new Error("Server connection failed. Start the app from my-app using 'npm run dev' and try again.")
+    }
+
+    let payload: unknown = null
+    try {
+      payload = await response.json()
+    } catch {
+      payload = null
+    }
+
+    if (!response.ok) {
+      const errorPayload = payload as { error?: string; message?: string } | null
+      throw new Error(errorPayload?.error || errorPayload?.message || `Request failed (${response.status})`)
+    }
+
+    return (payload ?? {}) as T
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setMessage(null)
@@ -189,11 +235,16 @@ export default function EditProfile() {
           experience: string
           bio: string
           company: string | null
+          line1: string | null
+          line2: string | null
+          city: string | null
+          state: string | null
+          zipcode: string | null
         }
       }
 
       const requestBody: RequestBody = {
-        role: profile?.role ?? null,
+        role: profile?.role === "lab" || profile?.role === "technician" ? profile.role : null,
         full_name: fullName,
         phone: normalizedPhone
       }
@@ -206,27 +257,21 @@ export default function EditProfile() {
         requestBody.tech = {
           experience,
           bio,
-          company: company || null
+          company: company || null,
+          line1: line1 || null,
+          line2: line2 || null,
+          city: city || null,
+          state: state || null,
+          zipcode: zipcode || null,
         }
       }
 
       // Update profile via API route
-      const response = await fetch("/api/create-profile", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify(requestBody)
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || "Failed to update profile")
-      }
+      await postJson<{ ok: boolean }>("/api/create-profile", session.access_token, requestBody)
 
       // Update technician categories if applicable
       let categoryUpdateFailed = false;
+      let vendorSyncWarning: string | null = null;
       if (profile?.role === "technician") {
         try {
           // Delete existing categories
@@ -261,17 +306,36 @@ export default function EditProfile() {
           console.error("Category update error:", catErr);
           categoryUpdateFailed = true;
         }
+
+        try {
+          await postJson<{ ok: boolean }>(
+            "/api/bill/vendors/sync",
+            session.access_token,
+            { technicianId: session.user.id }
+          )
+        } catch (syncErr) {
+          console.error("Vendor sync error:", syncErr)
+          vendorSyncWarning =
+            syncErr instanceof Error
+              ? `Profile updated, but vendor sync failed. ${syncErr.message}`
+              : "Profile updated, but vendor sync failed."
+        }
       }
 
-      if (categoryUpdateFailed) {
+      if (categoryUpdateFailed && vendorSyncWarning) {
+        setMessage(`Profile updated, but failed to update categories and vendor sync. ${vendorSyncWarning}`)
+      } else if (categoryUpdateFailed) {
         setMessage("Profile updated, but failed to update categories.");
+      } else if (vendorSyncWarning) {
+        setMessage(vendorSyncWarning)
       } else {
         setMessage("Profile updated successfully!")
       }
       setSaving(false)
 
-      // Redirect to home immediately
-      router.push("/")
+      if (!categoryUpdateFailed && !vendorSyncWarning) {
+        router.push("/")
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       console.error("Error updating profile:", err)
@@ -357,6 +421,59 @@ export default function EditProfile() {
                 placeholder="Company (optional)"
                 className="w-full border border-gray-300 rounded px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+            </div>
+            <div className="mb-6">
+              <label htmlFor="line1" className="block mb-2 font-medium text-gray-700">Address Line 1</label>
+              <input
+                id="line1"
+                value={line1}
+                onChange={(e) => setLine1(e.target.value)}
+                placeholder="Street address"
+                className="w-full border border-gray-300 rounded px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+            <div className="mb-6">
+              <label htmlFor="line2" className="block mb-2 font-medium text-gray-700">Address Line 2 (optional)</label>
+              <input
+                id="line2"
+                value={line2}
+                onChange={(e) => setLine2(e.target.value)}
+                placeholder="Suite, apt, unit"
+                className="w-full border border-gray-300 rounded px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <div>
+                <label htmlFor="city" className="block mb-2 font-medium text-gray-700">City</label>
+                <input
+                  id="city"
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  className="w-full border border-gray-300 rounded px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              <div>
+                <label htmlFor="state" className="block mb-2 font-medium text-gray-700">State</label>
+                <input
+                  id="state"
+                  value={state}
+                  onChange={(e) => setState(e.target.value)}
+                  className="w-full border border-gray-300 rounded px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              <div>
+                <label htmlFor="zipcode" className="block mb-2 font-medium text-gray-700">Zipcode</label>
+                <input
+                  id="zipcode"
+                  value={zipcode}
+                  onChange={(e) => setZipcode(e.target.value)}
+                  className="w-full border border-gray-300 rounded px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
             </div>
             <div className="mb-6">
               <label htmlFor="experience" className="block mb-2 font-medium text-gray-700">Experience</label>

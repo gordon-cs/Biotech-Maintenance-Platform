@@ -31,41 +31,47 @@ export default function CompleteProfile() {
 
   useEffect(() => {
     const load = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-      if (!session?.user) {
-        setMessage("You must sign in to complete your profile.")
-        setLoading(false)
-        return
-      }
+      try {
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession()
 
-      const userId = session.user.id
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", userId)
-        .single()
-
-      if (error) {
-        // no existing profile is fine
-        setProfile(null)
-      } else {
-        setProfile(data)
-        
-        // If user already has a role set, redirect them to home
-        if (data?.role) {
-          console.log("User already has a role set, redirecting to home")
-          router.push("/")
+        if (sessionError || !session?.user) {
+          setMessage("You must sign in to complete your profile.")
+          setLoading(false)
           return
         }
-        
-        setFullName(data?.full_name ?? "")
-        setPhone(data?.phone ?? "")
-        setRole(data?.role ?? "")
-      }
 
-      setLoading(false)
+        const userId = session.user.id
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", userId)
+          .single()
+
+        if (error) {
+          // no existing profile is fine
+          setProfile(null)
+        } else {
+          setProfile(data)
+
+          // If user already has a role set, redirect them to home
+          if (data?.role) {
+            console.log("User already has a role set, redirecting to home")
+            router.push("/")
+            return
+          }
+
+          setFullName(data?.full_name ?? "")
+          setPhone(data?.phone ?? "")
+          setRole(data?.role ?? "")
+        }
+      } catch {
+        setMessage("Unable to load your session. Please sign in again.")
+      } finally {
+        setLoading(false)
+      }
     }
 
     load()
@@ -80,14 +86,28 @@ export default function CompleteProfile() {
       return
     }
 
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
-    if (!session?.user) {
+    let sessionToken: string | null = null
+    let userId: string | null = null
+    try {
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession()
+      if (sessionError || !session?.user) {
+        setMessage("You must sign in to save your profile.")
+        return
+      }
+      sessionToken = session.access_token ?? null
+      userId = session.user.id
+    } catch {
+      setMessage("Unable to verify your session. Please sign in again.")
+      return
+    }
+
+    if (!userId) {
       setMessage("You must sign in to save your profile.")
       return
     }
-    const userId = session.user.id
 
     if (role === "lab") {
       // Don't save yet - just pass the data to the lab info page
@@ -109,8 +129,7 @@ export default function CompleteProfile() {
       setSaving(true)
       
       // Get the auth token
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.access_token) {
+      if (!sessionToken) {
         throw new Error("No access token found")
       }
 
@@ -119,7 +138,7 @@ export default function CompleteProfile() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${session.access_token}`
+          "Authorization": `Bearer ${sessionToken}`
         },
         body: JSON.stringify({
           role: "technician",

@@ -26,6 +26,11 @@ type CreateProfileBody = {
     bio?: string | null
     company?: string | null
     resume_url?: string | null
+    line1?: string | null
+    line2?: string | null
+    city?: string | null
+    state?: string | null
+    zipcode?: string | null
   } | null
 }
 
@@ -150,30 +155,58 @@ export async function POST(req: NextRequest) {
     }
 
     if (body.role === "technician") {
-      const tech = {
+      const techBase = {
         id: userId,
         experience: body.tech?.experience ?? null,
         bio: body.tech?.bio ?? null,
         company: body.tech?.company ?? null,
-        resume_url: body.tech?.resume_url ?? null
+        resume_url: body.tech?.resume_url ?? null,
       }
 
-      // First check if technician already exists
-      const { data: existingTech, error: techCheckError } = await serviceClient
+      const techWithAddress = {
+        ...techBase,
+        line1: body.tech?.line1 ?? null,
+        line2: body.tech?.line2 ?? null,
+        city: body.tech?.city ?? null,
+        state: body.tech?.state ?? null,
+        zipcode: body.tech?.zipcode ?? null,
+      }
+
+      // First check if technician already exists (legacy-compatible select)
+      const { data: existingTech } = await serviceClient
         .from("technicians")
-        .select("id, experience, bio")
+        .select("id, experience, bio, company, resume_url")
         .eq("id", userId)
         .single()
 
-      // Use upsert to handle both insert and update cases
-      const { error: tErr } = await serviceClient
+      const mergedBaseTech = existingTech
+        ? {
+            id: existingTech.id,
+            experience: body.tech?.experience ?? existingTech.experience ?? null,
+            bio: body.tech?.bio ?? existingTech.bio ?? null,
+            company: body.tech?.company ?? existingTech.company ?? null,
+            resume_url: body.tech?.resume_url ?? existingTech.resume_url ?? null,
+          }
+        : techBase
+
+      // Try modern schema first (with address columns), then fallback to legacy schema.
+      const modernPayload = existingTech ? { ...mergedBaseTech, ...techWithAddress } : techWithAddress
+      let { error: tErr } = await serviceClient
         .from("technicians")
-        .upsert(
-          existingTech
-            ? { ...tech, id: existingTech.id }
-            : tech,
-          { onConflict: 'id' }
-        )
+        .upsert(modernPayload, { onConflict: 'id' })
+
+      const missingColumnError = tErr?.message?.includes("Could not find the 'city' column")
+        || tErr?.message?.includes("Could not find the 'line1' column")
+        || tErr?.message?.includes("Could not find the 'state' column")
+        || tErr?.message?.includes("Could not find the 'zipcode' column")
+
+      if (tErr && missingColumnError) {
+        const fallback = await serviceClient
+          .from("technicians")
+          .upsert(mergedBaseTech, { onConflict: 'id' })
+        tErr = fallback.error
+      }
+
       if (tErr) return NextResponse.json({ error: tErr.message }, { status: 500 })
 
       // Send verification email if this is a new technician OR if they're completing their profile for the first time
