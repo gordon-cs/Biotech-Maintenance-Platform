@@ -7,6 +7,7 @@ type Cat = {
   id: number
   slug?: string | null
   name?: string | null
+  initial_fee?: number | null
   active?: boolean | null
   created_at?: string | null
 }
@@ -14,8 +15,11 @@ type Cat = {
 export default function AdminCategoriesPage() {
   const [cats, setCats] = useState<Cat[]>([])
   const [loading, setLoading] = useState(false)
+  const [feeDrafts, setFeeDrafts] = useState<Record<number, string>>({})
+  const [savingFee, setSavingFee] = useState<Record<number, boolean>>({})
   const [newName, setNewName] = useState("")
   const [newSlug, setNewSlug] = useState("")
+  const [newInitialFee, setNewInitialFee] = useState("0")
   const [adding, setAdding] = useState(false)
   const [deleting, setDeleting] = useState<Record<number, boolean>>({})
   const [toggling, setToggling] = useState<Record<number, boolean>>({})
@@ -26,13 +30,18 @@ export default function AdminCategoriesPage() {
       setLoading(true)
       const { data, error } = await supabase
         .from("categories")
-        .select("id, slug, name, active, created_at")
+        .select("id, slug, name, initial_fee, active, created_at")
         .order("id", { ascending: true })
       if (error) {
         console.error(error)
         setMessage("Failed to load categories.")
       } else {
         setCats(data ?? [])
+        const drafts: Record<number, string> = {}
+        for (const cat of data ?? []) {
+          drafts[cat.id] = String(cat.initial_fee ?? 0)
+        }
+        setFeeDrafts(drafts)
       }
       setLoading(false)
     }
@@ -50,8 +59,13 @@ export default function AdminCategoriesPage() {
   const addCategory = async () => {
     const name = newName.trim()
     const slug = (newSlug.trim() || slugify(name)).trim()
+    const initialFee = Number(newInitialFee || "0")
     if (!name) {
       setMessage("Enter a category name.")
+      return
+    }
+    if (!Number.isFinite(initialFee) || initialFee < 0) {
+      setMessage("Initial fee must be a non-negative number.")
       return
     }
     setAdding(true)
@@ -59,16 +73,17 @@ export default function AdminCategoriesPage() {
     try {
       const { data, error } = await supabase
         .from("categories")
-        .insert({ name, slug, active: true })
+        .insert({ name, slug, initial_fee: initialFee, active: true })
         .select()
         .maybeSingle()
       if (error) {
         console.error(error)
         setMessage("Failed to add category: " + error.message)
       } else if (data) {
-        setCats((s) => [...s, { id: data.id, name: data.name, slug: data.slug, active: data.active, created_at: data.created_at }])
+        setCats((s) => [...s, { id: data.id, name: data.name, slug: data.slug, initial_fee: data.initial_fee, active: data.active, created_at: data.created_at }])
         setNewName("")
         setNewSlug("")
+        setNewInitialFee("0")
       }
     } catch (err) {
       console.error(err)
@@ -96,6 +111,38 @@ export default function AdminCategoriesPage() {
       setMessage("Unexpected error deleting category.")
     } finally {
       setDeleting((s) => ({ ...s, [id]: false }))
+    }
+  }
+
+  const saveInitialFee = async (id: number) => {
+    const parsed = Number.parseFloat((feeDrafts[id] ?? "").trim())
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      setMessage("Initial fee must be a non-negative number.")
+      return
+    }
+
+    setSavingFee((s) => ({ ...s, [id]: true }))
+    setMessage(null)
+    try {
+      const { data, error } = await supabase
+        .from("categories")
+        .update({ initial_fee: parsed })
+        .eq("id", id)
+        .select("id, initial_fee")
+        .maybeSingle()
+
+      if (error) {
+        console.error(error)
+        setMessage("Failed to update initial fee: " + error.message)
+      } else if (data) {
+        setCats((s) => s.map((c) => (c.id === id ? { ...c, initial_fee: data.initial_fee } : c)))
+        setFeeDrafts((s) => ({ ...s, [id]: String(data.initial_fee ?? 0) }))
+      }
+    } catch (err) {
+      console.error(err)
+      setMessage("Unexpected error updating initial fee.")
+    } finally {
+      setSavingFee((s) => ({ ...s, [id]: false }))
     }
   }
 
@@ -140,6 +187,15 @@ export default function AdminCategoriesPage() {
             placeholder="optional slug"
             className="px-2 py-1 border rounded"
           />
+          <input
+            value={newInitialFee}
+            onChange={(e) => setNewInitialFee(e.target.value)}
+            placeholder="initial fee"
+            type="number"
+            min="0"
+            step="0.01"
+            className="w-28 px-2 py-1 border rounded"
+          />
           <button
             onClick={addCategory}
             disabled={adding}
@@ -162,10 +218,26 @@ export default function AdminCategoriesPage() {
               <div className="flex flex-col">
                 <span className="font-medium">{c.name ?? `#${c.id}`}</span>
                 <span className="text-xs text-gray-600">{c.slug ?? "—"}</span>
+                <span className="text-xs text-gray-600">Initial fee: ${Number(c.initial_fee ?? 0).toFixed(2)}</span>
                 <span className="text-xs text-gray-500">Created: {c.created_at ? new Date(c.created_at).toLocaleString() : "—"}</span>
               </div>
 
               <div className="flex items-center gap-2">
+                <input
+                  value={feeDrafts[c.id] ?? ""}
+                  onChange={(e) => setFeeDrafts((s) => ({ ...s, [c.id]: e.target.value }))}
+                  className="w-24 px-2 py-1 border rounded text-sm"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                />
+                <button
+                  onClick={() => saveInitialFee(c.id)}
+                  disabled={!!savingFee[c.id]}
+                  className="px-2 py-1 text-sm bg-blue-600 text-white rounded disabled:opacity-50"
+                >
+                  {savingFee[c.id] ? "Saving..." : "Save Fee"}
+                </button>
                 <button
                   onClick={() => toggleActive(c.id, c.active)}
                   disabled={!!toggling[c.id]}
