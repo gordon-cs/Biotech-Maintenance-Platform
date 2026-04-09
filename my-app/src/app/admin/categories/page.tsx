@@ -15,6 +15,8 @@ type Cat = {
 export default function AdminCategoriesPage() {
   const [cats, setCats] = useState<Cat[]>([])
   const [loading, setLoading] = useState(false)
+  const [feeDrafts, setFeeDrafts] = useState<Record<number, string>>({})
+  const [savingFee, setSavingFee] = useState<Record<number, boolean>>({})
   const [newName, setNewName] = useState("")
   const [newSlug, setNewSlug] = useState("")
   const [newInitialFee, setNewInitialFee] = useState("0")
