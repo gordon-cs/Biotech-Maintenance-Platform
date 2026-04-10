@@ -39,7 +39,8 @@ const INVOICE_SELECT = `
     id,
     name,
     bill_customer_id
-  )
+  ),
+  payment_url
 `
 
 export default function PaymentRequests() {
@@ -99,7 +100,7 @@ export default function PaymentRequests() {
                 if (exists) {
                   // UPDATE: only apply scalar changes to preserve existing joined data
                   return prev.map((r) =>
-                    r.id === updated.id ? { ...r, payment_status: updated.payment_status } : r
+                    r.id === updated.id ? { ...r, payment_status: updated.payment_status, payment_url: updated.payment_url ?? r.payment_url } : r
                   )
                 }
                 return prev

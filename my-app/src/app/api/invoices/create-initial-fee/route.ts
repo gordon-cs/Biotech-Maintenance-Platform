@@ -13,6 +13,17 @@ const resend = new Resend(process.env.RESEND_API_KEY)
 
 export async function POST(request: NextRequest) {
   try {
+    const authHeader = request.headers.get('authorization')
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const token = authHeader.replace('Bearer ', '')
+    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const { workOrderId } = await request.json()
 
     if (!workOrderId || typeof workOrderId !== 'number') {
@@ -29,7 +40,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Work order not found' }, { status: 404 })
     }
 
-    const initialFee = workOrder.initial_fee || 50.00
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
 
     const { data: lab, error: labError } = await supabaseAdmin
       .from('labs')
@@ -40,6 +55,16 @@ export async function POST(request: NextRequest) {
     if (labError || !lab) {
       return NextResponse.json({ error: 'Lab not found' }, { status: 404 })
     }
+
+    const isAdmin = (profile?.role || '').toString().toLowerCase() === 'admin'
+    const isLabManager = user.id === lab.manager_id
+    const isWorkOrderCreator = user.id === workOrder.created_by
+
+    if (!isAdmin && !isLabManager && !isWorkOrderCreator) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    const initialFee = workOrder.initial_fee || 50.00
 
     const { data: manager, error: managerError } = await supabaseAdmin
       .from('profiles')
@@ -67,31 +92,41 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create initial fee invoice in database
-    const { data: invoice, error: invoiceError } = await supabaseAdmin
+    const { data: existingInvoice, error: existingInvoiceError } = await supabaseAdmin
       .from('invoices')
-      .insert({
-        work_order_id: workOrderId,
-        lab_id: workOrder.lab,
-        created_by: workOrder.created_by,
-        total_amount: initialFee,
-        payment_status: 'unbilled',
-        invoice_type: 'initial_fee'
-      })
-      .select()
-      .single()
+      .select('*')
+      .eq('work_order_id', workOrderId)
+      .eq('invoice_type', 'initial_fee')
+      .maybeSingle()
 
-    if (invoiceError || !invoice) {
-      return NextResponse.json({ error: 'Failed to create invoice' }, { status: 500 })
+    if (existingInvoiceError) {
+      return NextResponse.json({ error: existingInvoiceError.message }, { status: 500 })
     }
 
-    if (invoice.bill_ar_invoice_id) {
+    let invoice = existingInvoice ?? null
+
+    if (invoice?.bill_ar_invoice_id) {
       const paymentUrl = resolveBillPaymentUrl(invoice)
+      const invoiceUpdates: {
+        payment_status?: 'awaiting_payment'
+        payment_url?: string
+        updated_at?: string
+      } = {}
+
+      if (invoice.payment_status !== 'awaiting_payment') {
+        invoiceUpdates.payment_status = 'awaiting_payment'
+      }
 
       if (paymentUrl && invoice.payment_url !== paymentUrl) {
+        invoiceUpdates.payment_url = paymentUrl
+      }
+
+      if (Object.keys(invoiceUpdates).length > 0) {
+        invoiceUpdates.updated_at = new Date().toISOString()
+
         await supabaseAdmin
           .from('invoices')
-          .update({ payment_url: paymentUrl, updated_at: new Date().toISOString() })
+          .update(invoiceUpdates)
           .eq('id', invoice.id)
       }
 
@@ -100,6 +135,27 @@ export async function POST(request: NextRequest) {
         alreadyCreated: true,
         message: 'Initial fee invoice already exists in Bill.com'
       })
+    }
+
+    if (!invoice) {
+      const { data: insertedInvoice, error: invoiceError } = await supabaseAdmin
+        .from('invoices')
+        .insert({
+          work_order_id: workOrderId,
+          lab_id: workOrder.lab,
+          created_by: workOrder.created_by,
+          total_amount: initialFee,
+          payment_status: 'unbilled',
+          invoice_type: 'initial_fee'
+        })
+        .select()
+        .single()
+
+      if (invoiceError || !insertedInvoice) {
+        return NextResponse.json({ error: 'Failed to create invoice' }, { status: 500 })
+      }
+
+      invoice = insertedInvoice
     }
 
     let billCustomerId: string | null = lab.bill_customer_id
@@ -148,6 +204,8 @@ export async function POST(request: NextRequest) {
       .update({
         bill_ar_invoice_id: billInvoice.id,
         payment_url: paymentUrl,
+        payment_status: 'awaiting_payment',
+        updated_at: new Date().toISOString(),
       })
       .eq('id', invoice.id)
 

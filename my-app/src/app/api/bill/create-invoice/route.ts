@@ -40,6 +40,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    if (profileError || !profile) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const { data: invoice, error: invoiceError } = await supabaseAdmin
       .from('invoices')
       .select('*')
@@ -70,6 +80,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Lab not found' }, { status: 404 })
     }
 
+    const isAdmin = (profile.role || '').toString().toLowerCase() === 'admin'
+    const isLabManager = user.id === lab.manager_id
+
+    if (!isAdmin && !isLabManager) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
     const { data: manager, error: managerError } = await supabaseAdmin
       .from('profiles')
       .select('email, full_name')
@@ -89,11 +106,26 @@ export async function POST(request: NextRequest) {
 
     if (invoice.bill_ar_invoice_id) {
       const paymentUrl = resolveBillPaymentUrl(invoice)
+      const invoiceUpdates: {
+        payment_status?: 'awaiting_payment'
+        payment_url?: string
+        updated_at?: string
+      } = {}
+
+      if (invoice.payment_status !== 'awaiting_payment') {
+        invoiceUpdates.payment_status = 'awaiting_payment'
+      }
 
       if (paymentUrl && invoice.payment_url !== paymentUrl) {
+        invoiceUpdates.payment_url = paymentUrl
+      }
+
+      if (Object.keys(invoiceUpdates).length > 0) {
+        invoiceUpdates.updated_at = new Date().toISOString()
+
         await supabaseAdmin
           .from('invoices')
-          .update({ payment_url: paymentUrl, updated_at: new Date().toISOString() })
+          .update(invoiceUpdates)
           .eq('id', invoiceId)
       }
 

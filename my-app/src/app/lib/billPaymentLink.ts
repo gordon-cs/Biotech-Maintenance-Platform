@@ -20,7 +20,6 @@ const PAYMENT_URL_KEYS = [
   'portal_url',
   'payLink',
   'pay_link',
-  'url',
 ]
 
 const ID_KEYS = ['bill_ar_invoice_id', 'billInvoiceId', 'invoiceId', 'id']
@@ -70,17 +69,19 @@ function applyTemplate(template: string, invoiceId: string): string {
     .replace(/:invoiceId\b/gi, invoiceId)
 }
 
+function isBillPaymentUrl(candidate: string): boolean {
+  try {
+    const parsed = new URL(candidate)
+    return parsed.protocol === 'https:' && parsed.hostname.endsWith('bill.com')
+  } catch {
+    return false
+  }
+}
+
 export function resolveBillPaymentUrl(source: BillPaymentLinkSource | null | undefined): string | null {
   const directUrl = findStringProperty(source, PAYMENT_URL_KEYS)
-  if (directUrl) {
+  if (directUrl && isBillPaymentUrl(directUrl)) {
     return directUrl
-  }
-
-  const invoiceId = findStringProperty(source, ID_KEYS)
-  const template = process.env.BILL_PAYMENT_URL_TEMPLATE?.trim()
-
-  if (template && invoiceId) {
-    return applyTemplate(template, invoiceId)
   }
 
   return null

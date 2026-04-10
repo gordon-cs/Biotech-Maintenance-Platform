@@ -125,7 +125,7 @@ export async function sendInvoiceNotificationEmail(
             </div>
             
             <div class="action-section">
-              <a href="${ctaUrl}" class="button" target="_blank" rel="noreferrer">
+              <a href="${ctaUrl}" class="button" target="_blank" rel="noopener noreferrer">
                 View Invoice & Pay
               </a>
             </div>
