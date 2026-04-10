@@ -193,15 +193,6 @@ export default function AdminWorkOrdersPage() {
         .from("profiles")
         .select("id, full_name, email, role")
         .order("full_name", { ascending: true })
-
-      // stronger logging
-      console.log("profiles fetch result:", techRes)
-      if (techRes.error) {
-        console.error("profiles fetch error full:", JSON.stringify(techRes.error, null, 2))
-        // try a simpler query (diagnostic)
-        const fallback = await supabase.from("profiles").select("id, email").limit(5)
-        console.log("profiles fallback:", fallback)
-      }
       if (!techRes.error) {
         const profiles = (techRes.data || []) as ProfileRow[]
         // prefer explicit technician markers
