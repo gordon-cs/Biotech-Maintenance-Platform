@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { supabase } from "@/lib/supabaseClient"
+import { getSessionSafe, supabase } from "@/lib/supabaseClient"
 
 type Profile = {
   id: string
@@ -37,6 +37,14 @@ type Category = {
   active: boolean
 }
 
+const US_STATE_CODES = [
+  "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA",
+  "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD",
+  "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ",
+  "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC",
+  "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY", "DC",
+]
+
 export default function EditProfile() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
@@ -70,7 +78,9 @@ export default function EditProfile() {
   useEffect(() => {
     const loadProfile = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession()
+        const {
+          data: { session },
+        } = await getSessionSafe()
         if (!session?.user) {
           router.push("/signin")
           return
@@ -204,7 +214,9 @@ export default function EditProfile() {
     setSaving(true)
 
     try {
-      const { data: { session } } = await supabase.auth.getSession()
+      const {
+        data: { session },
+      } = await getSessionSafe()
       if (!session?.user) {
         setMessage("You must be signed in.")
         setSaving(false)
@@ -456,13 +468,20 @@ export default function EditProfile() {
               </div>
               <div>
                 <label htmlFor="state" className="block mb-2 font-medium text-gray-700">State</label>
-                <input
+                <select
                   id="state"
                   value={state}
                   onChange={(e) => setState(e.target.value)}
                   className="w-full border border-gray-300 rounded px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   required
-                />
+                >
+                  <option value="">Select state</option>
+                  {US_STATE_CODES.map((code) => (
+                    <option key={code} value={code}>
+                      {code}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label htmlFor="zipcode" className="block mb-2 font-medium text-gray-700">Zipcode</label>

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { supabase } from "@/lib/supabaseClient"
+import { getSessionSafe, supabase } from "@/lib/supabaseClient"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import type { Session } from "@supabase/supabase-js"
@@ -17,7 +17,7 @@ export default function AuthStatus() {
 
     const get = async () => {
       try {
-        const { data, error } = await supabase.auth.getSession();
+        const { data, error } = await getSessionSafe();
         if (!mounted) return;
         if (error) {
           setSession(null);

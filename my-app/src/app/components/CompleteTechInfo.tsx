@@ -11,6 +11,14 @@ type Category = {
   active: boolean
 }
 
+const US_STATE_CODES = [
+  "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA",
+  "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD",
+  "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ",
+  "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC",
+  "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY", "DC",
+]
+
 export default function CompleteTechInfo({ initialFull = "", initialPhone = "" }: { initialFull?: string; initialPhone?: string }) {
   const router = useRouter()
   const [company, setCompany] = useState("")
@@ -377,14 +385,19 @@ export default function CompleteTechInfo({ initialFull = "", initialPhone = "" }
                 required
                 className="border border-gray-300 rounded px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-              <input
+              <select
                 value={addressState}
                 onChange={e => setAddressState(e.target.value)}
-                placeholder="State"
                 required
-                maxLength={2}
                 className="border border-gray-300 rounded px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              >
+                <option value="">State</option>
+                {US_STATE_CODES.map((code) => (
+                  <option key={code} value={code}>
+                    {code}
+                  </option>
+                ))}
+              </select>
               <input
                 value={zipcode}
                 onChange={e => setZipcode(e.target.value)}

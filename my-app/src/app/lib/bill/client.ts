@@ -72,10 +72,26 @@ type BillVendorRequestPayload = {
     line2?: string;
     city: string;
     state: string;
+    stateOrProvince?: string;
+    stateOrProvinceCode?: string;
     zipcode?: string;
     zipOrPostalCode: string;
     country?: string;
   };
+};
+
+const US_STATE_TO_CODE: Record<string, string> = {
+  alabama: "AL", alaska: "AK", arizona: "AZ", arkansas: "AR", california: "CA",
+  colorado: "CO", connecticut: "CT", delaware: "DE", florida: "FL", georgia: "GA",
+  hawaii: "HI", idaho: "ID", illinois: "IL", indiana: "IN", iowa: "IA",
+  kansas: "KS", kentucky: "KY", louisiana: "LA", maine: "ME", maryland: "MD",
+  massachusetts: "MA", michigan: "MI", minnesota: "MN", mississippi: "MS", missouri: "MO",
+  montana: "MT", nebraska: "NE", nevada: "NV", "new hampshire": "NH", "new jersey": "NJ",
+  "new mexico": "NM", "new york": "NY", "north carolina": "NC", "north dakota": "ND", ohio: "OH",
+  oklahoma: "OK", oregon: "OR", pennsylvania: "PA", "rhode island": "RI", "south carolina": "SC",
+  "south dakota": "SD", tennessee: "TN", texas: "TX", utah: "UT", vermont: "VT",
+  virginia: "VA", washington: "WA", "west virginia": "WV", wisconsin: "WI", wyoming: "WY",
+  "district of columbia": "DC",
 };
 
 export class BillClient {
@@ -197,6 +213,10 @@ export class BillClient {
   }
 
   private mapVendorPayload(payload: BillVendorPayload): BillVendorRequestPayload {
+    const rawState = String(payload.state ?? "").trim();
+    const stateKey = rawState.toLowerCase();
+    const normalizedState = US_STATE_TO_CODE[stateKey] || rawState.toUpperCase();
+
     return {
       name: payload.name,
       email: payload.email,
@@ -206,13 +226,15 @@ export class BillClient {
       address1: payload.address1,
       address2: payload.address2,
       city: payload.city,
-      state: payload.state,
+      state: normalizedState,
       zip: payload.zip,
       address: {
         line1: payload.address1,
         line2: payload.address2,
         city: payload.city,
-        state: payload.state,
+        state: normalizedState,
+        stateOrProvince: normalizedState,
+        stateOrProvinceCode: normalizedState,
         zipcode: payload.zip,
         zipOrPostalCode: payload.zip,
         country: "US",
