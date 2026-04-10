@@ -195,10 +195,18 @@ export async function POST(req: NextRequest) {
         .from("technicians")
         .upsert(modernPayload, { onConflict: 'id' })
 
-      const missingColumnError = tErr?.message?.includes("Could not find the 'city' column")
-        || tErr?.message?.includes("Could not find the 'line1' column")
-        || tErr?.message?.includes("Could not find the 'state' column")
-        || tErr?.message?.includes("Could not find the 'zipcode' column")
+      const technicianErrorMessage = tErr?.message?.toLowerCase() ?? ""
+      const legacyAddressColumns = ["city", "line1", "state", "zipcode"]
+      const missingColumnError = legacyAddressColumns.some((column) => (
+        technicianErrorMessage.includes(`'${column}'`)
+        || technicianErrorMessage.includes(`"${column}"`)
+        || technicianErrorMessage.includes(column)
+      )) && (
+        technicianErrorMessage.includes("could not find")
+        || technicianErrorMessage.includes("does not exist")
+        || technicianErrorMessage.includes("missing")
+        || technicianErrorMessage.includes("column")
+      )
 
       if (tErr && missingColumnError) {
         const fallback = await serviceClient
