@@ -94,7 +94,7 @@ export class BillClient {
       return;
     }
 
-    const baseUrl = process.env.BILL_BASE_URL;
+    const baseUrl = this.apiUrl;
     const username = (process.env.BILL_USERNAME || "").trim();
     const password = (process.env.BILL_PASSWORD || "").trim();
     const organizationId = (process.env.BILL_ORGANIZATION_ID || "").trim();

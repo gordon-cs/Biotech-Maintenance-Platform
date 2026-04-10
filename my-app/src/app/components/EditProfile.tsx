@@ -225,7 +225,7 @@ export default function EditProfile() {
 
       // Prepare the request body based on role
       type RequestBody = {
-        role: "lab" | "technician" | null
+        role: "lab" | "technician" | "admin" | null
         full_name: string
         phone: string
         lab?: {
@@ -244,7 +244,7 @@ export default function EditProfile() {
       }
 
       const requestBody: RequestBody = {
-        role: profile?.role === "lab" || profile?.role === "technician" ? profile.role : null,
+        role: profile?.role === "lab" || profile?.role === "technician" || profile?.role === "admin" ? profile.role : null,
         full_name: fullName,
         phone: normalizedPhone
       }

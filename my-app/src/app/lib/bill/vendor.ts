@@ -361,7 +361,7 @@ export async function upsertVendorForTechnician(
       const network = await billClient.getVendorNetworkStatus(billResult.id);
       log(`Vendor ${billResult.id} network status: ${network.status}${network.rawStatus ? ` (${network.rawStatus})` : ""}`);
 
-      if (network.status !== "connected") {
+      if (network.status === "not_connected") {
         try {
           await billClient.sendVendorConnectionInvite(billResult.id, profile.email || undefined);
           log(`Sent Bill.com connection invite for vendor ${billResult.id}`);

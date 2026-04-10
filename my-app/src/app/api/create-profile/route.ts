@@ -190,15 +190,35 @@ export async function POST(req: NextRequest) {
         : techBase
 
       // Try modern schema first (with address columns), then fallback to legacy schema.
-      const modernPayload = existingTech ? { ...mergedBaseTech, ...techWithAddress } : techWithAddress
+      // When an existing row is present, overlay only address-specific columns so that
+      // mergedBaseTech (which correctly merges experience/bio/company/resume_url) wins.
+      const addressOnlyFields = existingTech
+        ? {
+            line1: body.tech?.line1 ?? null,
+            line2: body.tech?.line2 ?? null,
+            city: body.tech?.city ?? null,
+            state: body.tech?.state ?? null,
+            zipcode: body.tech?.zipcode ?? null,
+          }
+        : {}
+      const modernPayload = existingTech
+        ? { ...mergedBaseTech, ...addressOnlyFields }
+        : techWithAddress
       let { error: tErr } = await serviceClient
         .from("technicians")
         .upsert(modernPayload, { onConflict: 'id' })
 
-      const missingColumnError = tErr?.message?.includes("Could not find the 'city' column")
-        || tErr?.message?.includes("Could not find the 'line1' column")
-        || tErr?.message?.includes("Could not find the 'state' column")
-        || tErr?.message?.includes("Could not find the 'zipcode' column")
+      const technicianErrorMessage = tErr?.message?.toLowerCase() ?? ""
+      const legacyAddressColumns = ["city", "line1", "state", "zipcode"]
+      const missingColumnError = legacyAddressColumns.some((column) => (
+        technicianErrorMessage.includes(`'${column}'`)
+        || technicianErrorMessage.includes(`"${column}"`)
+      )) && (
+        technicianErrorMessage.includes("could not find")
+        || technicianErrorMessage.includes("does not exist")
+        || technicianErrorMessage.includes("missing")
+        || technicianErrorMessage.includes("column")
+      )
 
       if (tErr && missingColumnError) {
         const fallback = await serviceClient
