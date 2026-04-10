@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     const { data: technicians, error: queryError } = await supabaseAdmin
       .from("technicians")
       .select("id")
-      .or("bill_vendor_id.is.null,vendor_status.neq.synced");
+      .or("bill_vendor_id.is.null,vendor_status.is.null,vendor_status.neq.synced");
 
     if (queryError) {
       return NextResponse.json({ ok: false, error: queryError.message }, { status: 500 });
