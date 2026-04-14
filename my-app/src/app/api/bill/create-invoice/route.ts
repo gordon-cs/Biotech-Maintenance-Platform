@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
         updated_at?: string
       } = {}
 
-      if (invoice.payment_status !== 'awaiting_payment') {
+      if (invoice.payment_status === 'unbilled') {
         invoiceUpdates.payment_status = 'awaiting_payment'
       }
 

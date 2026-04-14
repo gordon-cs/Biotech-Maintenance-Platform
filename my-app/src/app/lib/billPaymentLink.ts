@@ -22,8 +22,6 @@ const PAYMENT_URL_KEYS = [
   'pay_link',
 ]
 
-const ID_KEYS = ['bill_ar_invoice_id', 'billInvoiceId', 'invoiceId', 'id']
-
 function asString(value: unknown): string | null {
   if (typeof value === 'string') {
     const trimmed = value.trim()
@@ -63,16 +61,13 @@ function findStringProperty(value: unknown, keys: string[]): string | null {
   return null
 }
 
-function applyTemplate(template: string, invoiceId: string): string {
-  return template
-    .replace(/\{\{\s*(?:invoiceId|billInvoiceId)\s*\}\}/gi, invoiceId)
-    .replace(/:invoiceId\b/gi, invoiceId)
-}
-
 function isBillPaymentUrl(candidate: string): boolean {
   try {
     const parsed = new URL(candidate)
-    return parsed.protocol === 'https:' && parsed.hostname.endsWith('bill.com')
+    return (
+      parsed.protocol === 'https:' &&
+      (parsed.hostname === 'bill.com' || parsed.hostname.endsWith('.bill.com'))
+    )
   } catch {
     return false
   }

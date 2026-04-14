@@ -510,7 +510,7 @@ export default function PaymentRequests() {
                       <a
                         href={selectedPaymentUrl}
                         target="_blank"
-                        rel="noreferrer"
+                        rel="noopener noreferrer"
                         className="mb-4 inline-flex w-full items-center justify-center rounded-lg border-2 border-green-600 bg-white py-3 px-6 font-semibold text-green-700 transition-all hover:bg-green-50"
                       >
                         Open Bill.com Payment Page

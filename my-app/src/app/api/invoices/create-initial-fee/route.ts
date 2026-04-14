@@ -40,11 +40,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Work order not found' }, { status: 404 })
     }
 
-    const { data: profile } = await supabaseAdmin
+    const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
       .select('role')
       .eq('id', user.id)
       .single()
+
+    if (profileError) {
+      return NextResponse.json({ error: profileError.message }, { status: 500 })
+    }
+
+    if (!profile) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
 
     const { data: lab, error: labError } = await supabaseAdmin
       .from('labs')
@@ -113,7 +121,7 @@ export async function POST(request: NextRequest) {
         updated_at?: string
       } = {}
 
-      if (invoice.payment_status !== 'awaiting_payment') {
+      if (invoice.payment_status === 'unbilled') {
         invoiceUpdates.payment_status = 'awaiting_payment'
       }
 
@@ -124,10 +132,14 @@ export async function POST(request: NextRequest) {
       if (Object.keys(invoiceUpdates).length > 0) {
         invoiceUpdates.updated_at = new Date().toISOString()
 
-        await supabaseAdmin
+        const { error: existingUpdateError } = await supabaseAdmin
           .from('invoices')
           .update(invoiceUpdates)
           .eq('id', invoice.id)
+
+        if (existingUpdateError) {
+          return NextResponse.json({ error: existingUpdateError.message }, { status: 500 })
+        }
       }
 
       return NextResponse.json({
@@ -199,7 +211,7 @@ export async function POST(request: NextRequest) {
     const paymentUrl = resolveBillPaymentUrl(billInvoice)
 
     // Update invoice with Bill.com ID
-    await supabaseAdmin
+    const { error: updateError } = await supabaseAdmin
       .from('invoices')
       .update({
         bill_ar_invoice_id: billInvoice.id,
@@ -208,6 +220,10 @@ export async function POST(request: NextRequest) {
         updated_at: new Date().toISOString(),
       })
       .eq('id', invoice.id)
+
+    if (updateError) {
+      return NextResponse.json({ error: updateError.message }, { status: 500 })
+    }
 
     // Send initial fee invoice email to lab manager
     try {
