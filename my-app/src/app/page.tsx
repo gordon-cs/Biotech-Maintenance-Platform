@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { supabase } from "@/lib/supabaseClient"
+import { getSessionSafe, supabase } from "@/lib/supabaseClient"
 import TechnicianDashboard from "./technician/TechnicianDashboard"
 
 export default function Home() {
@@ -32,7 +32,9 @@ export default function Home() {
 
     const loadRole = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession()
+        const {
+          data: { session },
+        } = await getSessionSafe()
 
         if (!session?.user) {
           if (mounted) {

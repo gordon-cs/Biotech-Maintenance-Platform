@@ -11,6 +11,14 @@ type Category = {
   active: boolean
 }
 
+const US_STATE_CODES = [
+  "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA",
+  "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD",
+  "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ",
+  "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC",
+  "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY", "DC",
+]
+
 export default function CompleteTechInfo({ initialFull = "", initialPhone = "" }: { initialFull?: string; initialPhone?: string }) {
   const router = useRouter()
   const [company, setCompany] = useState("")
@@ -20,6 +28,11 @@ export default function CompleteTechInfo({ initialFull = "", initialPhone = "" }
   const [categories, setCategories] = useState<Category[]>([])
   const [fullName, setFullName] = useState(initialFull)
   const [phone, setPhone] = useState(initialPhone)
+  const [line1, setLine1] = useState("")
+  const [line2, setLine2] = useState("")
+  const [city, setCity] = useState("")
+  const [addressState, setAddressState] = useState("")
+  const [zipcode, setZipcode] = useState("")
   // helper: keep digits only
   const sanitizePhone = (raw: string): string => {
     return (raw ?? "").replace(/[^\d]/g, "")
@@ -194,7 +207,12 @@ export default function CompleteTechInfo({ initialFull = "", initialPhone = "" }
              experience,
              bio,
              company: company || null,
-             resume_url: resumePath
+             resume_url: resumePath,
+             line1: line1 || null,
+             line2: line2 || null,
+             city: city || null,
+             state: addressState || null,
+             zipcode: zipcode || null,
            }
          })
        })
@@ -219,7 +237,22 @@ export default function CompleteTechInfo({ initialFull = "", initialPhone = "" }
  
       // Mark profile as successfully created
       profileCreated = true
- 
+
+      // Trigger vendor sync non-blocking (best-effort)
+      try {
+        await fetch("/api/bill/vendors/sync", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({ technicianId: session.user.id })
+        })
+      } catch {
+        // Non-blocking: vendor sync failure should not prevent profile creation
+        console.warn("Vendor sync failed during profile creation — will retry on edit profile")
+      }
+
       // Now insert the technician categories
       const { error: categoryError } = await supabase
         .from('technician_categories')
@@ -329,6 +362,52 @@ export default function CompleteTechInfo({ initialFull = "", initialPhone = "" }
             )}
           </div>
           
+          <div className="mb-6">
+            <label className="block mb-2 font-medium text-gray-700">Address</label>
+            <input
+              value={line1}
+              onChange={e => setLine1(e.target.value)}
+              placeholder="Street address"
+              required
+              className="w-full border border-gray-300 rounded px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2"
+            />
+            <input
+              value={line2}
+              onChange={e => setLine2(e.target.value)}
+              placeholder="Apt, suite, etc. (optional)"
+              className="w-full border border-gray-300 rounded px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2"
+            />
+            <div className="grid grid-cols-3 gap-2">
+              <input
+                value={city}
+                onChange={e => setCity(e.target.value)}
+                placeholder="City"
+                required
+                className="border border-gray-300 rounded px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <select
+                value={addressState}
+                onChange={e => setAddressState(e.target.value)}
+                required
+                className="border border-gray-300 rounded px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">State</option>
+                {US_STATE_CODES.map((code) => (
+                  <option key={code} value={code}>
+                    {code}
+                  </option>
+                ))}
+              </select>
+              <input
+                value={zipcode}
+                onChange={e => setZipcode(e.target.value)}
+                placeholder="ZIP"
+                required
+                className="border border-gray-300 rounded px-4 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+
           <div className="mb-6">
             <label className="block mb-2 font-medium text-gray-700">Select your specialties (at least one required):</label>
             <div className="border border-gray-300 rounded p-3 max-h-48 overflow-y-auto bg-white">

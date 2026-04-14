@@ -4,6 +4,7 @@ import AuthGate from '@/components/AuthGate'
 
 const replaceMock = vi.fn()
 const getSessionMock = vi.fn()
+const getSessionSafeMock = vi.fn()
 const onAuthStateChangeMock = vi.fn()
 let authListener: ((event: string, session: unknown) => void) | null = null
 
@@ -12,6 +13,7 @@ vi.mock('next/navigation', () => ({
 }))
 
 vi.mock('@/lib/supabaseClient', () => ({
+  getSessionSafe: (...args: unknown[]) => getSessionSafeMock(...args),
   supabase: {
     auth: {
       getSession: (...args: unknown[]) => getSessionMock(...args),
@@ -37,7 +39,7 @@ describe('AuthGate', () => {
   })
 
   it('renders children when session exists', async () => {
-    getSessionMock.mockResolvedValue({
+    getSessionSafeMock.mockResolvedValue({
       data: { session: { user: { id: 'u1' } } },
     })
 
@@ -53,7 +55,7 @@ describe('AuthGate', () => {
   })
 
   it('redirects to login when there is no session', async () => {
-    getSessionMock.mockResolvedValue({
+    getSessionSafeMock.mockResolvedValue({
       data: { session: null },
     })
 
@@ -69,7 +71,7 @@ describe('AuthGate', () => {
   })
 
   it('redirects when auth state changes to signed out', async () => {
-    getSessionMock.mockResolvedValue({
+    getSessionSafeMock.mockResolvedValue({
       data: { session: { user: { id: 'u1' } } },
     })
 

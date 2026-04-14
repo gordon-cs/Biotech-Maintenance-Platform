@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { supabase } from "@/lib/supabaseClient"
+import { getSessionSafe, supabase } from "@/lib/supabaseClient"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import type { Session } from "@supabase/supabase-js"
@@ -16,22 +16,36 @@ export default function AuthStatus() {
     let mounted = true;
 
     const get = async () => {
-      const { data } = await supabase.auth.getSession();
-      if (!mounted) return;
-      setSession(data?.session ?? null);
-      
-      // Get user's role
-      if (data?.session?.user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("role")
-          .eq("id", data.session.user.id)
-          .single();
-        
-        if (mounted) {
-          setUserRole(profile?.role ?? null);
-          setHasRole(profile?.role !== null && profile?.role !== undefined);
+      try {
+        const { data, error } = await getSessionSafe();
+        if (!mounted) return;
+        if (error) {
+          setSession(null);
+          setUserRole(null);
+          setHasRole(null);
+          return;
         }
+
+        setSession(data?.session ?? null);
+
+        // Get user's role
+        if (data?.session?.user) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("role")
+            .eq("id", data.session.user.id)
+            .single();
+
+          if (mounted) {
+            setUserRole(profile?.role ?? null);
+            setHasRole(profile?.role !== null && profile?.role !== undefined);
+          }
+        }
+      } catch {
+        if (!mounted) return;
+        setSession(null);
+        setUserRole(null);
+        setHasRole(null);
       }
     };
     get();
@@ -41,17 +55,23 @@ export default function AuthStatus() {
       
       // Update role when auth state changes
       if (s?.user) {
-        supabase
-          .from("profiles")
-          .select("role")
-          .eq("id", s.user.id)
-          .single()
-          .then(({ data: profile }) => {
+        void (async () => {
+          try {
+            const { data: profile } = await supabase
+              .from("profiles")
+              .select("role")
+              .eq("id", s.user.id)
+              .single();
+
             if (profile) {
               setUserRole(profile.role);
             }
             setHasRole(profile?.role !== null && profile?.role !== undefined);
-          });
+          } catch {
+            setUserRole(null);
+            setHasRole(null);
+          }
+        })();
       } else {
         setUserRole(null);
         setHasRole(null);
@@ -65,9 +85,12 @@ export default function AuthStatus() {
   }, []);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
-    setSession(null);
-    router.push("/");
+    try {
+      await supabase.auth.signOut();
+    } finally {
+      setSession(null);
+      router.push("/");
+    }
   };
 
   if (!session) {

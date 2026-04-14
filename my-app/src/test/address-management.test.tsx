@@ -4,11 +4,17 @@ import AddressManagement from '@/components/AddressManagement'
 
 const getUserMock = vi.fn()
 const fromMock = vi.fn()
+const pushMock = vi.fn()
 
 vi.stubGlobal('confirm', vi.fn(() => true))
 
 vi.mock('next/link', () => ({
   default: ({ children, href }: { children: React.ReactNode; href: string }) => <a href={href}>{children}</a>,
+}))
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: pushMock, replace: pushMock }),
+  useSearchParams: () => ({ get: () => null }),
 }))
 
 vi.mock('@/lib/supabaseClient', () => ({
@@ -23,6 +29,7 @@ vi.mock('@/lib/supabaseClient', () => ({
 describe('AddressManagement', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    pushMock.mockReset()
 
     getUserMock.mockResolvedValue({
       data: { user: { id: 'manager-1' } },

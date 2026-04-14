@@ -441,3 +441,110 @@ This is an automated notification from the Biotech Maintenance Platform.
     return { success: false, error }
   }
 }
+
+type VendorConnectionInviteEmailData = {
+  recipientEmail: string
+  recipientName?: string | null
+  vendorName: string
+  vendorId: string
+}
+
+export async function sendVendorConnectionInviteEmail(
+  data: VendorConnectionInviteEmailData
+) {
+  const escapedRecipientName = data.recipientName ? escapeHtml(data.recipientName) : ''
+  const escapedVendorName = escapeHtml(data.vendorName)
+  const escapedVendorId = escapeHtml(data.vendorId)
+
+  const subject = 'Action Required: Connect your Bill.com profile for ACH payments'
+
+  const emailHtml = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background-color: #0f766e; color: white; padding: 20px; border-radius: 6px 6px 0 0; }
+          .content { background: #f9fafb; border: 1px solid #e5e7eb; border-top: none; padding: 20px; border-radius: 0 0 6px 6px; }
+          .steps { background: #fff; border-left: 4px solid #0f766e; padding: 14px; margin: 16px 0; }
+          .button { display: inline-block; padding: 12px 22px; background: #0f766e; color: #fff; text-decoration: none; border-radius: 6px; font-weight: 600; }
+          .footer { margin-top: 18px; font-size: 12px; color: #6b7280; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h2 style="margin:0;">Complete Vendor Connection for ACH Payments</h2>
+          </div>
+          <div class="content">
+            <p>Hello${escapedRecipientName ? ` ${escapedRecipientName}` : ''},</p>
+            <p>
+              Your vendor profile (<strong>${escapedVendorName}</strong>) is synced, but your Bill.com payment network status is not connected yet.
+            </p>
+
+            <div class="steps">
+              <strong>What to do next:</strong>
+              <ol>
+                <li>Open Bill.com and find your vendor invitation.</li>
+                <li>Click <em>Invite to connect in Bill.com</em> (if prompted).</li>
+                <li>Create/login to Bill.com and add your bank details.</li>
+                <li>Accept the payment network connection.</li>
+              </ol>
+            </div>
+
+            <p>
+              After this is completed, your network status should show as <strong>Connected</strong> and ACH payouts can proceed.
+            </p>
+
+            <p>
+              <a class="button" href="https://app.bill.com">Open Bill.com</a>
+            </p>
+
+            <div class="footer">
+              <p>Vendor ID: ${escapedVendorId}</p>
+              <p>This is an automated message from the Biotech Maintenance Platform.</p>
+            </div>
+          </div>
+        </div>
+      </body>
+    </html>
+  `
+
+  const emailText = `
+Complete Vendor Connection for ACH Payments
+
+Hello${data.recipientName ? ` ${data.recipientName}` : ''},
+
+Your vendor profile (${data.vendorName}) is synced, but your Bill.com payment network status is not connected yet.
+
+What to do next:
+1) Open Bill.com and find your vendor invitation.
+2) Click "Invite to connect in Bill.com" (if prompted).
+3) Create/login to Bill.com and add your bank details.
+4) Accept the payment network connection.
+
+After this is completed, your network status should show as Connected and ACH payouts can proceed.
+
+Open Bill.com: https://app.bill.com
+Vendor ID: ${data.vendorId}
+
+This is an automated message from the Biotech Maintenance Platform.
+  `.trim()
+
+  try {
+    const result = await resend.emails.send({
+      from: process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev',
+      to: data.recipientEmail,
+      subject,
+      html: emailHtml,
+      text: emailText,
+    })
+
+    return { success: true, data: result }
+  } catch (error) {
+    console.error('Failed to send vendor connection invite email:', error)
+    return { success: false, error }
+  }
+}

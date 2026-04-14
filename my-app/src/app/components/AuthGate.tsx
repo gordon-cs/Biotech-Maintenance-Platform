@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
+import { getSessionSafe, supabase } from "@/lib/supabaseClient";
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
@@ -12,12 +12,16 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     let active = true;
 
     const init = async () => {
-      const { data } = await supabase.auth.getSession();
-      if (!data.session) {
+      try {
+        const { data, error } = await getSessionSafe();
+        if (error || !data.session) {
+          router.replace("/login");
+          return;
+        }
+        if (active) setLoading(false);
+      } catch {
         router.replace("/login");
-        return;
       }
-      if (active) setLoading(false);
     };
 
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
