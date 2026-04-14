@@ -103,6 +103,18 @@ export default function TechnicianDetail({
                     Accept Job
                   </button>
                 )}
+
+                {/* Allow technicians to cancel a claimed job assigned to them */}
+                {activeTab === "mine" &&
+                  (order.status ?? "").toLowerCase() === "claimed" &&
+                  String(order.assigned_to ?? "") === String(currentUserId ?? "") && (
+                    <button
+                      onClick={() => setConfirmModal({ isOpen: true, action: "cancel" })}
+                      className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md text-sm font-medium"
+                    >
+                      Cancel Job
+                    </button>
+                  )}
               </div>
             </div>
           </div>
