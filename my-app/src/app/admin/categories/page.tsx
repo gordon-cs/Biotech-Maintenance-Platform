@@ -25,9 +25,11 @@ export default function AdminCategoriesPage() {
   const [toggling, setToggling] = useState<Record<number, boolean>>({})
   const [message, setMessage] = useState<string | null>(null)
 
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true)
+  // move loader to component scope so both useEffect and buttons can call it
+  const loadAll = async () => {
+    setLoading(true)
+    setMessage(null)
+    try {
       const { data, error } = await supabase
         .from("categories")
         .select("id, slug, name, initial_fee, active, created_at")
@@ -35,17 +37,21 @@ export default function AdminCategoriesPage() {
       if (error) {
         console.error(error)
         setMessage("Failed to load categories.")
+        setCats([])
+        setFeeDrafts({})
       } else {
         setCats(data ?? [])
         const drafts: Record<number, string> = {}
-        for (const cat of data ?? []) {
-          drafts[cat.id] = String(cat.initial_fee ?? 0)
-        }
+        for (const cat of data ?? []) drafts[cat.id] = String(cat.initial_fee ?? 0)
         setFeeDrafts(drafts)
       }
+    } finally {
       setLoading(false)
     }
-    load()
+  }
+
+  useEffect(() => {
+    void loadAll()
   }, [])
 
   const slugify = (s: string) =>
@@ -171,93 +177,106 @@ export default function AdminCategoriesPage() {
   }
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold">Manage Categories</h2>
-        <div className="flex items-center gap-2">
-          <input
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            placeholder="New category name"
-            className="px-2 py-1 border rounded"
-          />
-          <input
-            value={newSlug}
-            onChange={(e) => setNewSlug(e.target.value)}
-            placeholder="optional slug"
-            className="px-2 py-1 border rounded"
-          />
-          <input
-            value={newInitialFee}
-            onChange={(e) => setNewInitialFee(e.target.value)}
-            placeholder="initial fee"
-            type="number"
-            min="0"
-            step="0.01"
-            className="w-28 px-2 py-1 border rounded"
-          />
-          <button
-            onClick={addCategory}
-            disabled={adding}
-            className="px-3 py-1 bg-green-600 text-white rounded disabled:opacity-50"
-          >
-            {adding ? "Adding..." : "Add"}
-          </button>
+    <div className="p-8">
+      <main className="max-w-7xl mx-auto">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-semibold">Manage Categories</h2>
+          <div className="flex items-center gap-3">
+            <button onClick={() => { setMessage(null); void loadAll(); }} className="px-3 py-1 border rounded">
+              Refresh
+            </button>
+            {loading ? <div className="text-sm text-gray-500">Loading...</div> : null}
+          </div>
         </div>
-      </div>
 
-      {message && <div className="mb-3 text-sm text-red-600">{message}</div>}
+        {message && <div className="mb-3 text-sm text-red-600">{message}</div>}
 
-      {loading ? (
-        <div>Loading...</div>
-      ) : (
-        <ul className="space-y-2">
-          {cats.length === 0 && <li className="text-sm text-gray-600">No categories found.</li>}
-          {cats.map((c) => (
-            <li key={c.id} className="flex items-center justify-between p-2 border rounded">
-              <div className="flex flex-col">
-                <span className="font-medium">{c.name ?? `#${c.id}`}</span>
-                <span className="text-xs text-gray-600">{c.slug ?? "—"}</span>
-                <span className="text-xs text-gray-600">Initial fee: ${Number(c.initial_fee ?? 0).toFixed(2)}</span>
-                <span className="text-xs text-gray-500">Created: {c.created_at ? new Date(c.created_at).toLocaleString() : "—"}</span>
-              </div>
+        <div className="bg-white rounded-lg shadow p-4 mb-6">
+          <div className="flex items-center gap-3">
+            <input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="New category name"
+              className="px-2 py-2 border rounded w-64"
+            />
+            <input
+              value={newSlug}
+              onChange={(e) => setNewSlug(e.target.value)}
+              placeholder="optional slug"
+              className="px-2 py-2 border rounded w-48"
+            />
+            <input
+              value={newInitialFee}
+              onChange={(e) => setNewInitialFee(e.target.value)}
+              placeholder="initial fee"
+              type="number"
+              min="0"
+              step="0.01"
+              className="w-28 px-2 py-2 border rounded"
+            />
+            <button
+              onClick={addCategory}
+              disabled={adding}
+              className="px-3 py-2 bg-green-600 text-white rounded disabled:opacity-50"
+            >
+              {adding ? "Adding..." : "Add Category"}
+            </button>
+          </div>
+        </div>
 
-              <div className="flex items-center gap-2">
-                <input
-                  value={feeDrafts[c.id] ?? ""}
-                  onChange={(e) => setFeeDrafts((s) => ({ ...s, [c.id]: e.target.value }))}
-                  className="w-24 px-2 py-1 border rounded text-sm"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                />
-                <button
-                  onClick={() => saveInitialFee(c.id)}
-                  disabled={!!savingFee[c.id]}
-                  className="px-2 py-1 text-sm bg-blue-600 text-white rounded disabled:opacity-50"
-                >
-                  {savingFee[c.id] ? "Saving..." : "Save Fee"}
-                </button>
-                <button
-                  onClick={() => toggleActive(c.id, c.active)}
-                  disabled={!!toggling[c.id]}
-                  className={`px-2 py-1 text-sm rounded ${c.active ? "bg-yellow-500 text-white" : "bg-gray-200 text-gray-800"}`}
-                >
-                  {toggling[c.id] ? "Saving..." : c.active ? "Active" : "Inactive"}
-                </button>
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          {loading ? (
+            <div className="p-6">Loading...</div>
+          ) : (
+            <ul className="space-y-2 p-4">
+              {cats.length === 0 && <li className="text-sm text-gray-600">No categories found.</li>}
+              {cats.map((c) => (
+                <li key={c.id} className="flex items-center justify-between p-3 border rounded">
+                  <div className="flex flex-col">
+                    <span className="font-medium">{c.name ?? `#${c.id}`}</span>
+                    <span className="text-xs text-gray-600">{c.slug ?? "—"}</span>
+                    <span className="text-xs text-gray-600">Initial fee: ${Number(c.initial_fee ?? 0).toFixed(2)}</span>
+                    <span className="text-xs text-gray-500">Created: {c.created_at ? new Date(c.created_at).toLocaleString() : "—"}</span>
+                  </div>
 
-                <button
-                  onClick={() => removeCategory(c.id)}
-                  disabled={!!deleting[c.id]}
-                  className="px-2 py-1 text-sm bg-red-600 text-white rounded disabled:opacity-50"
-                >
-                  {deleting[c.id] ? "Deleting..." : "Delete"}
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
+                  <div className="flex items-center gap-2">
+                    <input
+                      value={feeDrafts[c.id] ?? ""}
+                      onChange={(e) => setFeeDrafts((s) => ({ ...s, [c.id]: e.target.value }))}
+                      className="w-24 px-2 py-1 border rounded text-sm"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                    />
+                    <button
+                      onClick={() => saveInitialFee(c.id)}
+                      disabled={!!savingFee[c.id]}
+                      className="px-2 py-1 text-sm bg-blue-600 text-white rounded disabled:opacity-50"
+                    >
+                      {savingFee[c.id] ? "Saving..." : "Save Fee"}
+                    </button>
+                    <button
+                      onClick={() => toggleActive(c.id, c.active)}
+                      disabled={!!toggling[c.id]}
+                      className={`px-2 py-1 text-sm rounded ${c.active ? "bg-yellow-500 text-white" : "bg-gray-200 text-gray-800"}`}
+                    >
+                      {toggling[c.id] ? "Saving..." : c.active ? "Active" : "Inactive"}
+                    </button>
+
+                    <button
+                      onClick={() => removeCategory(c.id)}
+                      disabled={!!deleting[c.id]}
+                      className="px-2 py-1 text-sm bg-red-600 text-white rounded disabled:opacity-50"
+                    >
+                      {deleting[c.id] ? "Deleting..." : "Delete"}
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </main>
     </div>
   )
 }
