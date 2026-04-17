@@ -2,7 +2,7 @@ type BillPaymentLinkSource = {
   id?: string | number
   invoiceId?: string | number
   billInvoiceId?: string | number
-  bill_ar_invoice_id?: string | number
+  bill_ar_invoice_id?: string | number | null
   paymentUrl?: string | null
   payment_url?: string | null
 }
@@ -61,6 +61,44 @@ function findStringProperty(value: unknown, keys: string[]): string | null {
   return null
 }
 
+function collectBillUrlCandidates(value: unknown, seen = new Set<unknown>()): string[] {
+  if (!value || typeof value !== 'object') {
+    return []
+  }
+
+  if (seen.has(value)) {
+    return []
+  }
+  seen.add(value)
+
+  const record = value as Record<string, unknown>
+  const candidates: string[] = []
+
+  for (const fieldValue of Object.values(record)) {
+    if (typeof fieldValue === 'string') {
+      candidates.push(fieldValue)
+      continue
+    }
+
+    if (Array.isArray(fieldValue)) {
+      for (const item of fieldValue) {
+        if (typeof item === 'string') {
+          candidates.push(item)
+        } else if (item && typeof item === 'object') {
+          candidates.push(...collectBillUrlCandidates(item, seen))
+        }
+      }
+      continue
+    }
+
+    if (fieldValue && typeof fieldValue === 'object') {
+      candidates.push(...collectBillUrlCandidates(fieldValue, seen))
+    }
+  }
+
+  return candidates
+}
+
 function isBillPaymentUrl(candidate: string): boolean {
   try {
     const parsed = new URL(candidate)
@@ -77,6 +115,20 @@ export function resolveBillPaymentUrl(source: BillPaymentLinkSource | null | und
   const directUrl = findStringProperty(source, PAYMENT_URL_KEYS)
   if (directUrl && isBillPaymentUrl(directUrl)) {
     return directUrl
+  }
+
+  // Bill.com may return hosted payment links under variable key names.
+  const deepCandidates = collectBillUrlCandidates(source)
+  const guestPaymentUrl = deepCandidates.find(
+    (candidate) => isBillPaymentUrl(candidate) && candidate.includes('/guest/session/pay/')
+  )
+  if (guestPaymentUrl) {
+    return guestPaymentUrl
+  }
+
+  const anyBillUrl = deepCandidates.find((candidate) => isBillPaymentUrl(candidate))
+  if (anyBillUrl) {
+    return anyBillUrl
   }
 
   return null

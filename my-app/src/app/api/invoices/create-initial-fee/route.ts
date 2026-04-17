@@ -199,7 +199,7 @@ export async function POST(request: NextRequest) {
     // Create invoice in Bill.com
     const billInvoice = await billClient.createARInvoice({
       customerId: billCustomerId,
-      invoiceNumber: `WO-${workOrderId}-INITIAL`,
+      invoiceNumber: `WO-${workOrderId}-INITIAL-INV-${invoice.id}`,
       invoiceDate,
       dueDate,
       description: `Initial Fee - ${workOrder.title || 'Work Order'}`,

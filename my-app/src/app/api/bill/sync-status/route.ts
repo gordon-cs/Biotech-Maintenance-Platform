@@ -11,16 +11,44 @@ const supabaseAdmin = createClient(
 const DEBUG = process.env.DEBUG === 'true'
 const log = (msg: string) => DEBUG && console.log(msg)
 
+function getBillAppBaseUrl(): string {
+  const configured = process.env.BILL_APP_BASE_URL?.trim()
+  if (configured) {
+    return configured.replace(/\/$/, '')
+  }
+
+  const gatewayBase = process.env.BILL_BASE_URL || ''
+  if (/stage/i.test(gatewayBase)) {
+    return 'https://app-stage02.us.bill.com'
+  }
+
+  return 'https://app.bill.com'
+}
+
+function buildGuestPaymentUrlFromInvoiceId(billArInvoiceId: string | null | undefined): string | null {
+  if (!billArInvoiceId || typeof billArInvoiceId !== 'string') {
+    return null
+  }
+
+  const normalized = billArInvoiceId.trim()
+  if (!normalized) {
+    return null
+  }
+
+  const baseUrl = getBillAppBaseUrl()
+  return `${baseUrl}/app/arp/guest/session/pay/${encodeURIComponent(normalized)}?paymentLinkSource=Webapp`
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const { invoiceId } = await request.json()
+    const { invoiceId, billArInvoiceId } = await request.json()
 
     log(`[Sync Status] ===== START SYNC FOR INVOICE ${invoiceId} =====`)
 
-    if (!invoiceId) {
+    if (!invoiceId && !billArInvoiceId) {
       log('[Sync Status] Missing invoiceId')
       return NextResponse.json(
-        { error: 'Missing invoiceId' },
+        { error: 'Missing invoiceId or billArInvoiceId' },
         { status: 400 }
       )
     }
@@ -77,19 +105,98 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Get invoice record to find the Bill.com invoice ID
-    const { data: invoice, error: invoiceError } = await supabaseAdmin
-      .from('invoices')
-      .select('id, bill_ar_invoice_id, payment_status')
-      .eq('id', invoiceId)
-      .single()
+    // Resolve local invoice by local id first, then by Bill invoice id fallback.
+    let invoice: {
+      id: number
+      bill_ar_invoice_id: string | null
+      payment_status: string
+      payment_url: string | null
+    } | null = null
 
-    if (invoiceError || !invoice) {
-      log('[Sync Status] Invoice not found: ' + invoiceError?.message)
-      return NextResponse.json(
-        { error: 'Invoice not found' },
-        { status: 404 }
-      )
+    const parsedInvoiceId =
+      typeof invoiceId === 'number'
+        ? invoiceId
+        : typeof invoiceId === 'string' && invoiceId.trim() !== '' && Number.isFinite(Number(invoiceId))
+          ? Number(invoiceId)
+          : null
+
+    if (parsedInvoiceId !== null) {
+      const { data: byLocalId } = await supabaseAdmin
+        .from('invoices')
+        .select('id, bill_ar_invoice_id, payment_status, payment_url')
+        .eq('id', parsedInvoiceId)
+        .maybeSingle()
+
+      invoice = byLocalId
+    }
+
+    if (!invoice) {
+      const candidateBillInvoiceId =
+        typeof billArInvoiceId === 'string' && billArInvoiceId.trim() !== ''
+          ? billArInvoiceId.trim()
+          : typeof invoiceId === 'string' && invoiceId.trim() !== ''
+            ? invoiceId.trim()
+            : null
+
+      if (candidateBillInvoiceId) {
+        const { data: byBillId } = await supabaseAdmin
+          .from('invoices')
+          .select('id, bill_ar_invoice_id, payment_status, payment_url')
+          .eq('bill_ar_invoice_id', candidateBillInvoiceId)
+          .maybeSingle()
+
+        invoice = byBillId
+      }
+    }
+
+    if (!invoice) {
+      const directBillInvoiceId =
+        typeof billArInvoiceId === 'string' && billArInvoiceId.trim() !== ''
+          ? billArInvoiceId.trim()
+          : typeof invoiceId === 'string' && invoiceId.trim() !== ''
+            ? invoiceId.trim()
+            : null
+
+      if (!directBillInvoiceId) {
+        log('[Sync Status] Invoice not found and no Bill.com id available')
+        return NextResponse.json(
+          { error: 'Invoice not found in database. Please re-open from Payment Requests and try again.' },
+          { status: 404 }
+        )
+      }
+
+      try {
+        const billInvoiceData = await billClient.getInvoiceStatus(directBillInvoiceId)
+        const paymentUrl = billInvoiceData.paymentUrl || buildGuestPaymentUrlFromInvoiceId(directBillInvoiceId)
+        let mappedStatus = 'awaiting_payment'
+
+        if (
+          billInvoiceData.paid === 1 ||
+          billInvoiceData.status === 'paid' ||
+          billInvoiceData.status === 'PAID_IN_FULL' ||
+          billInvoiceData.status?.toUpperCase() === 'PAID_IN_FULL'
+        ) {
+          mappedStatus = 'paid'
+        }
+
+        return NextResponse.json({
+          status: mappedStatus,
+          previousStatus: null,
+          statusChanged: false,
+          paymentUrl,
+          synchronized: true,
+          localInvoiceMissing: true,
+          billStatus: billInvoiceData.status,
+          amount: billInvoiceData.amount,
+          amountPaid: billInvoiceData.amountPaid,
+        })
+      } catch (directBillError) {
+        log('[Sync Status] Invoice not found locally and direct Bill.com query failed: ' + (directBillError instanceof Error ? directBillError.message : String(directBillError)))
+        return NextResponse.json(
+          { error: 'Invoice not found in database and Bill.com lookup failed' },
+          { status: 404 }
+        )
+      }
     }
     log('[Sync Status] Invoice found: id=' + invoice.id + ', bill_id=' + invoice.bill_ar_invoice_id + ', status=' + invoice.payment_status)
 
@@ -106,6 +213,10 @@ export async function POST(request: NextRequest) {
       log(`[Sync Status] Querying Bill.com for invoice ${invoice.bill_ar_invoice_id}...`)
       const billInvoiceData = await billClient.getInvoiceStatus(invoice.bill_ar_invoice_id)
       log('[Sync Status] Bill.com response: ' + JSON.stringify(billInvoiceData))
+      const paymentUrl =
+        billInvoiceData.paymentUrl ||
+        invoice.payment_url ||
+        buildGuestPaymentUrlFromInvoiceId(invoice.bill_ar_invoice_id)
 
       // Map Bill.com status to our payment status
       let mappedStatus = 'awaiting_payment'
@@ -127,10 +238,19 @@ export async function POST(request: NextRequest) {
 
       log(`[Sync Status] Status comparison: Current="${invoice.payment_status}" vs New="${mappedStatus}" - Changed: ${statusChanged}`)
 
-      if (statusChanged) {
+      const paymentUrlChanged = Boolean(paymentUrl && paymentUrl !== invoice.payment_url)
+
+      if (statusChanged || paymentUrlChanged) {
         const updateData: Record<string, unknown> = {
-          payment_status: mappedStatus,
           updated_at: new Date().toISOString(),
+        }
+
+        if (statusChanged) {
+          updateData.payment_status = mappedStatus
+        }
+
+        if (paymentUrlChanged) {
+          updateData.payment_url = paymentUrl
         }
 
         // Add paid_at timestamp if status changed to paid
@@ -161,6 +281,7 @@ export async function POST(request: NextRequest) {
         status: mappedStatus,
         previousStatus: invoice.payment_status,
         statusChanged: statusChanged,
+        paymentUrl: paymentUrl || null,
         synchronized: true,
         billStatus: billInvoiceData.status,
         amount: billInvoiceData.amount,
@@ -171,6 +292,7 @@ export async function POST(request: NextRequest) {
       // Return current status if Bill.com query fails
       return NextResponse.json({
         status: invoice.payment_status,
+        paymentUrl: invoice.payment_url || buildGuestPaymentUrlFromInvoiceId(invoice.bill_ar_invoice_id),
         synchronized: false,
         error: 'Failed to query Bill.com, using cached status'
       }, { status: 200 })
