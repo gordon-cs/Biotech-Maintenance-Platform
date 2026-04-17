@@ -25,7 +25,7 @@ type WorkOrderPayload = {
 // small row shapes used for casting query results
 type LabRow = { id: number; manager_id: string }
 // full category shape used in the dropdown
-type CategoryRow = { id: number; slug: string; name: string }
+type CategoryRow = { id: number; slug: string; name: string; initial_fee?: number | null }
 type AddressRow = { id: number; line1: string | null; line2: string | null; city: string | null; state: string | null; zipcode: string | null }
 type InsertIdRow = { id: string } // bigint/int8 is returned as string by the client
 
@@ -59,14 +59,15 @@ export default function WorkOrderSubmission() {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<{ id?: string; message: string } | null>(null)
   const [showConfirmation, setShowConfirmation] = useState(false)
-  // Fixed initial fee set by platform admin (BBM)
-  const labInitialFee = 50.00 // Platform-wide initial service fee
+  // Derive initial fee from the selected category
+  const selectedCategory = categories.find(c => c.id === Number(form.category_id) || c.slug === form.category_id)
+  const labInitialFee = selectedCategory?.initial_fee ?? 0
 
   useEffect(() => {
     let mounted = true
     const load = async () => {
       // Load categories
-      const { data: catData, error: catError } = await supabase.from("categories").select("id,slug,name")
+      const { data: catData, error: catError } = await supabase.from("categories").select("id,slug,name,initial_fee").order("id", { ascending: true })
       if (!catError && catData && mounted) {
         setCategories(catData as CategoryRow[])
       }
