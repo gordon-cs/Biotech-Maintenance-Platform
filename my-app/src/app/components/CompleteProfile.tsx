@@ -55,7 +55,6 @@ export default function CompleteProfile() {
         
         // If user already has a role set, redirect them to home
         if (data?.role) {
-          console.log("User already has a role set, redirecting to home")
           router.push("/")
           return
         }

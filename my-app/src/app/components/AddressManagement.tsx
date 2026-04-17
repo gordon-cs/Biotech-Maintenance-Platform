@@ -166,7 +166,6 @@ export default function AddressManagement() {
           console.error("Insert error:", error)
           throw new Error(error.message || "Failed to add address")
         }
-        console.log("Address created:", data)
         const newAddressId = data?.[0]?.id
         setMessage("Address added successfully!")
         

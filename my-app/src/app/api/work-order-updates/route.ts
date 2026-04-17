@@ -264,24 +264,18 @@ export async function POST(req: NextRequest) {
         const authorRole = author?.role as string
         const authorName = author?.full_name || author?.email || "Unknown User"
         
-        console.log("Email notification - Author role:", authorRole)
-        console.log("Email notification - Work order assigned_to:", workOrderDetails.assigned_to)
-        
         // Determine recipient based on author role
         let recipientEmail: string | null = null
         let recipientName: string | null = null
 
         if (authorRole === "technician") {
           // Technician posted update -> send to lab manager
-          console.log("Technician posted update - fetching lab manager")
           // Get the lab manager's info
           const { data: labData } = await serviceClient
             .from("labs")
             .select("manager_id")
             .eq("id", workOrderDetails.lab)
             .single()
-          
-          console.log("Lab data:", labData)
           
           if (labData?.manager_id) {
             const { data: managerProfile } = await serviceClient
@@ -290,8 +284,6 @@ export async function POST(req: NextRequest) {
               .eq("id", labData.manager_id)
               .single()
             
-            console.log("Manager profile:", managerProfile)
-            
             if (managerProfile?.email) {
               recipientEmail = managerProfile.email
               recipientName = managerProfile.full_name || null
@@ -299,8 +291,6 @@ export async function POST(req: NextRequest) {
           }
         } else if (authorRole === "lab") {
           // Lab manager posted update -> send to assigned technician
-          console.log("Lab manager posted update - fetching assigned technician")
-          
           if (workOrderDetails.assigned_to) {
             const { data: technicianProfile } = await serviceClient
               .from("profiles")
@@ -308,18 +298,12 @@ export async function POST(req: NextRequest) {
               .eq("id", workOrderDetails.assigned_to)
               .single()
             
-            console.log("Technician profile:", technicianProfile)
-            
             if (technicianProfile?.email) {
               recipientEmail = technicianProfile.email
               recipientName = technicianProfile.full_name || null
             }
-          } else {
-            console.log("Work order not assigned to any technician - skipping email")
           }
         }
-
-        console.log("Final recipient email:", recipientEmail)
 
         // Send email if we have a recipient
         if (recipientEmail) {
@@ -342,11 +326,7 @@ export async function POST(req: NextRequest) {
           if (!emailResult.success) {
             console.error("Failed to send email notification:", emailResult.error)
             // Don't fail the request if email fails - just log it
-          } else {
-            console.log("Email sent successfully to:", recipientEmail)
           }
-        } else {
-          console.log("No recipient email found - skipping email notification")
         }
       }
     } catch (emailError) {

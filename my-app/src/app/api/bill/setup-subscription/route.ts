@@ -8,8 +8,6 @@ const supabaseAdmin = createClient(
 
 export async function POST(req: NextRequest) {
   try {
-    console.log('[SetupSubscription] Starting Bill.com subscription setup')
-
     // Get credentials
     const devKey = process.env.BILL_DEVELOPER_KEY
     const orgId = process.env.BILL_ORGANIZATION_ID
@@ -26,7 +24,6 @@ export async function POST(req: NextRequest) {
     }
 
     // Step 1: Login to get sessionId
-    console.log('[SetupSubscription] Logging in to Bill.com')
     const loginRes = await fetch(`${baseUrl}/login`, {
       method: 'POST',
       headers: {
@@ -54,10 +51,6 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    console.log('[SetupSubscription] Got sessionId successfully')
-
-    console.log('[SetupSubscription] Got sessionId, creating subscription')
-
     // Subscribe to invoice update events - this fires when invoices are marked as paid
     const eventsToSubscribe = [
       { type: 'invoice.updated', version: '1' },
@@ -69,7 +62,6 @@ export async function POST(req: NextRequest) {
     
     // Generate idempotent key using cryptographically strong UUID
     const idempotentKey = crypto.randomUUID()
-    console.log('[SetupSubscription] Creating subscription with idempotent key:', idempotentKey)
 
     const subscriptionRes = await fetch(
       `${eventsBaseUrl}/subscriptions`,
@@ -105,8 +97,6 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       )
     }
-
-    console.log('[SetupSubscription] Subscription created:', subscriptionData.id)
 
     // Step 3: Store subscription details
     const { error: storageError } = await supabaseAdmin
