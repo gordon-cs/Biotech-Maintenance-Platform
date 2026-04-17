@@ -49,9 +49,6 @@ export default function CompleteTechInfo({ initialFull = "", initialPhone = "" }
   }, [])
 
   useEffect(() => {
-    // Log initial values to help diagnose the issue
-    console.log('Initial values:', { initialFull, initialPhone })
-    
     // Set the form values if we have them
     if (initialFull) setFullName(initialFull)
     if (initialPhone) setPhone(initialPhone)
@@ -59,7 +56,6 @@ export default function CompleteTechInfo({ initialFull = "", initialPhone = "" }
     // Only redirect if we're absolutely sure we don't have the data
     const timer = setTimeout(() => {
       if (!initialFull || !initialPhone) {
-        console.log('Missing required data:', { initialFull, initialPhone })
         router.push('/complete-profile')
       }
     }, 500)
@@ -208,7 +204,6 @@ export default function CompleteTechInfo({ initialFull = "", initialPhone = "" }
             await supabase.storage
               .from('resume')
               .remove([resumePath])
-            console.log('Cleaned up orphaned resume file:', resumePath)
           } catch (cleanupError) {
             console.error('Failed to clean up resume file:', cleanupError)
           }
@@ -246,7 +241,6 @@ export default function CompleteTechInfo({ initialFull = "", initialPhone = "" }
         }
       }
 
-      console.log("Technician profile created, redirecting to /")
       setLoading(false)
 
       // primary client navigation
@@ -267,7 +261,6 @@ export default function CompleteTechInfo({ initialFull = "", initialPhone = "" }
           await supabase.storage
             .from('resume')
             .remove([resumePath])
-          console.log('Cleaned up orphaned resume file after error:', resumePath)
         } catch (cleanupError) {
           console.error('Failed to clean up resume file:', cleanupError)
         }

@@ -170,7 +170,6 @@ export default function AddWorkOrderUpdate({ workOrderId, currentStatus = "open"
             await supabase.storage
               .from('updates')
               .remove([attachmentPath])
-            console.log('Cleaned up orphaned attachment file:', attachmentPath)
           } catch (cleanupError) {
             console.error('Failed to clean up attachment file:', cleanupError)
           }

@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.log('[Billing Webhook] Event type:', event.type)
+    log('[Billing Webhook] Event type: ' + event.type)
 
     // Handle invoice.updated events
     if (event.type === 'invoice.updated' && event.data?.resource?.id) {

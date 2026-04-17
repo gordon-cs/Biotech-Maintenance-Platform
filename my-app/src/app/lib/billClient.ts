@@ -431,10 +431,6 @@ class BillClient {
     // Build line items - separate initial fee from remaining service cost
     const invoiceLineItems = []
     
-    console.log('=== Bill.com Invoice Creation ===')
-    console.log('Total Amount:', data.amount)
-    console.log('Initial Fee:', data.initialFee)
-    
     if (data.initialFee && data.initialFee > 0) {
       // Add initial fee as first line item
       invoiceLineItems.push({
@@ -452,7 +448,6 @@ class BillClient {
           price: remainingAmount,
         })
       }
-      console.log('Line Items (with initial fee):', invoiceLineItems)
     } else {
       // No initial fee - single line item
       invoiceLineItems.push({
@@ -460,7 +455,6 @@ class BillClient {
         description: data.description,
         price: data.amount,
       })
-      console.log('Line Items (no initial fee):', invoiceLineItems)
     }
 
     const url = `${this.apiUrl}/invoices`
@@ -612,10 +606,6 @@ class BillClient {
 
       // Handle both response_data wrapper and direct response
       const invoiceData: InvoiceStatusResponse = result?.response_data || (result as InvoiceStatusResponse)
-      
-      if (process.env.DEBUG === 'true') {
-        console.log('[BillClient] getInvoiceStatus raw response:', invoiceData)
-      }
       
       return {
         status: invoiceData?.status || 'unknown',

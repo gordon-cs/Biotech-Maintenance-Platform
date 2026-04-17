@@ -33,9 +33,6 @@ export default function CompleteLabInfo({ initialFull = "", initialPhone = "" }:
   const [message, setMessage] = useState<string | null>(null)
 
   useEffect(() => {
-    // Log initial values to help diagnose the issue
-    console.log('Initial values:', { initialFull, initialPhone })
-    
     // Set the form values if we have them
     if (initialFull) setFullName(initialFull)
     if (initialPhone) setPhone(initialPhone)
@@ -44,7 +41,6 @@ export default function CompleteLabInfo({ initialFull = "", initialPhone = "" }:
     // and we're not in the middle of loading it
     const timer = setTimeout(() => {
       if (!initialFull || !initialPhone) {
-        console.log('Missing required data:', { initialFull, initialPhone })
         router.push('/complete-profile')
       }
     }, 500) // Increased timeout to ensure we have time to get the data
@@ -106,7 +102,6 @@ export default function CompleteLabInfo({ initialFull = "", initialPhone = "" }:
         throw new Error(error.error || `Failed to save lab info (${response.status})`)
       }
 
-      console.log("Lab created, redirecting to /")
       setLoading(false)
 
       // primary client navigation

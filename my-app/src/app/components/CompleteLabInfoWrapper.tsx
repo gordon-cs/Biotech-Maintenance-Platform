@@ -9,9 +9,6 @@ export default function CompleteLabInfoWrapper() {
   // Get the values from URL parameters
   const fullName = searchParams?.get('fullName') || ''
   const phone = searchParams?.get('phone') || ''
-  
-  // Log what we received from URL
-  console.log('CompleteLabInfoWrapper params:', { fullName, phone })
 
   // Return the component with the search params
   return (
