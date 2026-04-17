@@ -180,7 +180,6 @@ If you have questions, contact your facility manager.
       text: emailText,
     })
 
-    console.log(`[Email] Invoice notification sent to ${recipient.email}:`, result)
     return { success: true, data: result }
   } catch (error) {
     console.error('[Email] Failed to send invoice notification:', error)

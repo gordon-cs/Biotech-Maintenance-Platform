@@ -11,10 +11,6 @@ type Props = {
 }
 
 export default function TechnicianList({ items, selectedId, onSelect, loading }: Props) {
-  // debug: verify what's passed in (remove after confirming)
-  // eslint-disable-next-line no-console
-  console.log("TechnicianList items:", items, "loading:", loading)
-
   if (loading) return <div className="text-sm text-gray-500 text-center py-4">Loading...</div>
   if (!items || !items.length) return <div className="text-sm text-gray-500 text-center py-8">No requests found</div>
 

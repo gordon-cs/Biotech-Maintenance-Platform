@@ -244,7 +244,6 @@ export async function POST(req: NextRequest) {
             bio: body.tech?.bio || 'Not provided',
             company: body.tech?.company || undefined,
           })
-          console.log('Verification email sent to admin for technician:', userId)
         } catch (emailError) {
           console.error('Failed to send verification email:', emailError)
           // Don't fail the request if email fails

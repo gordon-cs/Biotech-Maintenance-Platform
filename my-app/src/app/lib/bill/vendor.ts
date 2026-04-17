@@ -6,8 +6,11 @@ import { sendVendorConnectionInviteEmail } from "@/lib/email";
 // ─── Logging helpers ──────────────────────────────────────────────────────────
 
 const LOG_PREFIX = "[VendorSync]";
+const DEBUG = process.env.NODE_ENV !== "production";
 function log(msg: string, ...args: unknown[]): void {
-  console.log(`${LOG_PREFIX} ${msg}`, ...args);
+  if (DEBUG) {
+    console.log(`${LOG_PREFIX} ${msg}`, ...args);
+  }
 }
 function logError(msg: string, ...args: unknown[]): void {
   console.error(`${LOG_PREFIX} ${msg}`, ...args);

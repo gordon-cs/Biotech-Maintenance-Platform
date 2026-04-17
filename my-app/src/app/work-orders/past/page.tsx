@@ -255,12 +255,9 @@ function PastOrdersContent() {
   // Automatically sync payment statuses from Bill.com
   const syncPaymentStatuses = async (invoicesToSync?: Array<{ id: number; bill_ar_invoice_id: string; payment_status: string }>) => {
     try {
-      console.log('[Frontend Auto Sync] Starting sync...')
-      
       // Use provided invoices or fetch them
       let invoices = invoicesToSync
       if (!invoices) {
-        console.log('[Frontend Auto Sync] No invoices provided, fetching from Supabase...')
         const { data } = await supabase
           .from('invoices')
           .select('*')
@@ -268,11 +265,8 @@ function PastOrdersContent() {
           .neq('invoice_type', 'initial_fee')
         invoices = data || []
       }
-      
-      console.log(`[Frontend Auto Sync] Total invoices: ${invoices.length}`)
-      
+
       if (invoices.length === 0) {
-        console.log('[Frontend Auto Sync] No invoices to sync')
         return
       }
 
@@ -280,11 +274,8 @@ function PastOrdersContent() {
       const invoicesToSyncFiltered = invoices.filter(invoice => {
         const hasId = !!invoice.bill_ar_invoice_id
         const needsSync = invoice.payment_status === 'awaiting_payment' || invoice.payment_status === 'unbilled'
-        console.log(`[Frontend Auto Sync] Invoice ${invoice.id}: has_bill_id=${hasId}, needs_sync=${needsSync}`)
         return hasId && needsSync
       })
-      
-      console.log(`[Frontend Auto Sync] Invoices to sync: ${invoicesToSyncFiltered.length}`)
 
       const { data: { session } } = await supabase.auth.getSession()
 
@@ -296,8 +287,6 @@ function PastOrdersContent() {
       const syncPromises = invoicesToSyncFiltered
         .map(async (invoice) => {
           try {
-            console.log(`[Frontend Auto Sync] Syncing invoice ${invoice.id} with bill_id ${invoice.bill_ar_invoice_id}...`)
-
             const response = await fetch('/api/bill/sync-status', {
               method: 'POST',
               headers: {
@@ -320,13 +309,6 @@ function PastOrdersContent() {
             }
 
             const syncData = await response.json()
-            console.log(`[Frontend Auto Sync] Invoice ${invoice.id} response:`, syncData)
-            
-            if (syncData?.statusChanged) {
-              console.log(`[Frontend Auto Sync] Invoice ${invoice.id} status: ${syncData.previousStatus} → ${syncData.status}`)
-            } else {
-              console.log(`[Frontend Auto Sync] Invoice ${invoice.id} status unchanged: ${syncData.status}`)
-            }
             return syncData
           } catch (err) {
             console.error(`[Frontend Auto Sync] Invoice ${invoice.id} error:`, err instanceof Error ? err.message : String(err))
@@ -335,14 +317,11 @@ function PastOrdersContent() {
         })
 
       if (syncPromises.length > 0) {
-        console.log(`[Frontend Auto Sync] Starting ${syncPromises.length} parallel sync requests...`)
         // Wait for all syncs to complete
         await Promise.all(syncPromises)
-        
-        console.log(`[Frontend Auto Sync] All sync requests complete, reloading payment requests...`)
+
         // Reload payment requests once after all syncs are done
         loadPaymentRequests()
-        console.log(`[Frontend Auto Sync] Sync complete`)
       }
     } catch (err) {
       console.error('[Frontend Auto Sync] Error syncing payment statuses:', err instanceof Error ? err.message : String(err))
@@ -438,9 +417,7 @@ function PastOrdersContent() {
           throw new Error(`Failed fetching manager work orders: ${mgrResp.status} ${mgrResp.statusText}`)
         }
         const mgrJson = await mgrResp.json()
-        // debug: inspect server payload
         const woRows = (mgrJson.data || []) as WorkOrderRow[]
-        // console.log("woRows:", woRows)
 
         // collect numeric category ids (type guard removes null/undefined)
         const catIds = Array.from(

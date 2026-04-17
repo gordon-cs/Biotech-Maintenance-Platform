@@ -58,7 +58,6 @@ export default function CompleteProfile() {
 
           // If user already has a role set, redirect them to home
           if (data?.role) {
-            console.log("User already has a role set, redirecting to home")
             router.push("/")
             return
           }
@@ -115,10 +114,7 @@ export default function CompleteProfile() {
       const searchParams = new URLSearchParams()
       searchParams.set('fullName', fullName)
       searchParams.set('phone', normalizedPhone)
-      
-      // Log what we're passing
-      console.log('Navigating with params:', { fullName, phone: normalizedPhone })
-      
+
       // Use router.push with the URLSearchParams
       router.push(`/complete-lab?${searchParams.toString()}`)
       return
@@ -156,10 +152,7 @@ export default function CompleteProfile() {
       const searchParams = new URLSearchParams()
       searchParams.set('fullName', fullName)
       searchParams.set('phone', normalizedPhone)
-      
-      // Log what we're passing
-      console.log('Navigating to tech info with params:', { fullName, phone: normalizedPhone })
-      
+
       // Use router.push with the URLSearchParams
       router.push(`/complete-tech?${searchParams.toString()}`)
     } catch (err) {
