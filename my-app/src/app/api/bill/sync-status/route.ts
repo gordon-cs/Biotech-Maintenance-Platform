@@ -11,16 +11,42 @@ const supabaseAdmin = createClient(
 const DEBUG = process.env.DEBUG === 'true'
 const log = (msg: string) => DEBUG && console.log(msg)
 
+function mapBillStatusToPaymentStatus(
+  billStatus: string | undefined,
+  paidFlag: number | undefined,
+  amountPaid: number | undefined,
+  amount: number | undefined
+): 'awaiting_payment' | 'paid' {
+  const normalizedStatus = (billStatus || '').toUpperCase()
+  const normalizedPaidFlag = Number(paidFlag || 0)
+  const normalizedAmountPaid = Number(amountPaid || 0)
+  const normalizedAmount = Number(amount || 0)
+  const paidByAmount = normalizedAmount > 0 && normalizedAmountPaid >= normalizedAmount
+
+  if (
+    normalizedPaidFlag === 1 ||
+    normalizedStatus === 'PAID' ||
+    normalizedStatus === 'PAID_IN_FULL' ||
+    normalizedStatus === 'PAIDINFULL' ||
+    normalizedStatus === 'SETTLED' ||
+    paidByAmount
+  ) {
+    return 'paid'
+  }
+
+  return 'awaiting_payment'
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const { invoiceId } = await request.json()
+    const { invoiceId, billArInvoiceId } = await request.json()
 
     log(`[Sync Status] ===== START SYNC FOR INVOICE ${invoiceId} =====`)
 
-    if (!invoiceId) {
+    if (!invoiceId && !billArInvoiceId) {
       log('[Sync Status] Missing invoiceId')
       return NextResponse.json(
-        { error: 'Missing invoiceId' },
+        { error: 'Missing invoiceId or billArInvoiceId' },
         { status: 400 }
       )
     }
@@ -77,19 +103,126 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Get invoice record to find the Bill.com invoice ID
-    const { data: invoice, error: invoiceError } = await supabaseAdmin
-      .from('invoices')
-      .select('id, bill_ar_invoice_id, payment_status')
-      .eq('id', invoiceId)
-      .single()
+    // Resolve local invoice by local id first, then by Bill invoice id fallback.
+    let invoice: {
+      id: number
+      bill_ar_invoice_id: string | null
+      payment_status: string
+      payment_url: string | null
+    } | null = null
 
-    if (invoiceError || !invoice) {
-      log('[Sync Status] Invoice not found: ' + invoiceError?.message)
-      return NextResponse.json(
-        { error: 'Invoice not found' },
-        { status: 404 }
-      )
+    const parsedInvoiceId =
+      typeof invoiceId === 'number'
+        ? invoiceId
+        : typeof invoiceId === 'string' && invoiceId.trim() !== '' && Number.isFinite(Number(invoiceId))
+          ? Number(invoiceId)
+          : null
+
+    if (parsedInvoiceId !== null) {
+      const { data: byLocalId } = await supabaseAdmin
+        .from('invoices')
+        .select('id, bill_ar_invoice_id, payment_status, payment_url')
+        .eq('id', parsedInvoiceId)
+        .maybeSingle()
+
+      invoice = byLocalId
+
+      // Backward-compatible fallback for clients that accidentally send work_order_id.
+      if (!invoice) {
+        const { data: byWorkOrder } = await supabaseAdmin
+          .from('invoices')
+          .select('id, bill_ar_invoice_id, payment_status, payment_url')
+          .eq('work_order_id', parsedInvoiceId)
+          .not('bill_ar_invoice_id', 'is', null)
+          .order('id', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+
+        invoice = byWorkOrder
+      }
+    }
+
+    if (!invoice) {
+      const candidateBillInvoiceId =
+        typeof billArInvoiceId === 'string' && billArInvoiceId.trim() !== ''
+          ? billArInvoiceId.trim()
+          : typeof invoiceId === 'string' && invoiceId.trim() !== ''
+            ? invoiceId.trim()
+            : null
+
+      if (candidateBillInvoiceId) {
+        const { data: byBillId } = await supabaseAdmin
+          .from('invoices')
+          .select('id, bill_ar_invoice_id, payment_status, payment_url')
+          .eq('bill_ar_invoice_id', candidateBillInvoiceId)
+          .maybeSingle()
+
+        invoice = byBillId
+      }
+    }
+
+    if (!invoice) {
+      const directBillInvoiceId =
+        typeof billArInvoiceId === 'string' && billArInvoiceId.trim() !== ''
+          ? billArInvoiceId.trim()
+          : typeof invoiceId === 'string' && invoiceId.trim() !== ''
+            ? invoiceId.trim()
+            : null
+
+      if (!directBillInvoiceId) {
+        log('[Sync Status] Invoice not found and no Bill.com id available')
+        return NextResponse.json(
+          { error: 'Invoice not found in database. Please re-open from Payment Requests and try again.' },
+          { status: 404 }
+        )
+      }
+
+      try {
+        const billInvoiceData = await billClient.getInvoiceStatus(directBillInvoiceId)
+        const paymentUrl = billInvoiceData.paymentUrl || null
+        const mappedStatus = mapBillStatusToPaymentStatus(
+          billInvoiceData.status,
+          billInvoiceData.paid,
+          billInvoiceData.amountPaid,
+          billInvoiceData.amount
+        )
+
+        const directUpdateData: Record<string, unknown> = {
+          payment_status: mappedStatus,
+          updated_at: new Date().toISOString(),
+        }
+
+        if (paymentUrl) {
+          directUpdateData.payment_url = paymentUrl
+        }
+
+        if (mappedStatus === 'paid') {
+          directUpdateData.paid_at = new Date().toISOString()
+        }
+
+        await supabaseAdmin
+          .from('invoices')
+          .update(directUpdateData)
+          .eq('bill_ar_invoice_id', directBillInvoiceId)
+
+        return NextResponse.json({
+          status: mappedStatus,
+          previousStatus: null,
+          statusChanged: false,
+          paymentUrl,
+          synchronized: true,
+          localInvoiceMissing: true,
+          billStatus: billInvoiceData.status,
+          amount: billInvoiceData.amount,
+          amountPaid: billInvoiceData.amountPaid,
+        })
+      } catch (directBillError) {
+        log('[Sync Status] Invoice not found locally and direct Bill.com query failed: ' + (directBillError instanceof Error ? directBillError.message : String(directBillError)))
+        return NextResponse.json(
+          { error: 'Invoice not found in database and Bill.com lookup failed' },
+          { status: 404 }
+        )
+      }
     }
     log('[Sync Status] Invoice found: id=' + invoice.id + ', bill_id=' + invoice.bill_ar_invoice_id + ', status=' + invoice.payment_status)
 
@@ -106,31 +239,36 @@ export async function POST(request: NextRequest) {
       log(`[Sync Status] Querying Bill.com for invoice ${invoice.bill_ar_invoice_id}...`)
       const billInvoiceData = await billClient.getInvoiceStatus(invoice.bill_ar_invoice_id)
       log('[Sync Status] Bill.com response: ' + JSON.stringify(billInvoiceData))
+      const paymentUrl = billInvoiceData.paymentUrl || invoice.payment_url || null
 
       // Map Bill.com status to our payment status
-      let mappedStatus = 'awaiting_payment'
-      
-      // Check various Bill.com status values for "paid"
-      if (billInvoiceData.paid === 1 || 
-          billInvoiceData.status === 'paid' || 
-          billInvoiceData.status === 'PAID_IN_FULL' ||
-          billInvoiceData.status?.toUpperCase() === 'PAID_IN_FULL') {
-        mappedStatus = 'paid'
-        log(`[Sync Status] Mapped Bill.com status "${billInvoiceData.status}" to: PAID`)
-      } else if (billInvoiceData.status === 'draft' || billInvoiceData.status === 'sent' || billInvoiceData.status === 'SENT') {
-        mappedStatus = 'awaiting_payment'
-        log(`[Sync Status] Mapped Bill.com status "${billInvoiceData.status}" to: AWAITING_PAYMENT`)
-      }
+      const mappedStatus = mapBillStatusToPaymentStatus(
+        billInvoiceData.status,
+        billInvoiceData.paid,
+        billInvoiceData.amountPaid,
+        billInvoiceData.amount
+      )
+
+      log(`[Sync Status] Mapped Bill.com status "${billInvoiceData.status}" to: ${mappedStatus.toUpperCase()}`)
 
       // Update invoice if status changed
       const statusChanged = mappedStatus !== invoice.payment_status
 
       log(`[Sync Status] Status comparison: Current="${invoice.payment_status}" vs New="${mappedStatus}" - Changed: ${statusChanged}`)
 
-      if (statusChanged) {
+      const paymentUrlChanged = Boolean(paymentUrl && paymentUrl !== invoice.payment_url)
+
+      if (statusChanged || paymentUrlChanged) {
         const updateData: Record<string, unknown> = {
-          payment_status: mappedStatus,
           updated_at: new Date().toISOString(),
+        }
+
+        if (statusChanged) {
+          updateData.payment_status = mappedStatus
+        }
+
+        if (paymentUrlChanged) {
+          updateData.payment_url = paymentUrl
         }
 
         // Add paid_at timestamp if status changed to paid
@@ -142,7 +280,7 @@ export async function POST(request: NextRequest) {
         const { error: updateError } = await supabaseAdmin
           .from('invoices')
           .update(updateData)
-          .eq('id', invoiceId)
+          .eq('id', invoice.id)
 
         if (updateError) {
           log('[Sync Status] Update failed: ' + updateError.message)
@@ -161,6 +299,7 @@ export async function POST(request: NextRequest) {
         status: mappedStatus,
         previousStatus: invoice.payment_status,
         statusChanged: statusChanged,
+        paymentUrl,
         synchronized: true,
         billStatus: billInvoiceData.status,
         amount: billInvoiceData.amount,
@@ -171,6 +310,7 @@ export async function POST(request: NextRequest) {
       // Return current status if Bill.com query fails
       return NextResponse.json({
         status: invoice.payment_status,
+        paymentUrl: invoice.payment_url || null,
         synchronized: false,
         error: 'Failed to query Bill.com, using cached status'
       }, { status: 200 })

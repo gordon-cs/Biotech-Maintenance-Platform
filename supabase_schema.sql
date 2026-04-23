@@ -193,6 +193,7 @@ CREATE TABLE public.invoices (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   bill_ar_invoice_id text,
+  payment_url text,
   bill_ap_bill_id text,
   invoice_type text DEFAULT 'service'::text,
   technician_payment_status text DEFAULT 'pending'::text,
