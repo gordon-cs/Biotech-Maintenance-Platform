@@ -11,32 +11,30 @@ const supabaseAdmin = createClient(
 const DEBUG = process.env.DEBUG === 'true'
 const log = (msg: string) => DEBUG && console.log(msg)
 
-function getBillAppBaseUrl(): string {
-  const configured = process.env.BILL_APP_BASE_URL?.trim()
-  if (configured) {
-    return configured.replace(/\/$/, '')
+function mapBillStatusToPaymentStatus(
+  billStatus: string | undefined,
+  paidFlag: number | undefined,
+  amountPaid: number | undefined,
+  amount: number | undefined
+): 'awaiting_payment' | 'paid' {
+  const normalizedStatus = (billStatus || '').toUpperCase()
+  const normalizedPaidFlag = Number(paidFlag || 0)
+  const normalizedAmountPaid = Number(amountPaid || 0)
+  const normalizedAmount = Number(amount || 0)
+  const paidByAmount = normalizedAmount > 0 && normalizedAmountPaid >= normalizedAmount
+
+  if (
+    normalizedPaidFlag === 1 ||
+    normalizedStatus === 'PAID' ||
+    normalizedStatus === 'PAID_IN_FULL' ||
+    normalizedStatus === 'PAIDINFULL' ||
+    normalizedStatus === 'SETTLED' ||
+    paidByAmount
+  ) {
+    return 'paid'
   }
 
-  const gatewayBase = process.env.BILL_BASE_URL || ''
-  if (/stage/i.test(gatewayBase)) {
-    return 'https://app-stage02.us.bill.com'
-  }
-
-  return 'https://app.bill.com'
-}
-
-function buildGuestPaymentUrlFromInvoiceId(billArInvoiceId: string | null | undefined): string | null {
-  if (!billArInvoiceId || typeof billArInvoiceId !== 'string') {
-    return null
-  }
-
-  const normalized = billArInvoiceId.trim()
-  if (!normalized) {
-    return null
-  }
-
-  const baseUrl = getBillAppBaseUrl()
-  return `${baseUrl}/app/arp/guest/session/pay/${encodeURIComponent(normalized)}?paymentLinkSource=Webapp`
+  return 'awaiting_payment'
 }
 
 export async function POST(request: NextRequest) {
@@ -128,6 +126,20 @@ export async function POST(request: NextRequest) {
         .maybeSingle()
 
       invoice = byLocalId
+
+      // Backward-compatible fallback for clients that accidentally send work_order_id.
+      if (!invoice) {
+        const { data: byWorkOrder } = await supabaseAdmin
+          .from('invoices')
+          .select('id, bill_ar_invoice_id, payment_status, payment_url')
+          .eq('work_order_id', parsedInvoiceId)
+          .not('bill_ar_invoice_id', 'is', null)
+          .order('id', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+
+        invoice = byWorkOrder
+      }
     }
 
     if (!invoice) {
@@ -167,17 +179,31 @@ export async function POST(request: NextRequest) {
 
       try {
         const billInvoiceData = await billClient.getInvoiceStatus(directBillInvoiceId)
-        const paymentUrl = billInvoiceData.paymentUrl || buildGuestPaymentUrlFromInvoiceId(directBillInvoiceId)
-        let mappedStatus = 'awaiting_payment'
+        const paymentUrl = billInvoiceData.paymentUrl || null
+        const mappedStatus = mapBillStatusToPaymentStatus(
+          billInvoiceData.status,
+          billInvoiceData.paid,
+          billInvoiceData.amountPaid,
+          billInvoiceData.amount
+        )
 
-        if (
-          billInvoiceData.paid === 1 ||
-          billInvoiceData.status === 'paid' ||
-          billInvoiceData.status === 'PAID_IN_FULL' ||
-          billInvoiceData.status?.toUpperCase() === 'PAID_IN_FULL'
-        ) {
-          mappedStatus = 'paid'
+        const directUpdateData: Record<string, unknown> = {
+          payment_status: mappedStatus,
+          updated_at: new Date().toISOString(),
         }
+
+        if (paymentUrl) {
+          directUpdateData.payment_url = paymentUrl
+        }
+
+        if (mappedStatus === 'paid') {
+          directUpdateData.paid_at = new Date().toISOString()
+        }
+
+        await supabaseAdmin
+          .from('invoices')
+          .update(directUpdateData)
+          .eq('bill_ar_invoice_id', directBillInvoiceId)
 
         return NextResponse.json({
           status: mappedStatus,
@@ -213,25 +239,17 @@ export async function POST(request: NextRequest) {
       log(`[Sync Status] Querying Bill.com for invoice ${invoice.bill_ar_invoice_id}...`)
       const billInvoiceData = await billClient.getInvoiceStatus(invoice.bill_ar_invoice_id)
       log('[Sync Status] Bill.com response: ' + JSON.stringify(billInvoiceData))
-      const paymentUrl =
-        billInvoiceData.paymentUrl ||
-        invoice.payment_url ||
-        buildGuestPaymentUrlFromInvoiceId(invoice.bill_ar_invoice_id)
+      const paymentUrl = billInvoiceData.paymentUrl || invoice.payment_url || null
 
       // Map Bill.com status to our payment status
-      let mappedStatus = 'awaiting_payment'
-      
-      // Check various Bill.com status values for "paid"
-      if (billInvoiceData.paid === 1 || 
-          billInvoiceData.status === 'paid' || 
-          billInvoiceData.status === 'PAID_IN_FULL' ||
-          billInvoiceData.status?.toUpperCase() === 'PAID_IN_FULL') {
-        mappedStatus = 'paid'
-        log(`[Sync Status] Mapped Bill.com status "${billInvoiceData.status}" to: PAID`)
-      } else if (billInvoiceData.status === 'draft' || billInvoiceData.status === 'sent' || billInvoiceData.status === 'SENT') {
-        mappedStatus = 'awaiting_payment'
-        log(`[Sync Status] Mapped Bill.com status "${billInvoiceData.status}" to: AWAITING_PAYMENT`)
-      }
+      const mappedStatus = mapBillStatusToPaymentStatus(
+        billInvoiceData.status,
+        billInvoiceData.paid,
+        billInvoiceData.amountPaid,
+        billInvoiceData.amount
+      )
+
+      log(`[Sync Status] Mapped Bill.com status "${billInvoiceData.status}" to: ${mappedStatus.toUpperCase()}`)
 
       // Update invoice if status changed
       const statusChanged = mappedStatus !== invoice.payment_status
@@ -262,7 +280,7 @@ export async function POST(request: NextRequest) {
         const { error: updateError } = await supabaseAdmin
           .from('invoices')
           .update(updateData)
-          .eq('id', invoiceId)
+          .eq('id', invoice.id)
 
         if (updateError) {
           log('[Sync Status] Update failed: ' + updateError.message)
@@ -281,7 +299,7 @@ export async function POST(request: NextRequest) {
         status: mappedStatus,
         previousStatus: invoice.payment_status,
         statusChanged: statusChanged,
-        paymentUrl: paymentUrl || null,
+        paymentUrl,
         synchronized: true,
         billStatus: billInvoiceData.status,
         amount: billInvoiceData.amount,
@@ -292,7 +310,7 @@ export async function POST(request: NextRequest) {
       // Return current status if Bill.com query fails
       return NextResponse.json({
         status: invoice.payment_status,
-        paymentUrl: invoice.payment_url || buildGuestPaymentUrlFromInvoiceId(invoice.bill_ar_invoice_id),
+        paymentUrl: invoice.payment_url || null,
         synchronized: false,
         error: 'Failed to query Bill.com, using cached status'
       }, { status: 200 })

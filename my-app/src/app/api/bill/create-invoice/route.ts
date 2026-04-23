@@ -9,33 +9,6 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-function getBillAppBaseUrl(): string {
-  const configured = process.env.BILL_APP_BASE_URL?.trim()
-  if (configured) {
-    return configured.replace(/\/$/, '')
-  }
-
-  const gatewayBase = process.env.BILL_BASE_URL || ''
-  if (/stage/i.test(gatewayBase)) {
-    return 'https://app-stage02.us.bill.com'
-  }
-
-  return 'https://app.bill.com'
-}
-
-function buildGuestPaymentUrlFromInvoiceId(billArInvoiceId: string | null | undefined): string | null {
-  if (!billArInvoiceId || typeof billArInvoiceId !== 'string') {
-    return null
-  }
-
-  const normalized = billArInvoiceId.trim()
-  if (!normalized) {
-    return null
-  }
-
-  return `${getBillAppBaseUrl()}/app/arp/guest/session/pay/${encodeURIComponent(normalized)}?paymentLinkSource=Webapp`
-}
-
 export async function POST(request: NextRequest) {
   try {
     const { invoiceId } = await request.json()
@@ -132,9 +105,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (invoice.bill_ar_invoice_id) {
-      const paymentUrl =
-        resolveBillPaymentUrl(invoice) ||
-        buildGuestPaymentUrlFromInvoiceId(invoice.bill_ar_invoice_id)
+      const paymentUrl = resolveBillPaymentUrl(invoice)
       const invoiceUpdates: {
         payment_status?: 'awaiting_payment'
         payment_url?: string
@@ -311,7 +282,6 @@ export async function POST(request: NextRequest) {
     })
 
     const paymentUrl = resolveBillPaymentUrl(arInvoice)
-    const effectivePaymentUrl = paymentUrl || buildGuestPaymentUrlFromInvoiceId(arInvoice.id)
 
     const invoiceUpdates: {
       bill_ar_invoice_id: string
@@ -324,8 +294,8 @@ export async function POST(request: NextRequest) {
       updated_at: new Date().toISOString(),
     }
 
-    if (effectivePaymentUrl) {
-      invoiceUpdates.payment_url = effectivePaymentUrl
+    if (paymentUrl) {
+      invoiceUpdates.payment_url = paymentUrl
     }
 
     let { error: updateError } = await supabaseAdmin
@@ -351,7 +321,7 @@ export async function POST(request: NextRequest) {
       {
         success: true,
         arInvoiceId: arInvoice.id,
-        paymentUrl: effectivePaymentUrl,
+        paymentUrl,
         alreadyCreated: 'alreadyCreated' in arInvoice && arInvoice.alreadyCreated === true,
       },
       { status: 200 }

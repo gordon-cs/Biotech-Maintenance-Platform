@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { Resend } from 'resend'
 import { billClient } from '@/lib/billClient'
 import { resolveBillPaymentUrl } from '@/lib/billPaymentLink'
 
@@ -9,7 +8,18 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timeoutHandle = setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs)
+  })
+
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle)
+    }
+  }) as Promise<T>
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -83,19 +93,6 @@ export async function POST(request: NextRequest) {
     if (managerError || !manager?.email) {
       return NextResponse.json(
         { error: 'Lab manager email not configured' },
-        { status: 400 }
-      )
-    }
-
-    const { data: creator, error: creatorError } = await supabaseAdmin
-      .from('profiles')
-      .select('email, full_name')
-      .eq('id', workOrder.created_by)
-      .single()
-
-    if (creatorError || !creator?.email) {
-      return NextResponse.json(
-        { error: 'Work order creator email not found' },
         { status: 400 }
       )
     }
@@ -197,15 +194,63 @@ export async function POST(request: NextRequest) {
       .split('T')[0]
 
     // Create invoice in Bill.com
+    const invoiceNumber = `WO-${workOrderId}-INITIAL-INV-${invoice.id}`
+
     const billInvoice = await billClient.createARInvoice({
       customerId: billCustomerId,
-      invoiceNumber: `WO-${workOrderId}-INITIAL-INV-${invoice.id}`,
+      invoiceNumber,
       invoiceDate,
       dueDate,
       description: `Initial Fee - ${workOrder.title || 'Work Order'}`,
       amount: Number(initialFee),
       customerEmail: manager.email,
       customerName: manager.full_name || lab.name,
+    }).catch(async (createError: unknown) => {
+      const createErrorMessage = createError instanceof Error ? createError.message : String(createError)
+      const duplicateInvoiceError = /duplicate|already exists|invoice number|BDC_1171/i.test(createErrorMessage)
+
+      if (!duplicateInvoiceError) {
+        throw createError
+      }
+
+      console.warn('[create-initial-fee] Duplicate invoice detected, attempting recovery lookup:', {
+        workOrderId,
+        invoiceNumber,
+      })
+
+      const candidateInvoiceNumbers = Array.from(
+        new Set(
+          [
+            invoiceNumber,
+            `WO-${workOrderId}-INITIAL`,
+            `WO-${workOrderId}`,
+          ].filter((candidate): candidate is string => Boolean(candidate && candidate.trim()))
+        )
+      )
+
+      let existingBillInvoice = null as Awaited<ReturnType<typeof billClient.findARInvoiceByNumber>>
+
+      for (const candidateInvoiceNumber of candidateInvoiceNumbers) {
+        existingBillInvoice = await withTimeout(
+          billClient.findARInvoiceByNumber(candidateInvoiceNumber, billCustomerId),
+          15000,
+          '[create-initial-fee] Bill invoice lookup'
+        ).catch((lookupError) => {
+          console.warn('[create-initial-fee] Bill invoice lookup timed out or failed:', lookupError)
+          return null
+        })
+        if (existingBillInvoice?.id) {
+          break
+        }
+      }
+
+      if (!existingBillInvoice?.id) {
+        throw new Error(
+          `Bill.com reported duplicate invoice number (${invoiceNumber}), but no existing invoice was found for tried numbers: ${candidateInvoiceNumbers.join(', ')}. ${createErrorMessage}`
+        )
+      }
+
+      return existingBillInvoice
     })
 
     const paymentUrl = resolveBillPaymentUrl(billInvoice)
@@ -225,43 +270,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: updateError.message }, { status: 500 })
     }
 
-    // Send initial fee invoice email to lab manager
-    try {
-      await resend.emails.send({
-        from: 'Biotech Maintenance <noreply@biotechmaintenance.com>',
-        to: manager.email,
-        subject: `🏢 Initial Fee Invoice for Work Order #${workOrderId}`,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #16a34a;">Initial Fee Invoice</h2>
-            <p>Hi ${manager.full_name || 'Lab Manager'},</p>
-            <p>A new work order has been submitted and requires payment of the initial service fee.</p>
-            <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
-              <p><strong>Work Order:</strong> #${workOrderId}</p>
-              <p><strong>Title:</strong> ${workOrder.title}</p>
-              <p><strong>Lab:</strong> ${lab.name}</p>
-              <p><strong>Initial Fee:</strong> $${Number(initialFee).toFixed(2)}</p>
-              <p><strong>Invoice ID:</strong> #${invoice.id}</p>
-            </div>
-            <p>The initial fee invoice has been created in Bill.com and is ready for payment.</p>
-            ${paymentUrl ? `
-              <p style="text-align: center; margin: 28px 0;">
-                <a href="${paymentUrl}" style="display: inline-block; padding: 14px 28px; background-color: #16a34a; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold;">
-                  Pay Invoice in Bill.com
-                </a>
-              </p>
-            ` : ''}
-            <p>Best regards,<br/>Biotech Maintenance Platform</p>
-          </div>
-        `
-      })
-    } catch (emailError) {
-      console.error('Failed to send initial fee email:', emailError)
-    }
-
     return NextResponse.json({
       invoiceId: invoice.id,
-      message: 'Initial fee invoice created and email sent'
+      message: 'Initial fee invoice created'
     })
   } catch (error) {
     console.error('Error creating initial fee invoice:', error)

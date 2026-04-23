@@ -304,7 +304,10 @@ function PastOrdersContent() {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${session.access_token}`
               },
-              body: JSON.stringify({ invoiceId: invoice.id })
+              body: JSON.stringify({
+                invoiceId: invoice.id,
+                billArInvoiceId: invoice.bill_ar_invoice_id,
+              })
             })
 
             if (response.status === 401) {

@@ -102,10 +102,31 @@ function collectBillUrlCandidates(value: unknown, seen = new Set<unknown>()): st
 function isBillPaymentUrl(candidate: string): boolean {
   try {
     const parsed = new URL(candidate)
-    return (
-      parsed.protocol === 'https:' &&
-      (parsed.hostname === 'bill.com' || parsed.hostname.endsWith('.bill.com'))
-    )
+    const isBillHost = parsed.hostname === 'bill.com' || parsed.hostname.endsWith('.bill.com')
+    if (parsed.protocol !== 'https:' || !isBillHost) {
+      return false
+    }
+
+    // Never use Bill generic error routes as payment URLs.
+    if (parsed.pathname.includes('/app/arp/generic-error/')) {
+      return false
+    }
+
+    // Tokenized /p/... links from email are preferred and safe to open.
+    if (parsed.pathname.startsWith('/p/')) {
+      return true
+    }
+
+    // Guest session deep links are only considered usable when they carry signed context.
+    if (parsed.pathname.includes('/app/arp/guest/session/pay/')) {
+      const hasSignedQuery =
+        parsed.searchParams.has('token') ||
+        parsed.searchParams.has('emailenc') ||
+        parsed.searchParams.has('directLogin')
+      return hasSignedQuery
+    }
+
+    return true
   } catch {
     return false
   }

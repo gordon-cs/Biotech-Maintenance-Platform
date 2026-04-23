@@ -613,6 +613,9 @@ class BillClient {
       encodedCustomerId
         ? `${this.apiUrl}/invoices?customerId=${encodedCustomerId}&invoiceNumber=${encodedInvoiceNumber}`
         : null,
+      `${this.apiUrl}/Invoice.json?invoiceNumber=${encodedInvoiceNumber}`,
+      `${this.apiUrl}/Invoice.json?invoice_number=${encodedInvoiceNumber}`,
+      `${this.apiUrl}/Invoice.json?search=${encodedInvoiceNumber}`,
     ].filter((url): url is string => Boolean(url))
 
     for (const url of candidateUrls) {
@@ -664,6 +667,49 @@ class BillClient {
       const looseMatch = candidates.find((candidate) => candidate.invoiceNumber === invoiceNumber)
       if (looseMatch) {
         return looseMatch
+      }
+    }
+
+    const requestBodies = [
+      {
+        obj: {
+          invoiceNumber,
+          ...(customerId ? { customerId } : {}),
+        },
+      },
+      {
+        invoiceNumber,
+        ...(customerId ? { customerId } : {}),
+      },
+    ]
+
+    const candidatePaths = [
+      '/Crud/Read/Invoice.json',
+      '/Crud/Get/Invoice.json',
+    ]
+
+    for (const path of candidatePaths) {
+      for (const body of requestBodies) {
+        try {
+          const parsed = await this.request<unknown>('POST', path, body)
+          const candidates = this.extractInvoiceCandidates(parsed)
+          const exactMatch = candidates.find((candidate) => {
+            const invoiceNumberMatches = candidate.invoiceNumber === invoiceNumber
+            const customerMatches = !customerId || candidate.customerId === customerId
+            return invoiceNumberMatches && customerMatches
+          })
+
+          if (exactMatch) {
+            return exactMatch
+          }
+
+          const looseMatch = candidates.find((candidate) => candidate.invoiceNumber === invoiceNumber)
+          if (looseMatch) {
+            return looseMatch
+          }
+        } catch {
+          // Try the next endpoint/body shape.
+        }
       }
     }
 
