@@ -321,7 +321,7 @@ export default function ManagerClient() {
           </div>
 
           <div className="text-center">
-            <Link href="/work-orders/past" className="inline-block px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors">
+            <Link href="/work-orders/past" className="inline-block px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-600 transition-colors">
               View All Orders
             </Link>
           </div>

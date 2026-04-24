@@ -267,7 +267,7 @@ export default function EditWorkOrderModal({
 
         <div className="flex justify-end gap-2">
           <button onClick={onClose} className="px-4 py-2 rounded border">Cancel</button>
-          <button onClick={handleSave} disabled={loading} className="px-4 py-2 rounded bg-blue-600 text-white">
+          <button onClick={handleSave} disabled={loading} className="px-4 py-2 rounded bg-blue-600 !text-white">
             {loading ? "Saving..." : "Save"}
           </button>
         </div>

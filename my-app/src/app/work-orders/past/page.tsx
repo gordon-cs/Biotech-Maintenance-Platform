@@ -649,8 +649,8 @@ function PastOrdersContent() {
   return (
     <div className="min-h-screen bg-gray-50 relative">
       <div className="max-w-7xl mx-auto p-6">
-        {/* Search and Filters */}
-        <div className="bg-gray-50 rounded-lg p-4 mb-6">
+        {/* Search and Filters (flat layout; inputs are white) */}
+        <div className="mb-6">
           <div className="flex gap-4 items-center">
             <div className="flex-1 relative">
               <input
@@ -658,7 +658,7 @@ function PastOrdersContent() {
                 placeholder="Search Request"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-4 py-2.5 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               <div className="absolute right-3 top-2.5">
                 <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -668,9 +668,9 @@ function PastOrdersContent() {
             </div>
             
             <select
-              value={categoryFilter} 
+              value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="px-4 py-2.5 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-4 py-2.5 border border-gray-200 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">Categories</option>
               {Array.from(new Set(orders.map(o => o.category))).map(cat => (
@@ -683,17 +683,17 @@ function PastOrdersContent() {
         <div className="grid grid-cols-12 gap-6">
           <div className="col-span-4">
             <div className="mb-4 flex items-center justify-between">
-              <span className="text-gray-600">Results</span>
-              <select 
-                value={sortOrder}
-                onChange={(e) => setSortOrder(e.target.value)}
-                className="px-3 py-1 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="most_recent">Most Recent</option>
-                <option value="oldest_first">Oldest First</option>
-                <option value="by_priority">By Priority</option>
-              </select>
-            </div>
+               <span className="text-gray-600">Results</span>
+               <select 
+                 value={sortOrder}
+                 onChange={(e) => setSortOrder(e.target.value)}
+                 className="px-3 py-1 border border-gray-200 rounded text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+               >
+                 <option value="most_recent">Most Recent</option>
+                 <option value="oldest_first">Oldest First</option>
+                 <option value="by_priority">By Priority</option>
+               </select>
+             </div>
 
             <div className="h-[calc(100vh-400px)] min-h-[400px] max-h-[600px] overflow-y-auto border border-gray-200 rounded-lg bg-white p-2">
               <div className="space-y-3">
@@ -718,7 +718,7 @@ function PastOrdersContent() {
                           handleCancelOrder(order.id)
                           }}
                           disabled={cancellingOrderId === order.id}
-                          className="px-2 py-1 text-xs bg-orange-600 text-white rounded hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="px-2 py-1 text-xs bg-red-600 !text-white rounded hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
                           title="Cancel Order"
                         >
                           {cancellingOrderId === order.id ? "..." : "Cancel"}
@@ -769,7 +769,7 @@ function PastOrdersContent() {
 
           <div className="col-span-8">
             {selectedOrder ? (
-              <div className="border rounded-lg p-6 bg-white">
+              <div className="border border-gray-200 rounded-lg p-6 bg-white">
                 <div className="mb-4">
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex-1">
@@ -786,7 +786,7 @@ function PastOrdersContent() {
                           <button
                           onClick={() => handleCancelOrder(selectedOrder.id)}
                             disabled={cancellingOrderId === selectedOrder.id}
-                            className="px-3 py-1 text-sm bg-orange-600 text-white rounded hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="px-3 py-1 text-sm bg-red-600 !text-white rounded hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             {cancellingOrderId === selectedOrder.id ? "Canceling..." : "Cancel Order"}
                           </button>
@@ -794,7 +794,7 @@ function PastOrdersContent() {
                         {["open", "claimed"].includes((selectedOrder.status || "").toLowerCase()) && (
                           <button
                             onClick={() => setEditOpen(true)}
-                            className="px-3 py-1 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700"
+                            className="px-3 py-1 text-sm bg-blue-600 !text-white rounded hover:bg-indigo-700"
                           >
                             Edit
                           </button>
@@ -939,7 +939,7 @@ function PastOrdersContent() {
                 )}
               </div>
             ) : (
-              <div className="border rounded-lg p-6 bg-white text-center text-gray-500">
+              <div className="border border-gray-200 rounded-lg p-6 bg-white text-center text-gray-500">
                 Select an order to view details
               </div>
             )}
@@ -950,7 +950,7 @@ function PastOrdersContent() {
       <div className="fixed bottom-6 right-6">
         <Link 
           href="/manager" 
-          className="flex items-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-lg transition-colors"
+          className="flex items-center gap-2 px-4 py-3 bg-blue-600 !text-white rounded-lg hover:bg-blue-700 shadow-lg transition-colors"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />

@@ -409,7 +409,7 @@ export default function AdminWorkOrdersPage() {
                           <button
                             onClick={() => deleteWorkOrder(r.id)}
                             disabled={!!deleting[r.id]}
-                            className="px-2 py-1 bg-red-600 text-white rounded text-xs disabled:opacity-50"
+                            className="px-2 py-1 bg-red-600 !text-white rounded text-xs disabled:opacity-50"
                           >
                             {deleting[r.id] ? "Deleting..." : "Delete"}
                           </button>

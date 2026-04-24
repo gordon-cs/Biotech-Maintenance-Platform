@@ -227,7 +227,7 @@ export default function AdminUsersPage() {
                   <td className="px-4 py-3 align-top">
                     <button
                       onClick={() => updateRole(u.id, u.role ?? null)}
-                      className="px-3 py-1 bg-blue-600 text-white rounded disabled:opacity-50 hover:bg-blue-700"
+                      className="px-3 py-1 bg-blue-600 !text-white rounded disabled:opacity-50 hover:bg-blue-700"
                       disabled={!!updating[u.id]}
                     >
                       {updating[u.id] ? "Saving..." : "Save"}
@@ -323,7 +323,7 @@ export default function AdminUsersPage() {
                           <button
                             onClick={() => verifyTechnician(tech.id, false)}
                             disabled={!!updating[tech.id]}
-                            className="px-3 py-1 bg-red-600 text-white rounded text-xs disabled:opacity-50 hover:bg-red-700"
+                            className="px-3 py-1 bg-red-600 !text-white rounded text-xs disabled:opacity-50 hover:bg-red-700"
                           >
                             {updating[tech.id] ? "..." : "Reject"}
                           </button>
