@@ -70,7 +70,7 @@ export default function ConfirmationModal({
               onConfirm()
               onClose()
             }}
-            className={`px-4 py-2 rounded-md text-white font-medium text-sm transition-colors ${
+            className={`px-4 py-2 rounded-md !text-white font-medium text-sm transition-colors ${
               isDangerous
                 ? "bg-red-600 hover:bg-red-700"
                 : "bg-blue-600 hover:bg-blue-700"

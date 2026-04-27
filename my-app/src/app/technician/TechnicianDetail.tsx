@@ -81,7 +81,7 @@ export default function TechnicianDetail({
 
   return (
     <>
-      <div className="border rounded-lg p-6 bg-white">
+      <div className="border border-gray-200 rounded-lg p-6 bg-white">
         <div className="mb-4">
           <div className="flex items-start justify-between mb-2">
             <div className="flex-1">
@@ -98,7 +98,7 @@ export default function TechnicianDetail({
                 {activeTab === "open" && (order.status ?? "").toLowerCase() === "open" && (
                   <button
                     onClick={handleAcceptClick}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium"
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 !text-white rounded-md text-sm font-semibold"
                   >
                     Accept Job
                   </button>
@@ -110,9 +110,9 @@ export default function TechnicianDetail({
                   String(order.assigned_to ?? "") === String(currentUserId ?? "") && (
                     <button
                       onClick={() => setConfirmModal({ isOpen: true, action: "cancel" })}
-                      className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md text-sm font-medium"
+                      className="px-4 py-2 bg-red-600 hover:bg-red-700 !text-white rounded-md text-sm font-semibold"
                     >
-                      Cancel Job
+                      Unclaim
                     </button>
                   )}
               </div>

@@ -107,8 +107,17 @@ export default function TechnicianDashboard({ onSelectWorkOrder }: Props) {
         {error && <div className="text-red-600 mb-3">{error}</div>}
 
         <div className="bg-gray-50 rounded-lg p-4 mb-6 flex gap-4 items-center">
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search requests" className="flex-1 px-3 py-2 border rounded-md text-sm" />
-          <select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value === "" ? "" : Number(e.target.value))} className="px-3 py-2 border rounded-md text-sm">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search requests"
+            className="flex-1 px-3 py-2 border border-gray-200 rounded-md text-sm bg-white"
+          />
+          <select
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value === "" ? "" : Number(e.target.value))}
+            className="px-3 py-2 border border-gray-200 rounded-md text-sm bg-white"
+          >
             <option value="">Categories</option>
             {categories?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>

@@ -251,7 +251,7 @@ export default function AdminCategoriesPage() {
                     <button
                       onClick={() => saveInitialFee(c.id)}
                       disabled={!!savingFee[c.id]}
-                      className="px-2 py-1 text-sm bg-blue-600 text-white rounded disabled:opacity-50"
+                      className="px-2 py-1 text-sm bg-blue-600 !text-white rounded disabled:opacity-50"
                     >
                       {savingFee[c.id] ? "Saving..." : "Save Fee"}
                     </button>
@@ -266,7 +266,7 @@ export default function AdminCategoriesPage() {
                     <button
                       onClick={() => removeCategory(c.id)}
                       disabled={!!deleting[c.id]}
-                      className="px-2 py-1 text-sm bg-red-600 text-white rounded disabled:opacity-50"
+                      className="px-2 py-1 text-sm bg-red-600 !text-white rounded disabled:opacity-50"
                     >
                       {deleting[c.id] ? "Deleting..." : "Delete"}
                     </button>

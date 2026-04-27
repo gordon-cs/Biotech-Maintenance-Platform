@@ -455,7 +455,7 @@ export default function WorkOrderSubmission() {
         </label>
 
         <div className="flex items-center gap-2">
-          <button type="submit" disabled={loading} className="px-3 py-1 bg-blue-600 text-white rounded disabled:opacity-60">
+          <button type="submit" disabled={loading} className="px-3 py-1 bg-blue-600 !text-white rounded disabled:opacity-60">
             {loading ? "Submitting..." : "Submit Work Order"}
           </button>
           {result && !result.id && <p className="text-sm text-red-600">{result.message}</p>}

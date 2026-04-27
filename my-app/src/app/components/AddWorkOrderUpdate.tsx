@@ -207,7 +207,7 @@ export default function AddWorkOrderUpdate({ workOrderId, currentStatus = "open"
   return (
     <div className="space-y-6">
       {/* Add Update Form */}
-      <div className="p-4 border rounded bg-white">
+      <div className="p-4 border border-gray-200 rounded bg-white">
         <h3 className="font-semibold mb-4">Add Update</h3>
         
         {isWorkOrderCompleted && (
@@ -280,7 +280,7 @@ export default function AddWorkOrderUpdate({ workOrderId, currentStatus = "open"
                   : "Add a comment or update..."
               }
               rows={4}
-              className="mt-1 block w-full border px-2 py-1 rounded"
+              className="mt-1 block w-full border border-gray-200 px-2 py-1 rounded bg-white"
               disabled={loading || isWorkOrderCompleted}
             />
           </label>
