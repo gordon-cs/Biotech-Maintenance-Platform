@@ -234,7 +234,7 @@ export default function ManagerClient() {
               </label>
 
               <label className="block">
-                <div className="text-sm mb-1">Category</div>
+                <div className="text-sm mb-1">Category *</div>
                 <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full border px-3 py-2 rounded" required>
                   <option value="">Select…</option>
                   {categories.map((c) => (

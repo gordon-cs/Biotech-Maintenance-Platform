@@ -381,7 +381,12 @@ export default function WorkOrderSubmission() {
             placeholder="Enter serial number (or N/A if unknown)"
             className="w-full border px-2 py-1 rounded"
           />
-          <div className="text-xs text-gray-500 mt-1">If you do not know the serial number, enter N/A.</div>
+          <div
+            className="mt-1 text-[12px] font-normal italic"
+            style={{ color: "#6b7280", opacity: 0.65 }}
+          >
+            If you do not know the serial number, enter N/A.
+          </div>
         </label>
 
         <label className="block mb-3">
@@ -399,6 +404,12 @@ export default function WorkOrderSubmission() {
             <option value="high">High</option>
             <option value="critical">Critical</option>
           </select>
+          <div
+            className="mt-1 text-[12px] font-normal italic"
+            style={{ color: "#6b7280", opacity: 0.65 }}
+          >
+            High-priority requests receive faster response times and may include additional charges.
+          </div>
         </label>
 
         <label className="block mb-3">
