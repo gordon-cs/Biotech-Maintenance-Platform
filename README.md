@@ -11,3 +11,5 @@ Biotech Maintenance Platform for Boston Biotech Management
 [View the Initial Setup Guide Google Doc](https://docs.google.com/document/d/1UmBzsSn8KSae8E6zIPa5BilChfpzylDUkqIbXDprjMg/edit?usp=sharing)
 
 [View the MVP Proposal Google Doc](https://docs.google.com/document/d/1okkQGsnzDkQsZZoRUl9LF_misE58Y3LKGDQUYEBdovY/edit?usp=sharing)
+
+[View the Final Presentation for the Project](https://docs.google.com/presentation/d/1Bg7Ld5sjFJ4IY9cfOV_S1QozkklpfxabtcXohnBMmG8/edit?usp=sharing)
