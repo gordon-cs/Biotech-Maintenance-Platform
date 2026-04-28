@@ -229,8 +229,15 @@ export default function AddressManagement() {
       await loadAddresses()
     } catch (err) {
       console.error("Error deleting address:", err)
-      const msg = err instanceof Error ? err.message : String(err)
-      setMessage(msg)
+      const errorCode = typeof err === "object" && err !== null ? (err as { code?: string }).code : undefined
+      const errorMessage = err instanceof Error ? err.message : typeof err === "object" && err !== null ? ((err as { message?: string }).message || "") : String(err)
+
+      if (errorCode === "23503" || /foreign key|referenced/i.test(errorMessage)) {
+        setMessage("This address is currently in use and cannot be deleted.")
+        return
+      }
+
+      setMessage(errorMessage || "Failed to delete address.")
     } finally {
       setSaving(false)
     }
