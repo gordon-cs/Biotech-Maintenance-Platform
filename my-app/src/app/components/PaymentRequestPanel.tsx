@@ -18,18 +18,41 @@ export default function PaymentRequestPanel({ selectedId, currentOrderStatus, on
   const [showForm, setShowForm] = useState(false)
   const [amount, setAmount] = useState("")
   const [submitting, setSubmitting] = useState(false)
-  const [platformFeePercent, setPlatformFeePercent] = useState<number>(0)
+  const [platformFeePercent, setPlatformFeePercent] = useState<number | null>(null)
+  const [platformFeeLoadError, setPlatformFeeLoadError] = useState<string | null>(null)
   const subscriptionRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
 
   // Load platform fee percent once
   useEffect(() => {
     const loadFee = async () => {
-      const { data } = await supabase
+      setPlatformFeeLoadError(null)
+
+      const { data, error } = await supabase
         .from("app_settings")
         .select("platform_fee_percent")
         .eq("id", 1)
         .maybeSingle()
-      if (data) setPlatformFeePercent(Number(data.platform_fee_percent) || 0)
+
+      if (error) {
+        setPlatformFeePercent(null)
+        setPlatformFeeLoadError(error.message || "Failed to load platform fee settings.")
+        return
+      }
+
+      if (!data) {
+        setPlatformFeePercent(null)
+        setPlatformFeeLoadError("Platform fee settings are missing.")
+        return
+      }
+
+      const feePercent = Number(data.platform_fee_percent)
+      if (!Number.isFinite(feePercent)) {
+        setPlatformFeePercent(null)
+        setPlatformFeeLoadError("Platform fee settings are invalid.")
+        return
+      }
+
+      setPlatformFeePercent(feePercent)
     }
     void loadFee()
   }, [])
