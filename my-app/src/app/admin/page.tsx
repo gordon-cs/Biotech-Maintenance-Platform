@@ -19,21 +19,21 @@ export default function AdminPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <button 
             onClick={() => router.push("/admin/users")} 
-            className="p-6 bg-white border rounded-lg text-left hover:shadow-md transition-shadow"
+            className="p-6 bg-white border border-gray-200 rounded-lg text-left hover:shadow-md transition-shadow"
           >
             <h2 className="text-xl font-semibold mb-2">Manage Users</h2>
             <p className="text-gray-600 text-sm">View and manage user roles and technician verification</p>
           </button>
           <button 
             onClick={() => router.push("/admin/workorders")} 
-            className="p-6 bg-white border rounded-lg text-left hover:shadow-md transition-shadow"
+            className="p-6 bg-white border border-gray-200 rounded-lg text-left hover:shadow-md transition-shadow"
           >
             <h2 className="text-xl font-semibold mb-2">Manage Work Orders</h2>
             <p className="text-gray-600 text-sm">View and manage all work orders</p>
           </button>
           <button 
             onClick={() => router.push("/admin/categories")} 
-            className="p-6 bg-white border rounded-lg text-left hover:shadow-md transition-shadow"
+            className="p-6 bg-white border border-gray-200 rounded-lg text-left hover:shadow-md transition-shadow"
           >
             <h2 className="text-xl font-semibold mb-2">Manage Categories</h2>
             <p className="text-gray-600 text-sm">Add, edit, or remove technician specialties</p>

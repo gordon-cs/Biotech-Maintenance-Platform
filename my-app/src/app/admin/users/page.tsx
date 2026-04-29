@@ -156,9 +156,9 @@ export default function AdminUsersPage() {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-8 bg-gray-50 text-black">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-semibold">Manage Users</h2>
+        <h2 className="text-2xl font-semibold text-black">Manage Users</h2>
         {loading ? <div className="text-sm text-gray-500">Loading...</div> : null}
       </div>
 
@@ -193,7 +193,7 @@ export default function AdminUsersPage() {
 
       {/* Users Table */}
       {activeTab === 'users' && (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="bg-white border border-gray-200 rounded-lg shadow overflow-hidden">
           <table className="w-full text-sm table-auto">
             <thead className="bg-gray-50">
               <tr className="text-left">
@@ -215,7 +215,7 @@ export default function AdminUsersPage() {
                         const selected = e.target.value
                         setUsers((prev) => prev.map((p) => (p.id === u.id ? { ...p, role: selected === "none" ? null : selected } : p)))
                       }}
-                      className="px-2 py-1 border rounded"
+                      className="px-2 py-1 border border-gray-300 rounded"
                     >
                       {AVAILABLE_ROLES.map((r) => (
                         <option key={r} value={r}>
