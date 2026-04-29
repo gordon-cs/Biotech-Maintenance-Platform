@@ -158,7 +158,7 @@ export default function PaymentRequestPanel({ selectedId, currentOrderStatus, on
       return
     }
 
-    const techAmount = parseFloat(rawAmount.toFixed(2))
+    const techAmount = Math.round(rawAmount * 100) / 100
     const customerTotal = parseFloat((techAmount * (1 + platformFeePercent / 100)).toFixed(2))
 
     setSubmitting(true)
