@@ -38,6 +38,13 @@ export default function AdminPage() {
             <h2 className="text-xl font-semibold mb-2">Manage Categories</h2>
             <p className="text-gray-600 text-sm">Add, edit, or remove technician specialties</p>
           </button>
+          <button 
+            onClick={() => router.push("/admin/settings")} 
+            className="p-6 bg-white border rounded-lg text-left hover:shadow-md transition-shadow"
+          >
+            <h2 className="text-xl font-semibold mb-2">Platform Settings</h2>
+            <p className="text-gray-600 text-sm">Configure platform usage fee applied to customer invoices</p>
+          </button>
         </div>
       </main>
     </div>

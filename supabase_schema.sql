@@ -196,7 +196,17 @@ CREATE TABLE public.invoices (
   bill_ap_bill_id text,
   invoice_type text DEFAULT 'service'::text,
   technician_payment_status text DEFAULT 'pending'::text,
-  technician_paid_at timestamptz
+  technician_paid_at timestamptz,
+  technician_amount numeric,
+  platform_fee_percent numeric NOT NULL DEFAULT 0
+);
+
+-- Singleton settings row — id is always 1
+CREATE TABLE public.app_settings (
+  id bigint PRIMARY KEY DEFAULT 1,
+  platform_fee_percent numeric NOT NULL DEFAULT 0,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT app_settings_singleton CHECK (id = 1)
 );
 
 
@@ -245,6 +255,7 @@ CREATE INDEX idx_wo_status ON public.work_orders USING btree (status);
 -- 5) RLS ENABLE + POLICIES
 -- =========================
 ALTER TABLE public.addresses             ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.app_settings          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.categories            ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.invoices              ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.labs                  ENABLE ROW LEVEL SECURITY;
@@ -253,6 +264,21 @@ ALTER TABLE public.technician_categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.technicians           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.work_order_updates    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.work_orders           ENABLE ROW LEVEL SECURITY;
+
+-- ---- app_settings
+CREATE POLICY app_settings_read_authenticated
+ON public.app_settings FOR SELECT
+TO authenticated
+USING (true);
+
+CREATE POLICY app_settings_write_admin
+ON public.app_settings FOR ALL
+TO public
+USING (is_admin())
+WITH CHECK (is_admin());
+
+-- Seed the singleton settings row
+INSERT INTO public.app_settings (id, platform_fee_percent) VALUES (1, 0) ON CONFLICT (id) DO NOTHING;
 
 -- ---- addresses
 CREATE POLICY addresses_debug_everyone
