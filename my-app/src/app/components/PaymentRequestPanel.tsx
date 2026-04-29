@@ -18,7 +18,21 @@ export default function PaymentRequestPanel({ selectedId, currentOrderStatus, on
   const [showForm, setShowForm] = useState(false)
   const [amount, setAmount] = useState("")
   const [submitting, setSubmitting] = useState(false)
+  const [platformFeePercent, setPlatformFeePercent] = useState<number>(0)
   const subscriptionRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
+
+  // Load platform fee percent once
+  useEffect(() => {
+    const loadFee = async () => {
+      const { data } = await supabase
+        .from("app_settings")
+        .select("platform_fee_percent")
+        .eq("id", 1)
+        .maybeSingle()
+      if (data) setPlatformFeePercent(Number(data.platform_fee_percent) || 0)
+    }
+    void loadFee()
+  }, [])
 
   // Set up real-time subscription for invoice changes
   useEffect(() => {
@@ -109,11 +123,13 @@ export default function PaymentRequestPanel({ selectedId, currentOrderStatus, on
 
   const submit = async () => {
     if (!selectedId) return
-    const total = parseFloat(amount || "0")
-    if (isNaN(total) || total <= 0) {
+    const techAmount = parseFloat(amount || "0")
+    if (isNaN(techAmount) || techAmount <= 0) {
       alert("Enter a valid amount")
       return
     }
+
+    const customerTotal = parseFloat((techAmount * (1 + platformFeePercent / 100)).toFixed(2))
 
     setSubmitting(true)
     try {
@@ -140,7 +156,9 @@ export default function PaymentRequestPanel({ selectedId, currentOrderStatus, on
           work_order_id: selectedId,
           lab_id: woRow.lab ?? null,
           created_by: user.id,
-          total_amount: total,
+          technician_amount: techAmount,
+          total_amount: customerTotal,
+          platform_fee_percent: platformFeePercent,
           payment_status: "unbilled",
           invoice_type: "service"
         })
@@ -210,7 +228,7 @@ export default function PaymentRequestPanel({ selectedId, currentOrderStatus, on
             <div className="text-sm text-gray-600 mt-1">Real-time monitoring active</div>
           </div>
         ) : (
-          <div className="flex items-center justify-end">
+          <div className="flex flex-col items-end gap-3">
             {!showForm ? (
               <button
                 onClick={() => setShowForm(true)}
@@ -224,38 +242,40 @@ export default function PaymentRequestPanel({ selectedId, currentOrderStatus, on
                   e.preventDefault()
                   void submit()
                 }}
-                className="flex items-center gap-3"
+                className="w-full space-y-3"
               >
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <span className="text-gray-500 text-sm">$</span>
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <span className="text-gray-500 text-sm">$</span>
+                    </div>
+                    <input
+                      className="pl-7 w-36 px-3 py-2 border rounded-md text-sm"
+                      type="number"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                    />
                   </div>
-                  <input
-                    className="pl-7 w-36 px-3 py-2 border rounded-md text-sm"
-                    type="number"
-                    step="0.01"
-                    placeholder="0.00"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                  />
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm disabled:opacity-60"
+                  >
+                    {submitting ? "Submitting..." : "Submit"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowForm(false)
+                      setAmount("")
+                    }}
+                    className="px-3 py-2 border rounded-md text-sm"
+                  >
+                    Cancel
+                  </button>
                 </div>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm disabled:opacity-60"
-                >
-                  {submitting ? "Submitting..." : "Submit"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowForm(false)
-                    setAmount("")
-                  }}
-                  className="px-3 py-2 border rounded-md text-sm"
-                >
-                  Cancel
-                </button>
               </form>
             )}
           </div>

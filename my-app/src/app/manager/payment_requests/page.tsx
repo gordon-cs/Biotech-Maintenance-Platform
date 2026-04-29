@@ -9,6 +9,8 @@ interface PaymentRequest {
   lab_id: number
   created_by: string
   total_amount: number
+  technician_amount?: number | null
+  platform_fee_percent?: number | null
   payment_status: string
   created_at: string
   invoice_type: string // 'initial_fee' or 'service'
@@ -395,26 +397,47 @@ export default function PaymentRequests() {
                   }`}>
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-semibold mb-1 ${
+                        <p className={`text-sm font-semibold mb-1 ${
                           selectedRequest.invoice_type === 'initial_fee' ? 'text-purple-900' : 'text-blue-900'
-                        }">
+                        }`}>
                           {selectedRequest.invoice_type === 'initial_fee' ? 'Platform Initial Fee' : 'Technician Service Fee'}
                         </p>
-                        <p className="text-xs ${
+                        <p className={`text-xs ${
                           selectedRequest.invoice_type === 'initial_fee' ? 'text-purple-700' : 'text-blue-700'
-                        }">
+                        }`}>
                           {selectedRequest.invoice_type === 'initial_fee' 
                             ? 'Platform service charge - paid to BBM'
                             : 'Service charge - paid to technician'}
                         </p>
                       </div>
-                      <p className="text-3xl font-bold ${
+                      <p className={`text-3xl font-bold ${
                         selectedRequest.invoice_type === 'initial_fee' ? 'text-purple-900' : 'text-blue-900'
-                      }">
+                      }`}>
                         ${selectedRequest.total_amount ? Number(selectedRequest.total_amount).toFixed(2) : '0.00'}
                       </p>
                     </div>
                   </div>
+
+                  {/* Platform fee breakdown (service invoices only) */}
+                  {selectedRequest.invoice_type === 'service' &&
+                    selectedRequest.technician_amount != null &&
+                    Number(selectedRequest.platform_fee_percent) > 0 && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 mb-4 text-sm text-amber-900 space-y-1">
+                      <p className="font-semibold mb-2">Invoice Breakdown</p>
+                      <div className="flex justify-between">
+                        <span>Technician service charge</span>
+                        <span>${Number(selectedRequest.technician_amount).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Platform usage fee ({Number(selectedRequest.platform_fee_percent)}%)</span>
+                        <span>+${(Number(selectedRequest.total_amount) - Number(selectedRequest.technician_amount)).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between font-bold border-t border-amber-300 pt-1 mt-1">
+                        <span>Customer total</span>
+                        <span>${Number(selectedRequest.total_amount).toFixed(2)}</span>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Lab Info */}
                   <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-lg border-2 border-blue-300 mb-6">
