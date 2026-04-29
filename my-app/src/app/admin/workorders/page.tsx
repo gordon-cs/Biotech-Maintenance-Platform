@@ -315,11 +315,11 @@ export default function AdminWorkOrdersPage() {
   }
 
   return (
-    <div>
+    <div className="p-8 bg-gray-50 text-black">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-2xl font-semibold">Manage Work Orders</h2>
+        <h2 className="text-2xl font-semibold !text-black">Manage Work Orders</h2>
         <div>
-          <button onClick={loadAll} className="px-3 py-1 border rounded">
+          <button onClick={loadAll} className="px-3 py-1 bg-white border border-gray-300 rounded">
             Refresh
           </button>
         </div>
@@ -330,7 +330,7 @@ export default function AdminWorkOrdersPage() {
       {loading ? (
         <div>Loading...</div>
       ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="bg-white border border-gray-200 rounded-lg shadow overflow-hidden">
           <table className="w-full text-sm table-auto">
             <thead className="bg-gray-50">
               <tr className="text-left">
@@ -366,7 +366,7 @@ export default function AdminWorkOrdersPage() {
                         <select
                           value={r.status ?? "open"}
                           onChange={(e) => changeStatus(r.id, e.target.value)}
-                          className="px-2 py-1 border rounded"
+                          className="px-2 py-1 border border-gray-300 rounded"
                           disabled={!!changing[r.id]}
                         >
                           {STATUS_OPTIONS.map((s) => (
@@ -383,7 +383,7 @@ export default function AdminWorkOrdersPage() {
                         <select
                           value={r.assigned_to ?? ""}
                           onChange={(e) => assignWorkOrder(r.id, e.target.value)}
-                          className="px-2 py-1 border rounded text-sm"
+                          className="px-2 py-1 border border-gray-300 rounded text-sm"
                           disabled={!!assigning[r.id]}
                         >
                           <option value="">— Select technician —</option>
@@ -402,7 +402,7 @@ export default function AdminWorkOrdersPage() {
                         <div className="flex flex-col items-start gap-2">
                           <button
                             onClick={() => setExpanded((s) => ({ ...s, [r.id]: !s[r.id] }))}
-                            className="px-2 py-1 border rounded text-xs"
+                            className="px-2 py-1 border border-gray-300 rounded text-xs"
                           >
                             {expanded[r.id] ? "Hide updates" : `Show updates (${r.updates?.length ?? 0})`}
                           </button>

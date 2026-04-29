@@ -177,12 +177,12 @@ export default function AdminCategoriesPage() {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-8 bg-gray-50 text-black">
       <main className="max-w-7xl mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-semibold">Manage Categories</h2>
+          <h2 className="text-2xl font-semibold text-black">Manage Categories</h2>
           <div className="flex items-center gap-3">
-            <button onClick={() => { setMessage(null); void loadAll(); }} className="px-3 py-1 border rounded">
+            <button onClick={() => { setMessage(null); void loadAll(); }} className="px-3 py-1 bg-white border border-gray-300 rounded">
               Refresh
             </button>
             {loading ? <div className="text-sm text-gray-500">Loading...</div> : null}
@@ -191,19 +191,19 @@ export default function AdminCategoriesPage() {
 
         {message && <div className="mb-3 text-sm text-red-600">{message}</div>}
 
-        <div className="bg-white rounded-lg shadow p-4 mb-6">
+        <div className="bg-white border border-gray-300 rounded-lg shadow p-4 mb-6">
           <div className="flex items-center gap-3">
             <input
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               placeholder="New category name"
-              className="px-2 py-2 border rounded w-64"
+              className="px-2 py-2 border border-gray-300 rounded w-64 bg-white"
             />
             <input
               value={newSlug}
               onChange={(e) => setNewSlug(e.target.value)}
               placeholder="optional slug"
-              className="px-2 py-2 border rounded w-48"
+              className="px-2 py-2 border border-gray-300 rounded w-48 bg-white"
             />
             <input
               value={newInitialFee}
@@ -212,7 +212,7 @@ export default function AdminCategoriesPage() {
               type="number"
               min="0"
               step="0.01"
-              className="w-28 px-2 py-2 border rounded"
+              className="w-28 px-2 py-2 border border-gray-300 rounded bg-white"
             />
             <button
               onClick={addCategory}
@@ -224,14 +224,14 @@ export default function AdminCategoriesPage() {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="bg-white border border-gray-300 rounded-lg shadow overflow-hidden">
           {loading ? (
             <div className="p-6">Loading...</div>
           ) : (
             <ul className="space-y-2 p-4">
               {cats.length === 0 && <li className="text-sm text-gray-600">No categories found.</li>}
               {cats.map((c) => (
-                <li key={c.id} className="flex items-center justify-between p-3 border rounded">
+                <li key={c.id} className="flex items-center justify-between p-3 border border-gray-200 rounded bg-white">
                   <div className="flex flex-col">
                     <span className="font-medium">{c.name ?? `#${c.id}`}</span>
                     <span className="text-xs text-gray-600">{c.slug ?? "—"}</span>
@@ -243,7 +243,7 @@ export default function AdminCategoriesPage() {
                     <input
                       value={feeDrafts[c.id] ?? ""}
                       onChange={(e) => setFeeDrafts((s) => ({ ...s, [c.id]: e.target.value }))}
-                      className="w-24 px-2 py-1 border rounded text-sm"
+                      className="w-24 px-2 py-1 border border-gray-200 rounded text-sm bg-white"
                       type="number"
                       min="0"
                       step="0.01"
@@ -251,7 +251,7 @@ export default function AdminCategoriesPage() {
                     <button
                       onClick={() => saveInitialFee(c.id)}
                       disabled={!!savingFee[c.id]}
-                      className="px-2 py-1 text-sm bg-blue-600 !text-white rounded disabled:opacity-50"
+                      className="px-2 py-1 text-sm bg-blue-600 text-white rounded disabled:opacity-50"
                     >
                       {savingFee[c.id] ? "Saving..." : "Save Fee"}
                     </button>
@@ -266,7 +266,7 @@ export default function AdminCategoriesPage() {
                     <button
                       onClick={() => removeCategory(c.id)}
                       disabled={!!deleting[c.id]}
-                      className="px-2 py-1 text-sm bg-red-600 !text-white rounded disabled:opacity-50"
+                      className="px-2 py-1 text-sm bg-red-600 text-white rounded disabled:opacity-50"
                     >
                       {deleting[c.id] ? "Deleting..." : "Delete"}
                     </button>

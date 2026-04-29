@@ -204,7 +204,7 @@ export default function ManagerClient() {
               <input
                 value={serviceArea}
                 onChange={(e) => setServiceArea(e.target.value)}
-                className="w-full border px-3 py-2 rounded"
+                className="w-full border border-gray-200 px-3 py-2 rounded bg-white"
                 placeholder="Short title or description"
               />
             </div>
@@ -214,7 +214,7 @@ export default function ManagerClient() {
               <select
                 value={selectedAddressId}
                 onChange={handleAddressChange}
-                className="w-full border px-3 py-2 rounded"
+                className="w-full border border-gray-200 px-3 py-2 rounded bg-white"
                 required
               >
                 <option value="">Select an address...</option>
@@ -230,12 +230,12 @@ export default function ManagerClient() {
             <div className="grid grid-cols-2 gap-4">
               <label className="block">
                 <div className="text-sm mb-1">Due Date</div>
-                <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full border px-3 py-2 rounded" />
+                <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full border border-gray-200 px-3 py-2 rounded bg-white" />
               </label>
 
               <label className="block">
                 <div className="text-sm mb-1">Category *</div>
-                <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full border px-3 py-2 rounded" required>
+                <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full border border-gray-200 px-3 py-2 rounded bg-white" required>
                   <option value="">Select…</option>
                   {categories.map((c) => (
                     <option key={c.id} value={c.slug}>
@@ -264,7 +264,7 @@ export default function ManagerClient() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             {workOrders.length > 0 ? (
               workOrders.map((order) => (
-                <div key={order.id} className="border rounded-lg p-4 bg-gray-50 flex flex-col h-48 relative">
+                <div key={order.id} className="border border-gray-200 rounded-lg p-4 bg-gray-50 flex flex-col h-48 relative">
                   {/* Status badge in top right */}
                   <div className="absolute top-3 right-3">
                     <span className={`px-2 py-1 text-xs rounded border font-medium ${getStatusBadgeStyle(order.status || '')}`}>
