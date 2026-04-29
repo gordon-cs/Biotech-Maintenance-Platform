@@ -146,12 +146,19 @@ export default function PaymentRequestPanel({ selectedId, currentOrderStatus, on
 
   const submit = async () => {
     if (!selectedId) return
-    const techAmount = parseFloat(amount || "0")
-    if (isNaN(techAmount) || techAmount <= 0) {
+
+    if (platformFeePercent === null) {
+      alert(platformFeeLoadError || "Platform fee settings are unavailable. Please try again.")
+      return
+    }
+
+    const rawAmount = parseFloat(amount || "0")
+    if (isNaN(rawAmount) || rawAmount <= 0) {
       alert("Enter a valid amount")
       return
     }
 
+    const techAmount = parseFloat(rawAmount.toFixed(2))
     const customerTotal = parseFloat((techAmount * (1 + platformFeePercent / 100)).toFixed(2))
 
     setSubmitting(true)
