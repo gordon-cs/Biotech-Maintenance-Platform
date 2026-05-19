@@ -195,6 +195,19 @@ export default function ManagerClient() {
   return (
     <div className="min-h-screen p-8 bg-gray-50 text-black">
       <main className="max-w-5xl mx-auto">
+        <section className="bg-white rounded p-6 shadow mb-8 flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold">Payments</h2>
+            <p className="text-sm text-gray-600">Open pending invoices and pay directly from the webapp.</p>
+          </div>
+          <Link
+            href="/manager/payment_requests"
+            className="px-4 py-2 bg-green-600 text-white rounded font-medium hover:bg-green-700 transition-colors"
+          >
+            View Payment Requests
+          </Link>
+        </section>
+
         <section className="bg-white rounded p-6 shadow mb-8">
           <h2 className="text-lg font-semibold mb-4">Quick Submit Work Order</h2>
 

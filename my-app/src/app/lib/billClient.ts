@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabaseClient';
+import { resolveBillPaymentUrl } from '@/lib/billPaymentLink'
 
 interface BillResponse {
   response_data: {
@@ -22,6 +23,13 @@ interface BillInvoiceResponse {
   paid?: number;
   amount?: number;
   amountPaid?: number;
+  [key: string]: unknown;
+}
+
+interface BillInvoiceRecord {
+  id: string;
+  invoiceNumber?: string;
+  customerId?: string;
   [key: string]: unknown;
 }
 
@@ -519,6 +527,189 @@ class BillClient {
     return { id }
   }
 
+  private normalizeInvoiceRecord(raw: unknown): BillInvoiceRecord | null {
+    if (!raw || typeof raw !== 'object') {
+      return null
+    }
+
+    const record = raw as Record<string, unknown>
+    const idValue = record.id
+    const id = typeof idValue === 'string' ? idValue : null
+
+    if (!id) {
+      return null
+    }
+
+    const invoiceNumberValue = record.invoiceNumber ?? record.invoice_number
+    const customerValue = record.customer
+    const customerIdValue =
+      typeof customerValue === 'object' && customerValue !== null
+        ? (customerValue as Record<string, unknown>).id
+        : record.customerId ?? record.customer_id
+
+    return {
+      ...record,
+      id,
+      invoiceNumber: typeof invoiceNumberValue === 'string' ? invoiceNumberValue : undefined,
+      customerId: typeof customerIdValue === 'string' ? customerIdValue : undefined,
+    }
+  }
+
+  private extractInvoiceCandidates(payload: unknown): BillInvoiceRecord[] {
+    if (!payload || typeof payload !== 'object') {
+      return []
+    }
+
+    const root = payload as Record<string, unknown>
+    const potentialCollections = [
+      root.data,
+      root.response_data,
+      root.items,
+      root.results,
+      root.invoices,
+    ]
+
+    const collected: BillInvoiceRecord[] = []
+
+    for (const candidate of potentialCollections) {
+      if (Array.isArray(candidate)) {
+        for (const entry of candidate) {
+          const normalized = this.normalizeInvoiceRecord(entry)
+          if (normalized) {
+            collected.push(normalized)
+          }
+        }
+      } else {
+        const normalized = this.normalizeInvoiceRecord(candidate)
+        if (normalized) {
+          collected.push(normalized)
+        }
+      }
+    }
+
+    const direct = this.normalizeInvoiceRecord(root)
+    if (direct) {
+      collected.push(direct)
+    }
+
+    return collected
+  }
+
+  async findARInvoiceByNumber(invoiceNumber: string, customerId?: string): Promise<BillInvoiceRecord | null> {
+    await this.ensureLoggedIn()
+
+    const encodedInvoiceNumber = encodeURIComponent(invoiceNumber)
+    const encodedCustomerId = customerId ? encodeURIComponent(customerId) : null
+    const candidateUrls = [
+      `${this.apiUrl}/invoices?invoiceNumber=${encodedInvoiceNumber}`,
+      `${this.apiUrl}/invoices?invoice_number=${encodedInvoiceNumber}`,
+      `${this.apiUrl}/invoices?search=${encodedInvoiceNumber}`,
+      encodedCustomerId
+        ? `${this.apiUrl}/invoices?customerId=${encodedCustomerId}&invoiceNumber=${encodedInvoiceNumber}`
+        : null,
+      `${this.apiUrl}/Invoice.json?invoiceNumber=${encodedInvoiceNumber}`,
+      `${this.apiUrl}/Invoice.json?invoice_number=${encodedInvoiceNumber}`,
+      `${this.apiUrl}/Invoice.json?search=${encodedInvoiceNumber}`,
+    ].filter((url): url is string => Boolean(url))
+
+    for (const url of candidateUrls) {
+      let response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'content-type': 'application/json',
+          'devKey': this.devKey,
+          'sessionId': this.sessionId!,
+        },
+      })
+
+      if (response.status === 401) {
+        await this.login()
+        response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'content-type': 'application/json',
+            'devKey': this.devKey,
+            'sessionId': this.sessionId!,
+          },
+        })
+      }
+
+      if (!response.ok) {
+        continue
+      }
+
+      const bodyText = await response.text()
+      let parsed: unknown = null
+
+      try {
+        parsed = bodyText ? JSON.parse(bodyText) : null
+      } catch {
+        continue
+      }
+
+      const candidates = this.extractInvoiceCandidates(parsed)
+      const exactMatch = candidates.find((candidate) => {
+        const invoiceNumberMatches = candidate.invoiceNumber === invoiceNumber
+        const customerMatches = !customerId || candidate.customerId === customerId
+        return invoiceNumberMatches && customerMatches
+      })
+
+      if (exactMatch) {
+        return exactMatch
+      }
+
+      const looseMatch = candidates.find((candidate) => candidate.invoiceNumber === invoiceNumber)
+      if (looseMatch) {
+        return looseMatch
+      }
+    }
+
+    const requestBodies = [
+      {
+        obj: {
+          invoiceNumber,
+          ...(customerId ? { customerId } : {}),
+        },
+      },
+      {
+        invoiceNumber,
+        ...(customerId ? { customerId } : {}),
+      },
+    ]
+
+    const candidatePaths = [
+      '/Crud/Read/Invoice.json',
+      '/Crud/Get/Invoice.json',
+    ]
+
+    for (const path of candidatePaths) {
+      for (const body of requestBodies) {
+        try {
+          const parsed = await this.request<unknown>('POST', path, body)
+          const candidates = this.extractInvoiceCandidates(parsed)
+          const exactMatch = candidates.find((candidate) => {
+            const invoiceNumberMatches = candidate.invoiceNumber === invoiceNumber
+            const customerMatches = !customerId || candidate.customerId === customerId
+            return invoiceNumberMatches && customerMatches
+          })
+
+          if (exactMatch) {
+            return exactMatch
+          }
+
+          const looseMatch = candidates.find((candidate) => candidate.invoiceNumber === invoiceNumber)
+          if (looseMatch) {
+            return looseMatch
+          }
+        } catch {
+          // Try the next endpoint/body shape.
+        }
+      }
+    }
+
+    return null
+  }
+
   // Vendor Bill 생성 (BBM → 테크니션)
   async createVendorBill(data: {
     vendorId: string
@@ -566,7 +757,10 @@ class BillClient {
   }
 
   // Fetch invoice details from Bill.com (for payment status sync)
-  async getInvoiceStatus(billInvoiceId: string, retried = false): Promise<{ status: string; paid: number; amount: number; amountPaid: number }> {
+  async getInvoiceStatus(
+    billInvoiceId: string,
+    retried = false
+  ): Promise<{ status: string; paid: number; amount: number; amountPaid: number; paymentUrl: string | null }> {
     await this.ensureLoggedIn()
 
     const url = `${this.apiUrl}/invoices/${billInvoiceId}`
@@ -612,6 +806,7 @@ class BillClient {
         paid: invoiceData?.paid || 0,
         amount: invoiceData?.amount || 0,
         amountPaid: invoiceData?.amountPaid || 0,
+        paymentUrl: resolveBillPaymentUrl(result),
       }
     } catch (error) {
       console.error(`[BillClient] Failed to fetch invoice ${billInvoiceId}:`, error)

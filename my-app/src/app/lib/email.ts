@@ -34,6 +34,8 @@ type InvoiceEmailData = {
   workOrderTitle: string
   amount: number
   dueDate: string
+  billInvoiceId?: string | number
+  paymentUrl?: string | null
 }
 
 export async function sendInvoiceNotificationEmail(
@@ -47,6 +49,8 @@ export async function sendInvoiceNotificationEmail(
   const invoiceTypeLabel = data.invoiceType === 'initial_fee' 
     ? '🏢 Platform Initial Fee'
     : '🔧 Service Fee'
+
+  const ctaUrl = `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/manager/payment_requests`
 
   const emailHtml = `
     <!DOCTYPE html>
@@ -121,7 +125,7 @@ export async function sendInvoiceNotificationEmail(
             </div>
             
             <div class="action-section">
-              <a href="${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/manager/payment_requests" class="button">
+              <a href="${ctaUrl}" class="button" target="_blank" rel="noopener noreferrer">
                 View Invoice & Pay
               </a>
             </div>
@@ -161,8 +165,8 @@ Amount Due: $${Number(data.amount).toFixed(2)}
 ---
 
 Next Steps:
-Visit the payment portal to view and pay this invoice: 
-${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/manager/payment_requests
+Visit the payment portal to view and pay this invoice:
+${ctaUrl}
 
 ---
 

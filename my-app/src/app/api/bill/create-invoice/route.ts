@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { billClient } from '@/lib/billClient'
+import { resolveBillPaymentUrl } from '@/lib/billPaymentLink'
 
 // Create admin client for bypassing RLS
 const supabaseAdmin = createClient(
@@ -39,6 +40,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    if (profileError || !profile) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const { data: invoice, error: invoiceError } = await supabaseAdmin
       .from('invoices')
       .select('*')
@@ -69,6 +80,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Lab not found' }, { status: 404 })
     }
 
+    const isAdmin = (profile.role || '').toString().toLowerCase() === 'admin'
+    const isLabManager = user.id === lab.manager_id
+
+    if (!isAdmin && !isLabManager) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
     const { data: manager, error: managerError } = await supabaseAdmin
       .from('profiles')
       .select('email, full_name')
@@ -84,6 +102,56 @@ export async function POST(request: NextRequest) {
 
     if (!invoice.total_amount || Number(invoice.total_amount) <= 0) {
       return NextResponse.json({ error: 'Invalid amount' }, { status: 400 })
+    }
+
+    if (invoice.bill_ar_invoice_id) {
+      const paymentUrl = resolveBillPaymentUrl(invoice)
+      const invoiceUpdates: {
+        payment_status?: 'awaiting_payment'
+        payment_url?: string
+        updated_at?: string
+      } = {}
+
+      if (invoice.payment_status === 'unbilled') {
+        invoiceUpdates.payment_status = 'awaiting_payment'
+      }
+
+      if (paymentUrl && invoice.payment_url !== paymentUrl) {
+        invoiceUpdates.payment_url = paymentUrl
+      }
+
+      if (Object.keys(invoiceUpdates).length > 0) {
+        invoiceUpdates.updated_at = new Date().toISOString()
+
+        let { error: existingUpdateError } = await supabaseAdmin
+          .from('invoices')
+          .update(invoiceUpdates)
+          .eq('id', invoiceId)
+
+        // Backward-compatible fallback when payment_url column is not yet migrated.
+        if (existingUpdateError && invoiceUpdates.payment_url && /payment_url/i.test(existingUpdateError.message)) {
+          const { payment_url: _ignorePaymentUrl, ...fallbackUpdates } = invoiceUpdates
+          const fallbackResult = await supabaseAdmin
+            .from('invoices')
+            .update(fallbackUpdates)
+            .eq('id', invoiceId)
+          existingUpdateError = fallbackResult.error
+        }
+
+        if (existingUpdateError) {
+          return NextResponse.json({ error: existingUpdateError.message }, { status: 500 })
+        }
+      }
+
+      return NextResponse.json(
+        {
+          success: true,
+          arInvoiceId: invoice.bill_ar_invoice_id,
+          paymentUrl,
+          alreadyCreated: true,
+        },
+        { status: 200 }
+      )
     }
 
     let billCustomerId: string | null = lab.bill_customer_id
@@ -114,9 +182,10 @@ export async function POST(request: NextRequest) {
       ? `Platform Fee - ${workOrder.title || 'Work Order'}`
       : `Service Fee - ${workOrder.title || 'Work Order'}`
     
+    // Use the local invoice id to keep Bill.com invoice numbers unique and idempotent per invoice record.
     const invoiceNumber = isInitialFee
-      ? `WO-${workOrder.id}-INITIAL`
-      : `WO-${workOrder.id}-SERVICE`
+      ? `WO-${workOrder.id}-INITIAL-INV-${invoice.id}`
+      : `WO-${workOrder.id}-SERVICE-INV-${invoice.id}`
 
     const arInvoice = await billClient.createARInvoice({
       customerId: billCustomerId!,
@@ -127,29 +196,138 @@ export async function POST(request: NextRequest) {
       amount: Number(invoice.total_amount),
       customerEmail: manager.email,
       customerName: manager.full_name || lab.name,
-    })
+    }).catch(async (createError: unknown) => {
+      const createErrorMessage = createError instanceof Error ? createError.message : String(createError)
+      const duplicateInvoiceError = /duplicate|already exists|invoice number|BDC_1171/i.test(createErrorMessage)
 
-    const { error: updateError } = await supabaseAdmin
-      .from('invoices')
-      .update({
-        bill_ar_invoice_id: arInvoice.id,
+      if (!duplicateInvoiceError) {
+        throw createError
+      }
+
+      console.warn('[bill/create-invoice] Duplicate invoice detected, attempting recovery lookup:', {
+        invoiceId: invoice.id,
+        invoiceNumber,
+      })
+
+      const candidateInvoiceNumbers = Array.from(
+        new Set(
+          [
+            invoiceNumber,
+            isInitialFee ? `WO-${workOrder.id}-INITIAL` : `WO-${workOrder.id}-SERVICE`,
+            `WO-${workOrder.id}`,
+          ].filter((candidate): candidate is string => Boolean(candidate && candidate.trim()))
+        )
+      )
+
+      let existingArInvoice: Awaited<ReturnType<typeof billClient.findARInvoiceByNumber>> = null
+
+      for (const candidateInvoiceNumber of candidateInvoiceNumbers) {
+        existingArInvoice = await billClient.findARInvoiceByNumber(candidateInvoiceNumber, billCustomerId!)
+        if (existingArInvoice?.id) {
+          break
+        }
+      }
+
+      if (!existingArInvoice?.id) {
+        throw new Error(
+          `Bill.com reported duplicate invoice number (${invoiceNumber}), but no existing invoice was found for tried numbers: ${candidateInvoiceNumbers.join(', ')}. ${createErrorMessage}`
+        )
+      }
+
+      const recoveredPaymentUrl = resolveBillPaymentUrl(existingArInvoice)
+
+      const recoveredInvoiceUpdates: {
+        bill_ar_invoice_id: string
+        payment_status: 'awaiting_payment'
+        updated_at: string
+        payment_url?: string
+      } = {
+        bill_ar_invoice_id: existingArInvoice.id,
         payment_status: 'awaiting_payment',
         updated_at: new Date().toISOString(),
-      })
+      }
+
+      if (recoveredPaymentUrl) {
+        recoveredInvoiceUpdates.payment_url = recoveredPaymentUrl
+      }
+
+      let { error: recoveredUpdateError } = await supabaseAdmin
+        .from('invoices')
+        .update(recoveredInvoiceUpdates)
+        .eq('id', invoiceId)
+
+      // Backward-compatible fallback when payment_url column is not yet migrated.
+      if (
+        recoveredUpdateError &&
+        recoveredInvoiceUpdates.payment_url &&
+        /payment_url/i.test(recoveredUpdateError.message)
+      ) {
+        const { payment_url: _ignorePaymentUrl, ...fallbackUpdates } = recoveredInvoiceUpdates
+        const fallbackResult = await supabaseAdmin
+          .from('invoices')
+          .update(fallbackUpdates)
+          .eq('id', invoiceId)
+        recoveredUpdateError = fallbackResult.error
+      }
+
+      if (recoveredUpdateError) {
+        throw new Error(recoveredUpdateError.message)
+      }
+
+      return {
+        id: existingArInvoice.id,
+        paymentUrl: recoveredPaymentUrl,
+        alreadyCreated: true,
+      }
+    })
+
+    const paymentUrl = resolveBillPaymentUrl(arInvoice)
+
+    const invoiceUpdates: {
+      bill_ar_invoice_id: string
+      payment_status: 'awaiting_payment'
+      updated_at: string
+      payment_url?: string
+    } = {
+      bill_ar_invoice_id: arInvoice.id,
+      payment_status: 'awaiting_payment',
+      updated_at: new Date().toISOString(),
+    }
+
+    if (paymentUrl) {
+      invoiceUpdates.payment_url = paymentUrl
+    }
+
+    let { error: updateError } = await supabaseAdmin
+      .from('invoices')
+      .update(invoiceUpdates)
       .eq('id', invoiceId)
 
+    // Backward-compatible fallback when payment_url column is not yet migrated.
+    if (updateError && invoiceUpdates.payment_url && /payment_url/i.test(updateError.message)) {
+      const { payment_url: _ignorePaymentUrl, ...fallbackUpdates } = invoiceUpdates
+      const fallbackResult = await supabaseAdmin
+        .from('invoices')
+        .update(fallbackUpdates)
+        .eq('id', invoiceId)
+      updateError = fallbackResult.error
+    }
+
     if (updateError) {
-      return NextResponse.json({ error: 'Update failed' }, { status: 500 })
+      return NextResponse.json({ error: updateError.message }, { status: 500 })
     }
 
     return NextResponse.json(
       {
         success: true,
         arInvoiceId: arInvoice.id,
+        paymentUrl,
+        alreadyCreated: 'alreadyCreated' in arInvoice && arInvoice.alreadyCreated === true,
       },
       { status: 200 }
     )
   } catch (error: unknown) {
+    console.error('[bill/create-invoice] Error:', error)
     const errorMessage = error instanceof Error ? error.message : 'Failed to create AR invoice'
     return NextResponse.json(
       { error: errorMessage },

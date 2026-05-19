@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import { resolveBillPaymentUrl } from '@/lib/billPaymentLink'
 
 interface PaymentRequest {
   id: number
@@ -10,6 +11,8 @@ interface PaymentRequest {
   created_by: string
   total_amount: number
   payment_status: string
+  bill_ar_invoice_id?: string | null
+  payment_url?: string | null
   created_at: string
   invoice_type: string // 'initial_fee' or 'service'
   work_orders?: {
@@ -97,7 +100,7 @@ export default function PaymentRequests() {
                 if (exists) {
                   // UPDATE: only apply scalar changes to preserve existing joined data
                   return prev.map((r) =>
-                    r.id === updated.id ? { ...r, payment_status: updated.payment_status } : r
+                    r.id === updated.id ? { ...r, payment_status: updated.payment_status, payment_url: updated.payment_url ?? r.payment_url } : r
                   )
                 }
                 return prev
@@ -153,16 +156,44 @@ export default function PaymentRequests() {
         return
       }
 
+      const { data: workOrders, error: workOrdersError } = await supabase
+        .from('work_orders')
+        .select('id')
+        .in('lab', labIds)
+
+      if (workOrdersError) {
+        console.error('Error loading work orders for payment requests:', workOrdersError)
+        return
+      }
+
+      const workOrderIds = (workOrders || [])
+        .map((wo) => {
+          if (typeof wo.id === 'number') return wo.id
+          if (typeof wo.id === 'string' && wo.id.trim() !== '') {
+            const parsed = Number(wo.id)
+            return Number.isFinite(parsed) ? parsed : null
+          }
+          return null
+        })
+        .filter((id): id is number => id !== null)
+
+      if (workOrderIds.length === 0) {
+        setRequests([])
+        setLoading(false)
+        return
+      }
+
       // Fetch unbilled and awaiting_payment invoices (both initial_fee and service types)
       const { data, error } = await supabase
         .from('invoices')
         .select(INVOICE_SELECT)
         .in('payment_status', ['unbilled', 'awaiting_payment'])
-        .in('lab_id', labIds)
+        .in('work_order_id', workOrderIds)
         .order('work_order_id', { ascending: false })
         .order('invoice_type', { ascending: true }) // initial_fee first, then service
 
       if (error) {
+        console.error('Error loading payment requests invoices:', error)
         return
       }
 
@@ -218,7 +249,29 @@ export default function PaymentRequests() {
       const result = await response.json()
 
       if (response.ok) {
-        alert('Payment approved and sent to Bill.com!')
+        const returnedPaymentUrl = typeof result.paymentUrl === 'string' ? result.paymentUrl : null
+        const fallbackPaymentUrl =
+          request.payment_url ??
+          (selectedRequest && selectedRequest.id === request.id ? selectedRequest.payment_url ?? null : null)
+        const effectivePaymentUrl = returnedPaymentUrl || fallbackPaymentUrl
+
+        if (returnedPaymentUrl) {
+          setRequests((prev) =>
+            prev.map((r) =>
+              r.id === request.id
+                ? { ...r, payment_status: 'awaiting_payment', payment_url: returnedPaymentUrl }
+                : r
+            )
+          )
+
+          setSelectedRequest((prev) =>
+            prev && prev.id === request.id
+              ? { ...prev, payment_status: 'awaiting_payment', payment_url: returnedPaymentUrl }
+              : prev
+          )
+        }
+
+        alert(result.alreadyCreated ? 'Payment was already sent to Bill.com.' : 'Payment approved and sent to Bill.com!')
         loadPaymentRequests()
       } else {
         alert(`Failed to approve payment: ${result.error}`)
@@ -234,21 +287,69 @@ export default function PaymentRequests() {
     setIsSyncing(true)
 
     try {
+      const billArInvoiceId =
+        typeof request.bill_ar_invoice_id === 'string' && request.bill_ar_invoice_id.trim() !== ''
+          ? request.bill_ar_invoice_id.trim()
+          : null
+
+      if (!billArInvoiceId && request.payment_status === 'awaiting_payment') {
+        alert('This payment does not have a Bill.com invoice id yet. Please click Approve & Pay via Bill.com first.')
+        return
+      }
+
+      const { data: { session } } = await supabase.auth.getSession()
+
+      if (!session) {
+        alert('Please login first')
+        return
+      }
+
       const response = await fetch('/api/bill/sync-status', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ invoiceId: request.id })
+        body: JSON.stringify({ invoiceId: request.id, billArInvoiceId })
       })
 
       const result = await response.json()
 
       if (response.ok) {
+        const returnedPaymentUrl = typeof result.paymentUrl === 'string' ? result.paymentUrl : null
+        const fallbackPaymentUrl =
+          request.payment_url ??
+          (selectedRequest && selectedRequest.id === request.id ? selectedRequest.payment_url ?? null : null)
+        const effectivePaymentUrl = returnedPaymentUrl || fallbackPaymentUrl
+
+        if (returnedPaymentUrl) {
+          setRequests((prev) =>
+            prev.map((r) =>
+              r.id === request.id
+                ? { ...r, payment_url: returnedPaymentUrl, payment_status: result.status || r.payment_status }
+                : r
+            )
+          )
+
+          setSelectedRequest((prev) =>
+            prev && prev.id === request.id
+              ? { ...prev, payment_url: returnedPaymentUrl, payment_status: result.status || prev.payment_status }
+              : prev
+          )
+        }
+
         if (result.status === 'paid') {
           alert('Payment confirmed! Status updated to Paid.')
         } else {
-          alert('Payment is still pending in Bill.com')
+          const shouldOpenPaymentPage = effectivePaymentUrl
+            ? confirm('Payment is still pending in Bill.com. Open the Bill.com payment page now?')
+            : false
+
+          if (shouldOpenPaymentPage && effectivePaymentUrl) {
+            window.open(effectivePaymentUrl, '_blank', 'noopener,noreferrer')
+          } else {
+            alert('Payment is still pending in Bill.com')
+          }
         }
         loadPaymentRequests()
       } else {
@@ -260,6 +361,8 @@ export default function PaymentRequests() {
       setIsSyncing(false)
     }
   }
+
+  const selectedPaymentUrl = selectedRequest ? resolveBillPaymentUrl(selectedRequest) : null
 
   if (loading) {
     return (
@@ -501,6 +604,16 @@ export default function PaymentRequests() {
                         </div>
                       </div>
                     </div>
+                    {selectedPaymentUrl && (
+                      <a
+                        href={selectedPaymentUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mb-4 inline-flex w-full items-center justify-center rounded-lg border-2 border-green-600 bg-white py-3 px-6 font-semibold text-green-700 transition-all hover:bg-green-50"
+                      >
+                        Open Bill.com Payment Page
+                      </a>
+                    )}
                     <button
                       onClick={() => handleSyncStatus(selectedRequest)}
                       disabled={isSyncing}
@@ -523,8 +636,8 @@ export default function PaymentRequests() {
                   <p className="text-sm text-blue-800">
                     <strong>ℹ️ What happens next?</strong><br/>
                     • AR Invoice will be created in Bill.com<br/>
-                    • Payment link will be emailed to the lab manager<br/>
-                    • Lab manager clicks &quot;Pay&quot; in email → pays on Bill.com hosted page<br/>
+                    • Payment link is available here in the webapp<br/>
+                    • Lab manager opens this page and clicks the payment button → pays on Bill.com hosted page<br/>
                     • Payment status automatically updates to &quot;Paid&quot; via webhook
                   </p>
                 </div>
